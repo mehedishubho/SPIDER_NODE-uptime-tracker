@@ -240,4 +240,29 @@ Everything else the gate depends on held up under adversarial pressure: all 25 �
 
 ---
 
+## 10. Verdict record — gap path taken (plan 01-05 Task 3, D-16/D-18)
+
+> Appended 2026-09-09 by the plan 01-05 continuation executor session. Records what was — and was deliberately **not** — written into the verdict document.
+
+- **Date:** 2026-09-09
+- **Outcome:** the checkpoint ratified **gaps** (§9), so per D-16/D-18 the verdict does **NOT flip**. `docs/ARCHITECTURE-REVIEW.md` was **left untouched by this plan**:
+  - §1 still carries the original **NOT READY** verdict — no flipped READY heading, no re-review date/reviewer line added to it;
+  - no "Verdict history" subsection was created (there is no flipped verdict to preserve history beneath);
+  - no "Re-review" section was appended to the review document (this report is the re-review's record of evidence);
+  - the §9 checklist boxes were not toggled.
+  - **Byte-identity evidence:** the file is untracked in git; `git hash-object` before and after Task 3 both yield `520c9409da45bd2c9ab9866fe124403ef6cb7ef3` — the gap-path acceptance criterion ("§1 is byte-identical to its pre-task state") holds for the whole document, not just §1.
+- **Escalated findings — the concrete list that goes to the user (D-18, "remaining gaps escalate with a concrete list"):**
+
+  | # | Severity | Gap | Fix required |
+  |---|---|---|---|
+  | RR-01 | HIGH | S-1's network-egress layer (OS/network-level deny-private-ranges, allow-80/443-only on the worker host) absent from audit §15 and `DEPLOY-RUNBOOK.md` | Add the egress-control spec under §15's S-1 marker + operator firewall steps in the runbook's target-topology section |
+  | RR-02 | MEDIUM | `maintenance.ts # cleanup, uptime recompute` file-tree comment (audit §15, L797) contradicts the locked D-6 decision (§14.1 / §16.5) | Replace with the real maintenance-lane jobs (cleanup, ping-rollup, `write_guards` pruning) |
+  | RR-03 | MEDIUM | §23 item 5 (L1160) still names a "Redis-down fallback write" test — a mechanism §13.2 (R-1) forbids | Replace with the real degradation assertions (503 enqueue, pause-by-design, Postgres intact) or delete and rely on item 6 |
+  | RR-04 | LOW | Three "spike" wordings (§12 L453, §20 M2 L1090, §24 step 7 L1241) contradict A-1's "gate, not a spike" (§12.2 L526) | Reword to compatibility-gate/canary language under a small amendment marker |
+
+- **What is NOT needed:** no architectural change — all four findings are documentation-scope fixes inside already-amended sections (RR-04's §20/§24 sit in unamended sections; minimal-edit discipline permits targeted wording fixes under a small marker).
+- **Next step (D-18 accounting):** **one fix cycle remains.** Author a follow-up plan with a **fresh agent** applying RR-01..RR-04 to `docs/ARCHITECTURE-AUDIT.md` and `docs/DEPLOY-RUNBOOK.md`; then this adversarial re-review re-runs as **cycle 2 of max 2**. Clean cycle-2 pass + fresh ratification → verdict flips per D-16. Gaps after cycle 2 → permanent escalation, verdict stays NOT READY. No READY-with-exceptions exists.
+
+---
+
 *Report: 01-REREVIEW.md · Reviewer session: plan 01-05 wave 5 executor · 2026-09-09*

@@ -481,25 +481,98 @@ Operational rules:
 
 ## 14. Proposed BullMQ architecture
 
-Queues (single Redis, prefix `bull`):
+*Amended 2026-09-09 (resolves J-1, J-5, J-6; §9 items 1, 5, 6)*
 
-| Queue | Producer | Consumer | Jobs |
+All recurring work is produced by **BullMQ 6 Job Schedulers**: every scheduler is created or updated idempotently at worker boot via `upsertJobScheduler(schedulerId, { every | pattern }, { name, data, opts })` — the v6 primitive that replaced the legacy recurring-job option (removed in v6). No other recurring-job mechanism exists in this design. Single Redis, prefix `bull`.
+
+### 14.1 Queue topology (D-12)
+
+| Queue / lane | Producer | Consumer / worker | Concurrency | Priority | Rate limit | removeOnComplete | removeOnFail | Stalled config |
+|---|---|---|---|---|---|---|---|---|
+| `monitor-scheduler` — `tick` | Job Scheduler `scheduler-tick` (worker boot, every 30 s) | scheduler worker | 1 — one tick at a time | **1** — cadence-critical; explicit on every lane | none — cadence bounded by the 30 s scheduler period | `{ age: 300, count: 100 }` | `{ age: 604800 }` | defaults: `stalledInterval` 30000, `maxStalledCount` 1 (verify against Phase 4 BullMQ 6 research) |
+| `monitor-checks` — `check { monitorId }` (manual lane) | API routes: manual check (Q-5 enqueue-and-poll), monitor-create first check | check pool (§15) | 10 — check pool baseline | **1** (J-6) | per-user at the API: 1 per monitor / 30 s, 6 per minute / user (D-13); no queue-level limiter | `{ age: 3600, count: 5000 }` | `{ age: 604800 }` (D-14, best-effort) | `lockDuration` 30000, `stalledInterval` 30000, `maxStalledCount` 1 + graceful shutdown (J-3; verify against Phase 4 BullMQ 6 research) |
+| `monitor-checks` — `check { monitorId }` (non-UP lane) | scheduler tick step 3 (§14.2) | check pool (§15) | shared 10 | **1** (J-6) | none — bounded by claim LIMIT 500 / tick | shared | shared | shared |
+| `monitor-checks` — `check { monitorId }` (routine lane) | scheduler tick steps 3–4 (§14.2) | check pool (§15) | shared 10 | **10** (J-6; droppable under the backlog gate) | none — volume bounded by claim LIMIT 500 / tick | shared | shared | shared |
+| `db-writes` — `relay-pass` | Job Scheduler `outbox-relay` (every 5 s) | writer pool | 5 | **1** — DOWN-alert delivery depends on it (D-2) | none — bounded by relay batch 100 (§16.3) | `{ age: 3600, count: 5000 }` | `{ age: 604800 }` | defaults (verify against Phase 4 BullMQ 6 research) |
+| `db-writes` — `flush-monitor-aggregate { monitorId, batchId }` | Job Scheduler `flush-pass` (every 30 s; buffer threshold checked each pass) | writer pool | shared 5 | **10** — routine Tier 2 persistence; guarded and loss-tolerable (§16.2) | none — bounded by the buffer window | shared | shared | shared |
+| `alerts` — `send-alert { incidentId, eventType, channels[] }` | outbox relay (§16.3) — never the check handler directly (D-2) | notifier pool | 5 — separate from checks so slow Telegram/SMTP never stalls check lanes | **1** — transition-adjacent, never droppable | none at queue level; ≤ 3 attempts (D-4), channel-level throttling in the processor | `{ age: 3600, count: 1000 }` | `{ age: 604800 }` (D-14, best-effort) | defaults (verify against Phase 4 BullMQ 6 research) |
+| `maintenance` — `cleanup`, `ping-rollup` | Job Schedulers (`cleanup` daily off-peak; `ping-rollup` optional hourly) + admin API trigger | maintenance worker | 1 — batched retention deletes never parallelize (D-7) | **5** | none — scheduled off-peak | `{ age: 86400 }` | `{ age: 604800 }` | defaults (verify against Phase 4 BullMQ 6 research) |
+| `email-transactional` — `send-email { to, template, params }` | API routes (register, forgot-password); Better Auth hooks (Phase 7, §17) | notifier pool | 5 | **5** — user-facing, never monitoring-critical | none at queue level; provider 429/5xx map to retryable typed errors (§17) | `{ age: 86400, count: 1000 }` | `{ age: 604800 }` | defaults (verify against Phase 4 BullMQ 6 research) |
+
+Per-lane attempts/backoff:
+
+- `monitor-checks`: `attempts: 3`, exponential backoff from 5 s — a throw is an infrastructure failure only (J-4; §15.1 step 5).
+- `db-writes` (both lanes): `attempts: 5`, exponential from 5 s — retries make rule 14 real; guarded writes are idempotent (J-2).
+- `alerts`: `attempts: 3`, exponential from 10 s (the D-4 attempt bound); a permanent send failure (invalid chat target, hard-rejected address) throws `UnrecoverableError` so hopeless sends dead-letter instead of retrying — the BullMQ 6 pattern, not a discard call.
+- `email-transactional`: `attempts: 5`, exponential from 10 s (§17).
+- `tick`: `attempts: 1` — the next 30 s period supersedes any retry. `relay-pass`: `attempts: 5` — idempotent by §16.3.
+
+**Why every lane carries an explicit priority.** BullMQ's default priority value 0 means *no explicit priority*, and jobs without an explicit priority are processed **before** jobs that have one (verified against BullMQ source in the Phase 1 research; lower numbers run first among prioritized jobs). Any unprioritized lane would therefore queue-jump every prioritized lane — an unprioritized routine-check lane would outrank manual and transition-candidate checks, inverting J-6. Reference assignment: manual/transition 1, maintenance 5, routine 10 — refined above with rationale (cadence- and transition-critical lanes 1, user-facing non-monitoring 5, routine droppable 10); priority orders jobs **within** a queue only, so cross-queue values never compete.
+
+**J-6 lane assignment and worst-case latency bound.** Manual checks (API "check now") and checks for monitors currently in a non-UP state run at priority 1; routine checks for UP monitors run at priority 10. A priority-1 job queues only behind other priority-1 jobs, so its worst-case dequeue latency is `(priority-1 depth x per-job time) / concurrency = (priority-1 depth x 10 s) / 10`. Priority-1 depth is bounded by the non-UP monitor count M plus manual admissions (≤ 6 / min / user, D-13): with M = 100 during a broad incident the worst case is ~100 s, and the J-5 backlog gate (§14.2 step 4) plus priority-10 droppability keep routine backlog from ever sitting ahead of priority-1 work. Monitors in a non-UP state get priority 1 because their next check can carry the RECOVERED transition — the case J-6 exists for (recovery alerts arriving minutes late during incidents, when backlog is largest).
+
+**Deliberately absent jobs:** `recompute-uptime` (D-6 / §16.5 — lifetime counters are authoritative; the job has no algorithm and no purpose in v1) and `record-pings-bulk` (Tier 2 persistence is the single guarded flush UPDATE of §16.2 — there is no bulk ping-row writer to schedule).
+
+### 14.2 Scheduler tick algorithm (D-07)
+
+1. **Tick idempotency.** The `tick` job is produced exclusively by the Job Scheduler `scheduler-tick`, declared at worker boot: `upsertJobScheduler('scheduler-tick', { every: 30_000 }, { name: 'tick' })`. The upsert is idempotent — concurrent worker boots and post-restart re-declarations converge on exactly one active scheduler, and at most one delayed `tick` job exists per scheduler id, so N worker processes never multiply tick volume. The §13 `lock:scheduler` leader lock is retained as defense-in-depth against overlapping ticks after Redis restarts; correctness never depends on it — step 2 is the guard.
+2. **Claim.** Execute the claim transaction (§14.3) in a single round trip; it returns the claimed `(id, status, next_check_at)` rows (batch ≤ 500). Only claimed monitors are enqueued — the claim advances `next_check_at` inside the same transaction that selects the row (J-1), so a concurrent or delayed second tick cannot claim the same row (§14.3 notes).
+3. **Enqueue one check job per claimed id** on `monitor-checks`, with `jobId` set to the idempotency key `check:{monitorId}:{epoch}`, where `{epoch}` is the epoch (ms) of the monitor's just-advanced `next_check_at` as returned by the claim. The claim-epoch key is unique per monitor per schedule slot **and** per tick — it replaces the enqueue-timestamp token the review rejected as a retry-dedup that never deduplicated cross-tick. A duplicate add with an existing `jobId` is ignored by BullMQ; if a duplicate nonetheless executes (at-least-once delivery), §15.1's execution-time re-read and the §16 guards make it idempotent. Lane assignment (J-6): `status <> 'UP'` → priority 1 (the check can carry a RECOVERED transition); `status = 'UP'` → priority 10 (routine).
+4. **Backlog gate (J-5).** Before enqueuing routine (priority-10) checks, read the `monitor-checks` depth (`getJobCounts('wait', 'active', 'delayed')`); if it exceeds ~2x the active-monitor count, skip every routine enqueue this tick. Claims stay advanced, so a skipped check self-heals at the monitor's next due slot — the accepted consequence is one missed routine sample for an UP monitor (bounded and visible in queue metrics). Priority-1 enqueues (non-UP lane) are never gated; manual-lane jobs enter via the API regardless. Transition **writes** are not droppable by construction — they execute synchronously inside check jobs (§16.1), never as separately enqueued scheduler work — so the gate only ever drops routine *check enqueues*.
+5. **Heartbeat.** On tick completion, ping healthchecks.io (`HC_PING_URL`); on any exception caught in steps 2–4, ping `HC_PING_URL/fail` before surfacing the error. The heartbeat is the only independent detection of a monitoring pause (R-1) — it must fire even when the failure is Redis itself.
+6. **Failed-enqueue compensation.** If an enqueue throws mid-batch (Redis down after the claim committed), leave the claims advanced: the J-1-accepted consequence is one missed check per un-enqueued monitor, and the next tick re-claims each monitor when its advanced `next_check_at` comes due — no rollback path, no repair job. Log claimed-vs-enqueued counts per tick; a persistent mismatch surfaces through queue-depth observability (§15) and the §13 circuit breaker (J-5).
+
+### 14.3 Claim transaction (J-1 — literal SQL)
+
+```sql
+-- Source: postgresql.org/docs/current/sql-select.html (locking-clause semantics)
+WITH due AS (
+  SELECT id FROM monitors
+   WHERE is_active AND (next_check_at IS NULL OR next_check_at <= now())
+   ORDER BY next_check_at NULLS FIRST
+   LIMIT 500
+   FOR UPDATE SKIP LOCKED          -- MUST remain inside the WITH query: per
+)                                  -- postgresql.org/docs/current/sql-select.html,
+                                   -- outer-level locking clauses do not reach
+                                   -- into WITH queries — moving FOR UPDATE
+                                   -- outside the CTE locks nothing from "due"
+                                   -- and re-opens the J-1 duplicate-claim race
+UPDATE monitors m
+   SET next_check_at = now() + (m.interval * interval '1 minute')
+  FROM due
+ WHERE m.id = due.id
+RETURNING m.id, m.status, m.next_check_at;
+```
+
+Notes:
+
+- **Locking-clause placement is load-bearing.** `FOR UPDATE SKIP LOCKED` stays inside the `WITH` query because outer-level locking clauses do not reach into WITH queries (postgresql.org/docs/current/sql-select.html). This is the exact trap Pitfall 4 of the phase research names: a refactoring that "cleans up" the clause to the outer statement silently breaks claim exclusivity.
+- **Two concurrent ticks cannot claim the same row.** The first transaction's row locks are taken inside the CTE, so the second transaction's `SKIP LOCKED` skips those rows rather than waiting; after the first commits, the advanced `next_check_at` excludes them from the WHERE clause anyway. Defense in depth, not a single guard.
+- **LIMIT interplay.** "If a `LIMIT` is used, locking stops once enough rows have been returned to satisfy the limit" (postgresql.org/docs/current/sql-select.html) — the scan stops at 500 claimable rows and contended rows are skipped, not waited on.
+- **READ COMMITTED ordering caution.** Under READ COMMITTED, `ORDER BY` is applied before row locking, so rows can be returned out of request order. For claims, oldest-due-first ordering is a fairness preference, not a correctness requirement — any claimed subset is safe.
+- **Index alignment.** The WHERE clause filters on `is_active` and `next_check_at` exactly as §11's `idx_monitors_due` predicate defines them (`(is_active, next_check_at) WHERE is_active`) — the claim is the index's designed consumer.
+- **RETURNING extension (documented deviation from the research baseline, which returned `m.id` only):** `m.status` rides the claim so step 3 assigns the J-6 lane without a second query, and `m.next_check_at` rides it so the jobId epoch is the server-computed claim value. The WHERE clause is unchanged from the verified baseline.
+
+### 14.4 Tick failure modes (D-07)
+
+| Failure | Detection | Response | Recovery |
 |---|---|---|---|
-| `monitor-scheduler` | BullMQ repeatable job (every 30–60 s) + API-route producers | Worker: scheduler step | `tick`: SELECT due monitors (`isActive AND (last_checked IS NULL OR last_checked + interval <= now)`) → enqueue `check` per monitor; take `lock:scheduler` |
-| `monitor-checks` | scheduler tick; API routes (manual check, monitor create → immediate first check) | Worker: check pool | `check { monitorId, scheduledAt, jobIdempotencyKey, force }` — one monitor per job (horizontal scale unit) |
-| `db-writes` | check handler | Worker: writer pool | `flush-monitor-aggregate { monitorId }`, `record-pings-bulk { rows }` — routine UP persistence |
-| `alerts` | check handler (on transition) | Worker: notifier pool | `send-alert { monitorId, transition, channels[] }` (telegram, email) — retries with backoff |
-| `maintenance` | repeatable (daily) + API trigger | Worker | `cleanup` (retention), `recompute-uptime` (nightly window recompute), `ping-rollup` (optional hourly aggregation) |
+| Redis down mid-batch (enqueue throws after claims committed) | enqueue reject/timeout in step 3 | stop enqueuing; ping `HC_PING_URL/fail`; leave claims advanced (one missed check per un-enqueued monitor — the accepted J-1 consequence) | next tick re-claims each monitor when due; monitoring pause is visible as a heartbeat gap (R-1) |
+| Claim transaction failure (Postgres unreachable / statement error) | error from §14.3 in step 2 | abort the tick; ping `HC_PING_URL/fail`; no claims written — the transaction is atomic, no partial claim survives | next tick retries; the §13 circuit breaker (J-5) governs sustained-outage pause/resume |
+| Heartbeat failure (healthchecks.io unreachable) | fetch to `HC_PING_URL` rejects | log and continue — heartbeat errors must never fail the tick or the checks it schedules; healthchecks.io's own dead-man switch covers sustained loss | operator paged only on a sustained gap; a transient heartbeat loss is a monitoring-of-monitoring event, not a monitoring event |
+| Backlog threshold exceeded (depth > ~2x active monitors) | `getJobCounts` in step 4, before routine enqueues | skip all routine enqueues this tick (J-5); non-UP lane still enqueued at priority 1 | backlog drains through the priority lanes; skipped checks self-heal next interval; sustained backlog surfaces via Redis memory alerting at 70% (§13) |
 
-Key mechanics:
+### 14.5 Scheduler parameter pinning (D-10)
 
-- **Job options:** `monitor-checks`: `{ attempts: 3, backoff: { type: "exponential", delay: 5000 }, removeOnComplete: { age: 3600, count: 5000 }, removeOnFail: { age: 86400 } }`. `alerts`: 5 attempts, exponential from 10 s. `db-writes`: 5 attempts — retries make rule 14 real.
-- **Idempotency (rule 10):** every `check` carries `scheduledAt`; handler short-circuits if `idem:check:{monitorId}:{scheduledAt}` exists, or if `lastChecked >= scheduledAt − skew` in Postgres. Lock `lock:monitor:{monitorId}` (SET NX PX) guards execution; lock is released in a `finally` by the lock owner only.
-- **DOWN/RECOVERED immediate path (rule 8):** the check handler evaluates the transition and performs the **critical transaction synchronously in the worker** (monitor status + ping + incident open/resolve in one `db.transaction`), then enqueues `alerts` (post-write). It never routes transitions through the aggregation buffer.
-- **Routine UP aggregation (rule 9):** UP results mutate the Redis aggregation hash and, when the buffer is ≥N results or ≥60 s old (checked by a repeatable flusher job), a `db-writes` job applies them in one transaction with atomic increments (`total_checks = total_checks + δ`, `last_checked = GREATEST(...)`). Buffer entries are deleted only after a successful commit — losing the Redis buffer costs only a few routine pings, never a transition.
-- **Scheduler-producer separation** keeps cadence logic (which monitors are due) in SQL, not in per-process timers — eliminates R4/R5.
-- **FlowProducer** (`check` → children `db-writes`/`alerts`) is optional later; plain chains suffice initially.
-- **Bull Board** (or `bullmq` UI) behind an admin gate for queue observability.
+| Parameter | Default | Rationale | Class |
+|---|---|---|---|
+| Tick period | 30 s | ≤ 1/2 the minimum supported interval (1 minute) per J-1 — a missed tick never causes a check to be skipped at its due slot | non-negotiable |
+| Claim batch LIMIT | 500 rows per tick | bounds the tick's enqueue burst and lock footprint; comfortably above the plausible due-count at current scale | default — tune in Phase 4/5 with data |
+| Backlog-cap multiplier | ~2x active-monitor count | J-5: routine checks are droppable once depth exceeds ~2x active — the next tick re-checks anyway; skipped checks self-heal | default — tune in Phase 4/5 with data |
+| Relay-pass cadence | 5 s | bounds DOWN-alert lag from Tier 1 commit to alert enqueue; 100-row batches keep each pass short (§16.3) | default — tune in Phase 4/5 with data |
+| Flush-pass cadence | 30 s | keeps Tier 2 flush lag ≤ 60 s (rule 9 / §16 Tier 2) with margin for job latency | default — tune in Phase 4/5 with data |
+
+Transition and aggregation persistence semantics are owned by §16 (Tier 1 / Tier 2); queue-consumer runtime, the check algorithm, and the lock lifecycle are owned by §15 — §14 does not restate them. FlowProducer (`check` → children `db-writes`/`alerts`) remains optional later; plain chains suffice initially. Bull Board behind an admin gate remains the queue-observability plan (S-3).
 
 ---
 

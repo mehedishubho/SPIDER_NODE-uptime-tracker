@@ -5,8 +5,8 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: design-gate-review-verdict-ready
 status: executing
-stopped_at: "Completed 01-01-PLAN.md (data-correctness design slice: audit §11/§16/§23 + header note)"
-last_updated: "2026-09-08T20:05:55.518Z"
+stopped_at: "Completed 01-02-PLAN.md (orchestration design slice: audit §14/§15/§23)"
+last_updated: "2026-09-08T20:20:44.134Z"
 last_activity: 2026-09-08
 last_activity_desc: Phase 01 execution started
 progress:
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-08)
 ## Current Position
 
 Phase: 01 (design-gate-review-verdict-ready) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-09-08 — Phase 01 execution started
 
@@ -56,6 +56,7 @@ Progress: [░░░░░░░░░░] 0%
 
 *Updated after each plan completion*
 | Phase 01 P01 | 984s | 3 tasks | 1 files |
+| Phase 01 P02 | 4min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,10 @@ Recent decisions affecting current work:
 - [Phase 01]: 01-01: outbox.monitor_id integer (not uuid) — FK must match integer serial monitors.id (M-5); outbox.incident_id added for the alert dedup key
 - [Phase 01]: 01-01: Tier 1 transaction inserts the evidence ping BEFORE the conditional UPDATE — duplicates record evidence but count/gate transition effects once (TC-DUP-INCIDENT-01)
 - [Phase 01]: 01-01: ID generation pinned DB-side gen_random_uuid()::text; spec SQL omits id columns so defaults apply
+- [Phase 01]: 01-02: every BullMQ lane carries an explicit priority (manual/non-UP checks 1, tick/relay/alerts 1, maintenance/email 5, routine 10) — BullMQ default 0 processes non-prioritized jobs BEFORE prioritized ones, so any unprioritized lane inverts J-6
+- [Phase 01]: 01-02: claim SQL RETURNING extended to (id, status, next_check_at) — J-6 lane assignment and the check:{monitorId}:{epoch} jobId derive from the atomic claim; WHERE clause unchanged from the verified research baseline
+- [Phase 01]: 01-02: J-5 backlog gate drops only routine (priority-10) enqueues; the non-UP lane is never gated — transition writes are synchronous inside check jobs (§16.1) and thus never droppable
+- [Phase 01]: 01-02: recompute-uptime and record-pings-bulk removed from §14 job lists — D-6/§16.5 lifetime counters are authoritative and Tier 2 persistence is the single §16.2 guarded flush
 
 ### Pending Todos
 
@@ -92,6 +97,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-08T20:05:55.513Z
-Stopped at: Completed 01-01-PLAN.md (data-correctness design slice: audit §11/§16/§23 + header note)
+Last session: 2026-09-08T20:20:44.129Z
+Stopped at: Completed 01-02-PLAN.md (orchestration design slice: audit §14/§15/§23)
 Resume file: None

@@ -4,29 +4,6 @@
 **Domain:** Design-documentation amendment (SQL/BullMQ/Better Auth/PM2/Neon spec authoring) + adversarial re-review mechanics
 **Confidence:** HIGH
 
-## Summary
-
-Phase 1 is a pure documentation phase: amend `docs/ARCHITECTURE-AUDIT.md` in place with 7 design addenda, extract `docs/DEPLOY-RUNBOOK.md` as a new standalone operator document, make every review §9 checklist item trace to an amendment, and flip `docs/ARCHITECTURE-REVIEW.md` §1 from ❌ NOT READY to ✅ READY via a fresh adversarial re-review run by a session that did not author the addenda (D-15). No application code is written; the only files touched are two existing docs plus one new one.
-
-The research problem for this phase is not stack selection (locked by `.planning/research/STACK.md`, registry-verified 2026-09-08) but **specification correctness at the level the re-reviewer will verify**: CONTEXT.md decisions D-05/D-06 demand DDL-precise schema and literal SQL that Phase 3/4 transcribe mechanically. The prior project research explicitly marked `FOR UPDATE SKIP LOCKED` claim semantics and outbox details as LOW-confidence; this session closed those gaps against primary sources (PostgreSQL official docs, BullMQ and Better Auth source code on GitHub, Telegram Bot API reference, node-postgres docs) and surfaced **four spec-level subtleties the addenda must encode**: (1) the J-1 claim SQL's `FOR UPDATE SKIP LOCKED` must stay *inside* the CTE — Postgres documents that outer-level locking clauses do not reach into WITH queries — and the given shape is correct [VERIFIED: postgresql.org/docs/sql-select]; (2) PostgreSQL's `GREATEST` *ignores* NULL arguments (a documented deviation from the SQL standard), so the D-5 monotonic flush needs no `COALESCE`, while the `CASE WHEN $ts > last_checked` comparison guard *does* yield NULL on a never-checked row — an asymmetry the writer spec must pin [VERIFIED: postgresql.org/docs/functions-conditional]; (3) BullMQ's default priority `0` means *no explicit priority* and **non-prioritized jobs are processed before prioritized jobs** — so D-12's per-queue table must assign an explicit priority to every lane or routine checks will outrank manual/transition checks, inverting J-6 [VERIFIED: BullMQ source, src/interfaces/base-job-options.ts]; (4) `removeOnFail: { age }` eviction is best-effort (no background timer — aged jobs are removed only when another job fails afterwards), so D-14's 7-day DLQ retention is approximate, not a hard SLA [VERIFIED: BullMQ source].
-
-A second research finding shapes the whole plan: the audit currently contains **sentences the review explicitly rejects** (§13's "worker falls back to writing routine pings straight to Postgres" — called *incoherent* by R-1; §13's alert dedup key `alert:sent:{monitorId}:{state}` — superseded by D-4 incident-keyed dedup; §14's legacy "repeatable job" wording — removed in BullMQ 6; §14's idempotency key `{monitorId}:{scheduledAt}` — superseded by the claim-epoch key; §13's lock TTL "interval + slack" — superseded by timeout+margin+renewal). Amendments must **replace** these, not append beside them; every stale sentence surviving into READY is a trap a Phase 4 implementer will follow. The §9 traceability check and the adversarial re-review should specifically hunt for residual contradictions.
-
-**Primary recommendation:** Structure the plan as: (a) audit §11 schema amendment (DDL-precise), (b) scheduler + queue-topology amendments (§14/§15, with the D-12 per-queue table giving every lane an explicit priority), (c) check-job + writer-spec amendments (literal SQL with the verified NULL/priority/index-inference semantics), (d) resilience + Redis-architecture rewrite (§13 + new section), (e) auth-spec amendment (§12, D-09 field-map tables against the verified Better Auth core schema), (f) connection-budget section, (g) `DEPLOY-RUNBOOK.md` (both topologies per D-04), (h) §23 test cases as given/when/then, then (i) §9 self-traceability, (j) fresh-agent adversarial re-review with the D-18 fix loop, (k) verdict flip per D-16.
-
-## Project Constraints (from CLAUDE.md)
-
-| # | Directive | Impact on this phase |
-|---|-----------|----------------------|
-| 1 | GSD workflow enforcement — no direct repo edits outside a GSD entry point | This phase IS a GSD workflow; docs edits happen under the phase plan |
-| 2 | `docs/ARCHITECTURE-AUDIT.md` and `docs/ARCHITECTURE-REVIEW.md` are the authoritative source documents | Amendments must keep them authoritative; do not create parallel design docs |
-| 3 | Review gate: all §9 checklist items resolved in design before implementation (verdict READY) | Restates DSGN-02 — the phase's entire purpose |
-| 4 | Behavior compatibility: 1-strike DOWN, lifetime uptime math, Telegram alert content, public API shapes preserved | Addenda may not change monitoring semantics — only mechanisms |
-| 5 | Deployment: single VPS, two PM2 apps, forward-only additive-first migrations, `readyz` health gates | Constrains the runbook (D-04) and schema addendum (additive-only) |
-| 6 | Forced re-login at auth cutover accepted (M2/D6), announced (Q-4) | Auth spec records this as decided, not open |
-| 7 | New comments in English (Bangla comments exist in code) | Addenda prose is English |
-| 8 | Monitoring must never lose/corrupt data, silently stop checking, or lock users out irrecoverably | Every failure-mode table (D-07) tests against this core value |
-
 <user_constraints>
 ## User Constraints (from CONTEXT.md)
 
@@ -66,6 +43,29 @@ A second research finding shapes the whole plan: the audit currently contains **
 ### Deferred Ideas (OUT OF SCOPE)
 None — discussion stayed within phase scope.
 </user_constraints>
+
+## Summary
+
+Phase 1 is a pure documentation phase: amend `docs/ARCHITECTURE-AUDIT.md` in place with 7 design addenda, extract `docs/DEPLOY-RUNBOOK.md` as a new standalone operator document, make every review §9 checklist item trace to an amendment, and flip `docs/ARCHITECTURE-REVIEW.md` §1 from ❌ NOT READY to ✅ READY via a fresh adversarial re-review run by a session that did not author the addenda (D-15). No application code is written; the only files touched are two existing docs plus one new one.
+
+The research problem for this phase is not stack selection (locked by `.planning/research/STACK.md`, registry-verified 2026-09-08) but **specification correctness at the level the re-reviewer will verify**: CONTEXT.md decisions D-05/D-06 demand DDL-precise schema and literal SQL that Phase 3/4 transcribe mechanically. The prior project research explicitly marked `FOR UPDATE SKIP LOCKED` claim semantics and outbox details as LOW-confidence; this session closed those gaps against primary sources (PostgreSQL official docs, BullMQ and Better Auth source code on GitHub, Telegram Bot API reference, node-postgres docs) and surfaced **four spec-level subtleties the addenda must encode**: (1) the J-1 claim SQL's `FOR UPDATE SKIP LOCKED` must stay *inside* the CTE — Postgres documents that outer-level locking clauses do not reach into WITH queries — and the given shape is correct [VERIFIED: postgresql.org/docs/sql-select]; (2) PostgreSQL's `GREATEST` *ignores* NULL arguments (a documented deviation from the SQL standard), so the D-5 monotonic flush needs no `COALESCE`, while the `CASE WHEN $ts > last_checked` comparison guard *does* yield NULL on a never-checked row — an asymmetry the writer spec must pin [VERIFIED: postgresql.org/docs/functions-conditional]; (3) BullMQ's default priority `0` means *no explicit priority* and **non-prioritized jobs are processed before prioritized jobs** — so D-12's per-queue table must assign an explicit priority to every lane or routine checks will outrank manual/transition checks, inverting J-6 [VERIFIED: BullMQ source, src/interfaces/base-job-options.ts]; (4) `removeOnFail: { age }` eviction is best-effort (no background timer — aged jobs are removed only when another job fails afterwards), so D-14's 7-day DLQ retention is approximate, not a hard SLA [VERIFIED: BullMQ source].
+
+A second research finding shapes the whole plan: the audit currently contains **sentences the review explicitly rejects** (§13's "worker falls back to writing routine pings straight to Postgres" — called *incoherent* by R-1; §13's alert dedup key `alert:sent:{monitorId}:{state}` — superseded by D-4 incident-keyed dedup; §14's legacy "repeatable job" wording — removed in BullMQ 6; §14's idempotency key `{monitorId}:{scheduledAt}` — superseded by the claim-epoch key; §13's lock TTL "interval + slack" — superseded by timeout+margin+renewal). Amendments must **replace** these, not append beside them; every stale sentence surviving into READY is a trap a Phase 4 implementer will follow. The §9 traceability check and the adversarial re-review should specifically hunt for residual contradictions.
+
+**Primary recommendation:** Structure the plan as: (a) audit §11 schema amendment (DDL-precise), (b) scheduler + queue-topology amendments (§14/§15, with the D-12 per-queue table giving every lane an explicit priority), (c) check-job + writer-spec amendments (literal SQL with the verified NULL/priority/index-inference semantics), (d) resilience + Redis-architecture rewrite (§13 + new section), (e) auth-spec amendment (§12, D-09 field-map tables against the verified Better Auth core schema), (f) connection-budget section, (g) `DEPLOY-RUNBOOK.md` (both topologies per D-04), (h) §23 test cases as given/when/then, then (i) §9 self-traceability, (j) fresh-agent adversarial re-review with the D-18 fix loop, (k) verdict flip per D-16.
+
+## Project Constraints (from CLAUDE.md)
+
+| # | Directive | Impact on this phase |
+|---|-----------|----------------------|
+| 1 | GSD workflow enforcement — no direct repo edits outside a GSD entry point | This phase IS a GSD workflow; docs edits happen under the phase plan |
+| 2 | `docs/ARCHITECTURE-AUDIT.md` and `docs/ARCHITECTURE-REVIEW.md` are the authoritative source documents | Amendments must keep them authoritative; do not create parallel design docs |
+| 3 | Review gate: all §9 checklist items resolved in design before implementation (verdict READY) | Restates DSGN-02 — the phase's entire purpose |
+| 4 | Behavior compatibility: 1-strike DOWN, lifetime uptime math, Telegram alert content, public API shapes preserved | Addenda may not change monitoring semantics — only mechanisms |
+| 5 | Deployment: single VPS, two PM2 apps, forward-only additive-first migrations, `readyz` health gates | Constrains the runbook (D-04) and schema addendum (additive-only) |
+| 6 | Forced re-login at auth cutover accepted (M2/D6), announced (Q-4) | Auth spec records this as decided, not open |
+| 7 | New comments in English (Bangla comments exist in code) | Addenda prose is English |
+| 8 | Monitoring must never lose/corrupt data, silently stop checking, or lock users out irrecoverably | Every failure-mode table (D-07) tests against this core value |
 
 <phase_requirements>
 ## Phase Requirements

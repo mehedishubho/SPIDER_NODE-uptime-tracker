@@ -7,6 +7,7 @@ A brownfield modernization of a live production uptime-monitoring SaaS. The arc 
 ## Phases
 
 **Phase Numbering:**
+
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
@@ -24,113 +25,151 @@ Decimal phases appear between their surrounding integers in numeric order.
 ## Phase Details
 
 ### Phase 1: Design Gate — Review Verdict READY
+
 **Goal**: The design documents are amended with every review addendum and the NOT READY verdict is flipped to READY, so no correctness mechanism is ever invented under pressure during implementation.
 **Mode:** mvp
 **Depends on**: Nothing (first phase)
 **Requirements**: DSGN-01, DSGN-02
 **Success Criteria** (what must be TRUE):
+
   1. A written design addendum exists for each of the 8 review §8 items — schema (`next_check_at`, write guards, outbox, partial unique ONGOING index, ID generation), scheduler claim spec (J-1), check job spec (J-3/J-4/S-1), writer specs (J-2/D-1/D-5), resilience spec (J-5/R-1), auth spec (A-1/A-2/A-3), connection budget (D-8), deploy runbook (P-1) — each citing the review issues it resolves
   2. Every review §9 pre-implementation checklist item traces to a design decision, and the verdict is re-recorded as READY (dated, reviewer identified) before any implementation code merges
   3. An operator can read the runbook addendum and know the exact production ordering (build → backup → migrate → worker restart → web restart → smoke check), the rollback action at each step, and the per-process connection budget — before any code exists
+
 **Plans**: 5 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 01-01-PLAN.md — Audit data-correctness amendments: DDL-precise §11 schema, literal-SQL §16 writer specs, §23 data test cases (DSGN-01)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 01-02-PLAN.md — Audit orchestration amendments: §14 scheduler + claim SQL + D-12 queue topology, §15 check job + SSRF pipeline, §23 SSRF/classification test cases (DSGN-01)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 01-03-PLAN.md — Audit platform amendments: §13 resilience rewrite (breaker/backlog/DLQ/Redis outage), §12 auth field maps, connection-budget section (DSGN-01)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 01-04-PLAN.md — Operator deliverable: NEW docs/DEPLOY-RUNBOOK.md (both topologies, per-step rollback), §22 pointer, §9 self-traceability check (DSGN-01, DSGN-02)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 01-05-PLAN.md — The gate: fresh adversarial re-review (D-15/D-17), human ratification checkpoint, verdict flip to READY per D-16 (DSGN-02)
 
 ### Phase 2: Foundations & Theme Infrastructure
+
 **Goal**: A safety net exists — pnpm, enforced CI gates, and characterization tests running against real Postgres/Redis — and stable theme tokens land, all with zero change to monitoring behavior.
 **Mode:** mvp
 **Depends on**: Phase 1
 **Requirements**: FND-01, FND-02, FND-03, FND-04, FND-05, FND-06, FND-07, THM-01, THM-02, THM-03, DEP-04
 **Success Criteria** (what must be TRUE):
+
   1. A fresh clone installs and builds with pnpm; every PR runs lint → typecheck → unit/integration → build green, a typecheck failure blocks merge (`ignoreBuildErrors` off), and the Node version is pinned identically in dev and CI
   2. `docker compose up` brings up Postgres + Redis locally, and the characterization suite proves current behavior: due-time filtering, PENDING→UP / UP→DOWN / DOWN→UP transitions, incident open/resolve, Telegram message selection, db-batcher enqueue/flush math, and API contracts (auth required, ownership scoping, status codes) — deliberately changing any pinned behavior turns the suite red
   3. A user can toggle Light/Dark/System in the header: theme applies before first paint (no flash of wrong theme, no hydration mismatch), dark mode is visually identical to today, toasts follow the resolved theme, and hardcoded hex classes now route through semantic tokens with no visual change
   4. The repo contains no ngrok binary or log, `.env.example` documents every variable the app reads, and error responses never include stack traces
+
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 3: Redis & Drizzle Schema Ownership
+
 **Goal**: Redis serves non-critical work with zero correctness dependence, and the database schema is owned by versioned Drizzle migrations baselined from live DDL, with every worker prerequisite landed and rehearsed against a production snapshot.
 **Mode:** mvp
 **Depends on**: Phase 2
 **Requirements**: RDS-01, RDS-02, RDS-03, DRZ-01, DRZ-02, DRZ-03, DRZ-04, DRZ-05, DRZ-06, DAT-09
 **Success Criteria** (what must be TRUE):
+
   1. Rate limiting is Redis-backed and atomic (INCR+EXPIRE per bucket): restarting the app process mid-burst does not reset a limit window, and a Redis outage never corrupts Postgres data — the limiter degrades safely
   2. `drizzle-kit pull` against production yields an empty diff against the committed schema (or an explicitly reviewed delta), the empty-diff CI gate blocks silent drift, and new code reads/writes through Drizzle sharing one `pg` Pool with Prisma — never dual-write
   3. The migration history contains every worker prerequisite, applied additively (no drops/renames): `monitors.next_check_at` + partial index `(is_active, next_check_at)`, `write_guards`, `outbox`, partial unique `incidents(monitor_id) WHERE status='ONGOING'`, pinned ID-generation defaults, `error_class`, reserved `consecutive_failures`
   4. Migrations have been rehearsed against an anonymized production snapshot with row-count and checksum verification matching; the deploy pipeline runs the single migration runner, and `prisma db push --accept-data-loss` no longer exists anywhere
   5. Redis hardening is applied and documented (AOF `everysec`, `maxmemory-policy noeviction`, supervised restart, memory alert at 70%) and ioredis clients follow BullMQ 6 config — separate blocking + queue connections, `maxRetriesPerRequest: null` on the worker side, no `keyPrefix` — with the connection budget (web 10 / worker 20 / migrations 1) documented
+
 **Plans**: TBD
 **Research flag**: verify drizzle-kit baseline journal-stamping and transaction-wrapping vs `CREATE INDEX CONCURRENTLY` during the snapshot rehearsal (SUMMARY.md gaps)
 
 ### Phase 4: Monitoring Worker — Build & Dark Launch
+
 **Goal**: All monitoring execution runs in a dedicated worker process on durable, idempotent, resilient BullMQ machinery — built, failure-injection-tested, and dark-launched while the existing cron still serves every user.
 **Mode:** mvp
 **Depends on**: Phase 3
 **Requirements**: WRK-01, WRK-02, WRK-03, WRK-04, WRK-05, WRK-06, WRK-07, WRK-08, WRK-10, WRK-12, WRK-13, WRK-14, DAT-01, DAT-02, DAT-03, DAT-04, DAT-05, DAT-06, DAT-07, DAT-08, DAT-10, RES-01, RES-02, RES-03, RES-04, RES-05, SEC-01, SEC-02, OBS-01, OBS-02, DEP-01, DEP-02
 **Success Criteria** (what must be TRUE):
+
   1. The worker deploys as a second PM2 app built from the same repo/SHA as web, dark-launched with its scheduler paused while the deploy pipeline is rehearsed and the cron still performs every check; `/healthz` and `/readyz` respond on `:9090` (readyz fails when Redis or Postgres is down), and restarting the web app never interrupts checking
   2. Duplicate delivery of a check job produces exactly one ping row (SQL claim advancing `next_check_at` + schedule-epoch idempotency key + per-monitor lock with owner-only release); DOWN/RECOVERED/first-check transitions commit monitor + ping + incident + outbox in one synchronous transaction and yield exactly one Telegram alert per incident; routine UP results flush within 60 s via a guarded atomic update that never writes `status`; manual checks and non-UP monitors are prioritized with documented worst-case latency
   3. Killing the worker mid-job (SIGKILL past `kill_timeout`) then restarting neither loses nor double-applies writes — counter deltas stay correct and no second ONGOING incident appears; retries are bounded (3–5) with exponential backoff and DLQ retention; SIGINT drains in-flight jobs within `kill_timeout`
   4. Failure injection proves both outage directions: Postgres down → jobs retry (nothing silently lost), the circuit breaker opens and pauses enqueueing, and the backlog cap drops routine checks but never transitions; Redis down → monitoring pauses by design, Postgres stays intact, and in-product staleness ("last checked Xm ago") is visible to users
   5. The check engine enforces SSRF layering (per-redirect-hop private-range denial, scheme allowlist, 2 MB cap, strict 10 s timeout — test cases pass) with OS-level egress rules active on the worker host; an operator can trace one check end-to-end via `monitorId`-correlated structured logs and queue metrics (depth, job age, stalled count); the maintenance job has a dry-run that reports row counts without deleting; the pipeline orders build → backup → migrate → worker (waits readyz) → web → smoke check that produces a synthetic ping row
+
 **Plans**: TBD
 **Research flag**: needs `--research-phase` depth — BullMQ 6 `upsertJobScheduler` semantics, breaker/backlog tuning, PM2 `wait_ready`/`kill_timeout` handshake, overlap gate instrumentation (SUMMARY.md)
 
 ### Phase 5: Worker Cutover & Operational Hardening
+
 **Goal**: The worker becomes the only monitoring path through a gated overlap window, and operators gain early-warning signals plus a rehearsed rollback story.
 **Mode:** mvp
 **Depends on**: Phase 4
 **Requirements**: WRK-09, WRK-11, DEP-03, DEP-05, OBS-03, OBS-05
 **Success Criteria** (what must be TRUE):
+
   1. During the overlap window both paths run idempotently with zero monitoring gap: no monitor misses a scheduled check, the healthchecks.io heartbeat comes steadily from the worker scheduler tick, queue depth returns to ~0, and Telegram alert parity holds for a full verification window
   2. After cutover `instrumentation.ts` and `CRON_MODE` are deleted (CI greps the build to keep cron remnants out), the worker is the sole monitoring path, and the external dead-man's switch pages if the worker tick stops
   3. Operators see trouble before users do: outbox-age alerting fires when rows exceed the threshold, and Prometheus exports queue depth/age, stalled count, transition→alert latency, and Redis memory
   4. Rollback is rehearsed: restoring the previous tarball returns the prior release cleanly, expand/contract discipline holds (no drops or renames inside verification windows), and the environment transition is complete (`REDIS_URL`, `EMAIL_PROVIDER`, `BETTER_AUTH_*` documented; `NEXTAUTH_*`/`CRON_MODE` retired or on a dated retirement path in `.env.example`)
+
 **Plans**: TBD
 
 ### Phase 6: Thin API Routes & Email Abstraction
+
 **Goal**: The web app becomes a stateless producer — routes enqueue and never probe — and transactional email leaves the request path behind a provider interface.
 **Mode:** mvp
 **Depends on**: Phase 4 (worker and queues must exist to receive jobs; may run in parallel with Phase 5)
 **Requirements**: API-01, API-02, SEC-03, SEC-05, SEC-06, EML-01, EML-02, EML-03, EML-05
 **Success Criteria** (what must be TRUE):
+
   1. "Check now" returns 202 immediately and the fresh result appears via polling within the documented latency; no API route ever executes a check against a target itself
   2. Degradation is loud and bounded: Redis unreachable → the enqueue endpoint returns 503 (never a silent no-op); a user over their per-user enqueue limit is rejected; a Telegram webhook POST without the correct secret header is refused
   3. No endpoint accepts a secret via query string and no `CRON_SECRET` reference remains in the codebase; error responses never leak stack traces or internals
   4. With SMTP down, account registration still completes and the verification email arrives once SMTP recovers (queued, bounded attempts, backoff); a permanently undeliverable address stops retrying via a typed unrecoverable error; the existing HTML template renders unchanged from its new location
+
 **Plans**: TBD
 
 ### Phase 7: Better Auth Cutover, Admin Gating & Prisma Removal
+
 **Goal**: Users authenticate through Better Auth against the existing tables without a single lockout, admin surfaces are gated by role, and Prisma is fully removed.
 **Mode:** mvp
 **Depends on**: Phase 3 (Drizzle schema), Phase 6 (email queue for auth hooks)
 **Requirements**: AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, AUTH-07, AUTH-08, AUTH-09, DRZ-07, EML-04, SEC-04, OBS-04
 **Success Criteria** (what must be TRUE):
+
   1. Every existing credentials user can log in with their old password after the flip — proven by a canary login through the preserved bcrypt hash path on the anonymized snapshot, then in production; stored hashes upgrade to the modern default on next login (lazy rehash) without breaking anyone
   2. Google and GitHub users log in post-cutover with their accounts and refresh tokens intact (reshaped `account` rows, providerId casing confirmed by dry-run); session checks validate from the signed cookie (`cookieCache`) without a per-request DB hit; boolean `emailVerified` is backfilled and legacy `sessions`/token tables remain read-only
   3. The announced forced re-login happens: after the flip unauthenticated users land on login with an in-app/email notice, and verification/reset emails flow through the email queue (never in-request SMTP)
   4. Admin gating works end-to-end: roles via the Better Auth admin plugin, feedback listing admin-only, and the Bull Board queue UI reachable only for admins from allowlisted IPs
   5. Removal is complete: no NextAuth deps or custom auth routes, no Redux `auth` slice / token mirror / `js-cookie` (the Better Auth client is the single auth source), and no `prisma/` directory, generated client, or `@prisma/*` deps — every read path runs on Drizzle with the test suite green
+
 **Plans**: TBD
 **Research flag**: needs `--research-phase` depth — social `providerId` casing per provider, verification/reset token-flow cutover, cookieCache revocation-lag policy (SUMMARY.md)
 
 ### Phase 8: Flagged Capabilities & UI Modernization
+
 **Goal**: Post-migration value lands safely on stable tokens and stable APIs: AI behind a default-off flag, windowed-uptime compute behind a flag, and the full visual redesign.
 **Mode:** mvp
 **Depends on**: Phase 7
 **Requirements**: AI-01, AI-02, AI-03, AI-04, AI-05, DAT-11, UI-01, UI-02, UI-03, UI-04, UI-05
 **Success Criteria** (what must be TRUE):
+
   1. With `AI_ENABLED=false` (the default) the app runs fully with no AI keys, and zero AI calls exist anywhere in the check → transition → alert pipeline
   2. With the flag on: an authorized user gets a streaming incident post-mortem draft that is never auto-written to `incidents`, and can turn a natural-language description into monitor config validated by the same schema as the manual form that never executes without user confirmation; oversized, unauthenticated, rate-limited, and timeout-bound requests are rejected
   3. The nightly windowed-uptime recompute populates per-window columns from pings while the dashboard and status pages keep displaying lifetime counters — flag off changes nothing visible
   4. Dashboard components use shadcn primitives with one dialog system and one icon system; every polling fetch is abortable (AbortController), timers clear on unmount, URL derivation is hydration-safe, and there is a single Toaster
   5. The visual redesign ships with light mode looking intentional (light-safe brand assets, sidebar token reconciliation) while monitoring behavior and public API shapes stay unchanged — characterization and contract tests still green
+
 **Plans**: TBD
 **UI hint**: yes
 

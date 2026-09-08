@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: design-gate-review-verdict-ready
 status: executing
-stopped_at: "Completed 01-02-PLAN.md (orchestration design slice: audit §14/§15/§23)"
-last_updated: "2026-09-08T20:20:44.134Z"
+stopped_at: "Completed 01-03-PLAN.md (platform design slice: audit §13/§12/§25)"
+last_updated: "2026-09-08T20:34:28.022Z"
 last_activity: 2026-09-08
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
+  completed_plans: 3
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-08)
 ## Current Position
 
 Phase: 01 (design-gate-review-verdict-ready) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-09-08 — Phase 01 execution started
 
@@ -57,6 +57,7 @@ Progress: [░░░░░░░░░░] 0%
 *Updated after each plan completion*
 | Phase 01 P01 | 984s | 3 tasks | 1 files |
 | Phase 01 P02 | 4min | 3 tasks | 1 files |
+| Phase 01 P03 | 9m 20s | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,10 @@ Recent decisions affecting current work:
 - [Phase 01]: 01-02: claim SQL RETURNING extended to (id, status, next_check_at) — J-6 lane assignment and the check:{monitorId}:{epoch} jobId derive from the atomic claim; WHERE clause unchanged from the verified research baseline
 - [Phase 01]: 01-02: J-5 backlog gate drops only routine (priority-10) enqueues; the non-UP lane is never gated — transition writes are synchronous inside check jobs (§16.1) and thus never droppable
 - [Phase 01]: 01-02: recompute-uptime and record-pings-bulk removed from §14 job lists — D-6/§16.5 lifetime counters are authoritative and Tier 2 persistence is the single §16.2 guarded flush
+- [Phase ?]: [Phase 01]: 01-03: audit §25 (connection budget) placed as a new top-level section after §24 instead of between §16/§17 — mid-numbering insertion would renumber §17–§24 and break cross-references committed by 01-01/01-02
+- [Phase ?]: [Phase 01]: 01-03: Postgres breaker state lives in the worker process; restart resets to CLOSED — safe (first infra-failure re-arms within one tick), and the pause never depends on Redis state surviving a restart
+- [Phase ?]: [Phase 01]: 01-03: statement_timeout 30 s on web+worker pools (sized above the 5000-row retention-delete pass), explicitly UNSET on the migration runner — CONCURRENTLY/backfills run long
+- [Phase ?]: [Phase 01]: 01-03: §9 marker item numbers use the plan's prescribed citation scheme verbatim; issue IDs are the load-bearing traceability tokens and all trace greps pass
 
 ### Pending Todos
 
@@ -97,6 +102,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-08T20:20:44.129Z
-Stopped at: Completed 01-02-PLAN.md (orchestration design slice: audit §14/§15/§23)
+Last session: 2026-09-08T20:34:28.017Z
+Stopped at: Completed 01-03-PLAN.md (platform design slice: audit §13/§12/§25)
 Resume file: None

@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 01
 current_phase_name: design-gate-review-verdict-ready
-status: executing
-stopped_at: Completed 01-04-PLAN.md (deploy runbook + §22 pointer + §9 self-check clean)
-last_updated: "2026-09-08T20:42:00.480Z"
+status: verifying
+stopped_at: "Completed 01-05-PLAN.md (gap path: verdict stands NOT READY, RR-01..RR-04 escalated, D-18 cycle 1 of 2)"
+last_updated: "2026-09-08T21:04:30.006Z"
 last_activity: 2026-09-08
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 8
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
-  percent: 0
+  completed_plans: 5
+  percent: 13
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-08)
 
 Phase: 01 (design-gate-review-verdict-ready) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-08 — Phase 01 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -59,6 +59,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P02 | 4min | 3 tasks | 1 files |
 | Phase 01 P03 | 9m 20s | 3 tasks | 1 files |
 | Phase 01 P04 | 5min | 3 tasks | 2 files |
+| Phase 01 P05 | 10m (Tasks 2-3 continuation; Task 1 prior session) | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 01]: 01-03: §9 marker item numbers use the plan's prescribed citation scheme verbatim; issue IDs are the load-bearing traceability tokens and all trace greps pass
 - [Phase 01]: 01-04: runbook PM2 values pinned — kill_timeout 20000 ms non-negotiable floor (P-1/DEP-01); wait_ready/listen_timeout/max_restarts/min_uptime marked default-tune-with-data (D-10)
 - [Phase 01]: 01-04: interim smoke check = web-serving check (no worker until Phase 4); synthetic-check smoke is the target-topology form; migrate step is a no-op when nothing is pending so one interim ordering covers Phases 2-3
+- [Phase ?]: 01-05: gap path taken on user ratification (ratify gaps) — verdict stays NOT READY; DSGN-02 pending a clean cycle-2 pass; no READY-with-exceptions (D-16/D-18)
+- [Phase ?]: 01-05: criterion-2 interpretation user-ratified (D-05/DRZ-01) — DDL-precise §11 + Phase 3 live-DDL transcription contract + M-3 empty-diff gate = reflected in the target Drizzle schema
+- [Phase ?]: 01-05: DSGN-02 deliberately not marked complete — requirement text (verdict to READY) not yet true; plan completed via its legitimate gap-path branch
 
 ### Pending Todos
 
@@ -94,6 +98,7 @@ None yet.
 
 - Research flags requiring `--research-phase` during planning: Phase 4 (BullMQ 6 `upsertJobScheduler`, breaker/backlog tuning, PM2 handshake), Phase 7 (social `providerId` casing, token-flow cutover, cookieCache revocation lag), Phase 3 (drizzle-kit journal-stamping, `CREATE INDEX CONCURRENTLY` transaction wrapping)
 - Live production system: every cutover step needs a full `pg_dump` backup and an anonymized-snapshot rehearsal first (D-9/D-10)
+- Phase 01 design gate: re-review cycle 1 found ratified gaps RR-01 (S-1 network-egress layer missing, HIGH), RR-02 (uptime recompute residual, MEDIUM), RR-03 (Redis-down fallback-write test residual, MEDIUM), RR-04 (spike wording, LOW) — verdict stays NOT READY; one fix cycle remains (fresh-agent follow-up plan + cycle-2 re-review per D-18) before any implementation phase
 
 ## Deferred Items
 
@@ -105,6 +110,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-08T20:42:00.475Z
-Stopped at: Completed 01-04-PLAN.md (deploy runbook + §22 pointer + §9 self-check clean)
+Last session: 2026-09-08T21:04:18.438Z
+Stopped at: Completed 01-05-PLAN.md (gap path: verdict stands NOT READY, RR-01..RR-04 escalated, D-18 cycle 1 of 2)
 Resume file: None

@@ -188,17 +188,112 @@ Explicitly excluded. Documented to prevent scope creep. Each is an anti-feature 
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
+Which phases cover which requirements. Updated during roadmap creation (2026-09-08).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated by roadmap) | | |
+| DSGN-01 | Phase 1 | Pending |
+| DSGN-02 | Phase 1 | Pending |
+| FND-01 | Phase 2 | Pending |
+| FND-02 | Phase 2 | Pending |
+| FND-03 | Phase 2 | Pending |
+| FND-04 | Phase 2 | Pending |
+| FND-05 | Phase 2 | Pending |
+| FND-06 | Phase 2 | Pending |
+| FND-07 | Phase 2 | Pending |
+| THM-01 | Phase 2 | Pending |
+| THM-02 | Phase 2 | Pending |
+| THM-03 | Phase 2 | Pending |
+| DEP-04 | Phase 2 | Pending |
+| RDS-01 | Phase 3 | Pending |
+| RDS-02 | Phase 3 | Pending |
+| RDS-03 | Phase 3 | Pending |
+| DRZ-01 | Phase 3 | Pending |
+| DRZ-02 | Phase 3 | Pending |
+| DRZ-03 | Phase 3 | Pending |
+| DRZ-04 | Phase 3 | Pending |
+| DRZ-05 | Phase 3 | Pending |
+| DRZ-06 | Phase 3 | Pending |
+| DAT-09 | Phase 3 | Pending |
+| WRK-01 | Phase 4 | Pending |
+| WRK-02 | Phase 4 | Pending |
+| WRK-03 | Phase 4 | Pending |
+| WRK-04 | Phase 4 | Pending |
+| WRK-05 | Phase 4 | Pending |
+| WRK-06 | Phase 4 | Pending |
+| WRK-07 | Phase 4 | Pending |
+| WRK-08 | Phase 4 | Pending |
+| WRK-10 | Phase 4 | Pending |
+| WRK-12 | Phase 4 | Pending |
+| WRK-13 | Phase 4 | Pending |
+| WRK-14 | Phase 4 | Pending |
+| DAT-01 | Phase 4 | Pending |
+| DAT-02 | Phase 4 | Pending |
+| DAT-03 | Phase 4 | Pending |
+| DAT-04 | Phase 4 | Pending |
+| DAT-05 | Phase 4 | Pending |
+| DAT-06 | Phase 4 | Pending |
+| DAT-07 | Phase 4 | Pending |
+| DAT-08 | Phase 4 | Pending |
+| DAT-10 | Phase 4 | Pending |
+| RES-01 | Phase 4 | Pending |
+| RES-02 | Phase 4 | Pending |
+| RES-03 | Phase 4 | Pending |
+| RES-04 | Phase 4 | Pending |
+| RES-05 | Phase 4 | Pending |
+| SEC-01 | Phase 4 | Pending |
+| SEC-02 | Phase 4 | Pending |
+| OBS-01 | Phase 4 | Pending |
+| OBS-02 | Phase 4 | Pending |
+| DEP-01 | Phase 4 | Pending |
+| DEP-02 | Phase 4 | Pending |
+| WRK-09 | Phase 5 | Pending |
+| WRK-11 | Phase 5 | Pending |
+| DEP-03 | Phase 5 | Pending |
+| DEP-05 | Phase 5 | Pending |
+| OBS-03 | Phase 5 | Pending |
+| OBS-05 | Phase 5 | Pending |
+| API-01 | Phase 6 | Pending |
+| API-02 | Phase 6 | Pending |
+| SEC-03 | Phase 6 | Pending |
+| SEC-05 | Phase 6 | Pending |
+| SEC-06 | Phase 6 | Pending |
+| EML-01 | Phase 6 | Pending |
+| EML-02 | Phase 6 | Pending |
+| EML-03 | Phase 6 | Pending |
+| EML-05 | Phase 6 | Pending |
+| AUTH-01 | Phase 7 | Pending |
+| AUTH-02 | Phase 7 | Pending |
+| AUTH-03 | Phase 7 | Pending |
+| AUTH-04 | Phase 7 | Pending |
+| AUTH-05 | Phase 7 | Pending |
+| AUTH-06 | Phase 7 | Pending |
+| AUTH-07 | Phase 7 | Pending |
+| AUTH-08 | Phase 7 | Pending |
+| AUTH-09 | Phase 7 | Pending |
+| DRZ-07 | Phase 7 | Pending |
+| EML-04 | Phase 7 | Pending |
+| SEC-04 | Phase 7 | Pending |
+| OBS-04 | Phase 7 | Pending |
+| AI-01 | Phase 8 | Pending |
+| AI-02 | Phase 8 | Pending |
+| AI-03 | Phase 8 | Pending |
+| AI-04 | Phase 8 | Pending |
+| AI-05 | Phase 8 | Pending |
+| DAT-11 | Phase 8 | Pending |
+| UI-01 | Phase 8 | Pending |
+| UI-02 | Phase 8 | Pending |
+| UI-03 | Phase 8 | Pending |
+| UI-04 | Phase 8 | Pending |
+| UI-05 | Phase 8 | Pending |
 
 **Coverage:**
 - v1 requirements: 94 total
-- Mapped to phases: 0
-- Unmapped: 94 ⚠️
+- Mapped to phases: 94
+- Unmapped: 0 ✓
+
+**Coverage by phase:** Phase 1: 2 · Phase 2: 11 · Phase 3: 10 · Phase 4: 32 · Phase 5: 6 · Phase 6: 9 · Phase 7: 13 · Phase 8: 11
 
 ---
 *Requirements defined: 2026-09-08*
-*Last updated: 2026-09-08 after initial definition*
+*Last updated: 2026-09-08 — traceability populated by roadmap creation (94/94 mapped)*

@@ -4,7 +4,7 @@
 > **Audit date:** 2026-09-08
 > **Scope:** Full-repository inspection (backend, frontend, data layer, jobs, deployment) in preparation for the modernization to Next.js 16 App Router + Drizzle + Better Auth + Redis + BullMQ + dedicated monitoring worker.
 > **Status of this document:** Audit + target architecture proposal. **No application code was modified.**
-> **Amendment note:** This document was amended on 2026-09-09 to incorporate the design addenda required by [ARCHITECTURE-REVIEW.md](./ARCHITECTURE-REVIEW.md) §8. Amendment markers appear inline as "Amended 2026-09-09 (resolves &lt;issue-ids&gt;)".
+> **Amendment note:** This document was amended on 2026-09-09 to incorporate the design addenda required by [ARCHITECTURE-REVIEW.md](./ARCHITECTURE-REVIEW.md) §8. Amendment markers appear inline as "Amended 2026-09-09 (resolves &lt;issue-ids&gt;)" — new sections carry the same marker form prefixed "Added". The operator-facing deploy procedure is [DEPLOY-RUNBOOK.md](./DEPLOY-RUNBOOK.md).
 
 ---
 

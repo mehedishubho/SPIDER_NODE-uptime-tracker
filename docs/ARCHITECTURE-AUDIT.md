@@ -29,7 +29,7 @@ The target architecture resolves each with Redis + BullMQ + a dedicated worker p
 | Framework | Next.js 16 (App Router, `next start` on VPS) | Next.js 16.3 (App Router, web-only) |
 | ORM | Prisma 7 (`@prisma/adapter-pg` + `pg` Pool) | Drizzle ORM |
 | Auth | NextAuth v4 (`@auth/prisma-adapter`, JWT sessions) | Better Auth |
-| Scheduler | `node-cron` inside web process / Vercel Cron HTTP trigger | BullMQ repeatable jobs + worker |
+| Scheduler | `node-cron` inside web process / Vercel Cron HTTP trigger | BullMQ Job Schedulers + worker |
 | Batching | In-memory arrays/Map in web process | Redis-backed aggregation + durable queues |
 | Worker | None (web process) | Dedicated Node worker process (PM2 app) |
 | Email | Nodemailer → Hostinger SMTP (hardcoded) | Provider abstraction (SMTP / Resend / SES…) |
@@ -458,24 +458,125 @@ Migration constraints:
 
 ## 13. Proposed Redis Architecture
 
-Redis is **infrastructure only** — never a source of truth (rule 2). Every piece of state below is recoverable from Postgres or is disposable by design.
+*Amended 2026-09-09 (resolves J-5, J-6, R-1, D-4, D-7; §9 items 5, 7, 13)*
+
+Redis is **infrastructure only** — never a source of truth (rule 2). Its complete role inventory: routine-UP result aggregation, rate limiting, alert dedup keys, and BullMQ job orchestration (queues, locks, Job Schedulers). PostgreSQL is always the source of truth and **no correctness path depends on Redis** — every piece of state below is recoverable from Postgres or disposable by design.
+
+### 13.1 Key inventory
 
 | Use | Key shape | TTL | Recovery story |
 |---|---|---|---|
-| BullMQ queues + repeatable job schedulers | `bull:{queues}` (managed by BullMQ) | — | Jobs re-enqueued by scheduler; pending jobs drained from Redis; unacked checks re-created on scheduler tick |
-| Distributed lock per check | `lock:monitor:{monitorId}` (`SET NX PX`, value = jobId, released by owner) | interval + slack | Expiry auto-releases; stale locks harmless (idempotent jobs) |
-| Leader lock for the scheduler loop | `lock:scheduler` (Redlock or single SET NX) | ~30 s, renewed | Any worker can take over |
-| Routine-result aggregation buffer | `agg:results:{monitorId}` (hash: count, failedCount, sumResponseTime, lastResponseTime, lastStatus, lastCheckedAt) + `agg:pending` set | flushed ≤60 s; TTL as safety | **Loss-tolerable data only**; monitor row itself always carries last immediate status |
-| Idempotency ledger | `idem:check:{monitorId}:{scheduledAtEpoch}` | 24 h | Prevents duplicate writes from retried jobs |
+| BullMQ queues + Job Schedulers | `bull:{queues}` (managed by BullMQ) | — | Schedulers re-upserted at worker boot (§13.6); pending jobs drained from Redis; unacked checks re-created by the next tick's claim (§14.2) |
+| Per-monitor check lock | `lock:check:{monitorId}` (`SET NX PX`, value `{workerId}:{jobId}`, owner-only Lua release) | 15 s = 10 s timeout + 5 s margin, renewed every TTL/3 (J-3; lifecycle in §15.1) | Expiry auto-releases; renewal failure aborts the check without persisting; a stale lock never delays the next check beyond its TTL — the lock is a performance guard, correctness rests on J-1/J-2/D-1 |
+| Leader lock for the scheduler loop | `lock:scheduler` (single `SET NX`, renewed; no Redlock — excluded by the out-of-scope table) | ~30 s, renewed | Any worker can take over; defense-in-depth only (§14.2 step 1) |
+| Routine-result aggregation buffer | `agg:results:{monitorId}` (hash: count, failedCount, sumResponseTime, lastResponseTime, lastStatus, lastCheckedAt) + `agg:pending` set | flushed ≤ 60 s; TTL as safety | **Loss-tolerable data only**; the monitor row itself always carries the last immediate (Tier 1) status |
+| Check-job idempotency (jobId) | `check:{monitorId}:{epoch}` — the BullMQ job id **is** the idempotency key (§14.2 step 3) | retained while the completed job exists (`removeOnComplete` age 3600 s) | Duplicate adds with an existing jobId are ignored by BullMQ; at-least-once redelivery is absorbed by the §16 writers (write guards + conditional UPDATE) |
 | Cache: dashboard summaries, status pages | `cache:status:{userId}`, `cache:dashboard:{userId}` | 15–60 s | Cache-miss rebuilds from Postgres |
-| Rate limiting (replaces in-memory Map) | `rl:{bucket}:{ip}` (`INCR` + `EXPIRE`) | window | Counter loss only loosens limits, never corrupts data |
-| Alert dedup/throttle | `alert:sent:{monitorId}:{state}` | until state change | Duplicate alert worst case, no data impact |
+| Rate limiting (replaces in-memory Map) | `rl:{bucket}:{ip}` and `rl:manual:{userId}:{monitorId}` (`INCR` + `EXPIRE`) | window | Counter loss only loosens limits, never corrupts data |
+| Alert dedup | `alert:{incidentId}:{direction}` (`SET NX EX 86400`, written only after a confirmed send) | 24 h | Duplicate alert worst case, no data impact (§16.4) |
 
-Operational rules:
+### 13.2 Redis outage = monitoring pause, by design (R-1 / RES-03)
 
-- **Redis failure ⇒ degrade, don't corrupt (rule 13).** All *critical* writes (status transitions, incidents, alerts-of-record) go to Postgres first. If Redis is unreachable, the worker falls back to writing routine pings straight to Postgres (unbatched) rather than buffering; the web app serves uncached data. BullMQ unavailable ⇒ checks pause (visible via healthchecks.io heartbeat gap) but Postgres data stays consistent.
-- **Postgres failure ⇒ retryable jobs (rule 14).** Job handlers wrap DB writes with BullMQ retries + exponential backoff; results stay in the aggregation buffer / job payload until the write succeeds. Nothing is dropped on DB error.
-- One Redis instance suffices at current scale; enable AOF persistence for queue durability; document maxmemory policy (`noeviction`) so BullMQ keys are never evicted.
+With BullMQ as the orchestrator, **no Redis = no jobs** — there is nothing to execute and nothing to write. An in-process fallback scheduler is therefore not merely undesirable but incoherent, and the project's out-of-scope table explicitly excludes it (reintroducing one would recreate forbidden process-local monitoring state). The design makes the pause explicit and visible instead:
+
+1. **No fallback write path or fallback scheduler exists.** Redis outage = monitoring pause, by design. Postgres data stays consistent; nothing is partially written; transitions that cannot be recorded are not half-recorded.
+2. **External dead-man's-switch detection.** The worker's scheduler tick heartbeats healthchecks.io (`HC_PING_URL`, §14.2 step 5); a heartbeat gap pages the operator. This is the *only* independent detection of the pause, and it must keep firing when the failure is Redis itself.
+3. **Staleness surfaced in-product.** Dashboard and public status pages render "last checked Xm ago" from `monitors.last_checked` and visually degrade stale monitors — a hard requirement (RES-03), not an implication. The UI must never present stale statuses as current.
+4. **Web behavior under Redis outage.** The web app serves uncached data (cache-miss rebuilds from Postgres); API routes that need to enqueue fail loudly (503), never silently no-op.
+
+### 13.3 Circuit breaker around Postgres (D-11 / RES-01 / J-5)
+
+A Postgres outage must not become a retry storm that compounds into Redis memory exhaustion under `noeviction` (J-5). The breaker wraps every Postgres-writing step in the worker with a three-state machine:
+
+- **CLOSED (normal).** All lanes run. Every Postgres operation reports to the breaker: success resets the consecutive-failure counter to 0; an **infra-failure** increments it. *Infra-failure is exactly the class §15.1 step 5 defines* — Postgres unreachable, Redis unavailable, internal exceptions/bugs. Target outcomes (UP, DOWN, timeout, DNS failure, TLS failure) are successful jobs and **never** count toward the breaker.
+- **OPEN (tripped).** After **5 consecutive infra-failures**, the breaker opens for **60 s**. OPEN pauses: (a) the scheduler tick's enqueue step — §14.2 steps 3–4, no new check jobs — and (b) queue consumption via `Queue.pause()` on `monitor-checks` and `db-writes` (in-flight jobs finish their bounded attempts; nothing new starts). OPEN **never pauses the healthchecks.io heartbeat** (§14.2 step 5) — the dead-man's switch keeps firing so a Postgres outage remains distinguishable from a Redis outage or a dead worker.
+- **HALF_OPEN (probing).** After the 60 s window the breaker admits a **single probe write** — a dedicated synthetic insert, never a replay of a failed real write (Phase 1 research, Open Question 3 resolution), using the key prefix reserved for this purpose in §11's `write_guards` definition:
+
+  ```sql
+  INSERT INTO write_guards(key) VALUES ('breaker:probe:{ts}') ON CONFLICT DO NOTHING;
+  ```
+
+  The `breaker:probe:` prefix makes probe traffic identifiable in logs and guarantees the probe can never double-apply real data (it inserts only a guard row, which normal write_guards retention prunes).
+  - Probe **succeeds** (Postgres accepted the write) → **CLOSED**: `Queue.resume()`, failure counter reset to 0, the next tick claims normally via §14.3.
+  - Probe **fails** → **re-OPEN** for another 60 s. The probe repeats each OPEN window — probe interval follows the OPEN duration; no separate timer exists to configure or drift.
+
+The breaker's counter and state live in the worker process (module scope; single worker at current scale). A worker restart resets it to CLOSED — safe, because the first infra-failure re-arms it within one tick (the Redis-restart interaction is row 5 of the §13.9 breaker table).
+
+### 13.4 Backlog cap — the J-5 asymmetry (RES-02)
+
+Routine checks are **droppable**; transitions are **not**:
+
+- When `monitor-checks` depth (`wait` + `active` + `delayed`, read via `getJobCounts` in §14.2 step 4) exceeds **~2x the active-monitor count**, the tick skips every routine (priority-10) enqueue — the gate step specified in §14.2. Claims stay advanced, so a skipped check self-heals at the monitor's next due slot; the accepted consequence is one missed routine sample for an UP monitor.
+- Transition **writes** are never droppable by construction: they execute synchronously inside check jobs (§16.1), never as separately enqueued scheduler work. Priority-1 enqueues (manual lane + non-UP lane) are never gated. This asymmetry is the J-5 requirement: routine backlog may be shed; downtime evidence may not.
+
+### 13.5 Dead-letter policy (D-14 / WRK-06)
+
+- **Bounded attempts 3–5** per lane with exponential backoff — per-lane values pinned in §14.1 (checks 3, db-writes 5, alerts 3, email 5). Attempts exhausted ⇒ the job dead-letters into BullMQ's `failed` set.
+- **DLQ retention: `removeOnFail: { age: 604800 }` — at least ~7 days, best-effort.** BullMQ's KeepJobs eviction has no background timer: aged failed jobs are removed only when another job fails afterwards (verified from BullMQ source — Phase 1 research, Pitfall 5). Dashboards and the runbook must treat 7 days as a lower-bound approximation, never a deterministic eviction SLA.
+- **Permanent business failures throw `UnrecoverableError`** — the BullMQ 6 pattern; the `Job#discard()` method was removed in v6. An invalid Telegram chat target or a hard-rejected email address dead-letters immediately instead of burning attempts. Retryable-vs-permanent classification per lane: §14.1 (alerts) and §17 (email).
+- Dead-lettered jobs detect nothing on their own — outbox-age alerting (OBS-03) and queue-depth/job-age observability (§15) are the detection path.
+
+### 13.6 Redis-restart recovery procedure (RES-05)
+
+1. **Schedulers re-declare themselves.** Worker (re)boot upserts every Job Scheduler via `upsertJobScheduler` (§14.2 step 1) — idempotent, so concurrent boots and post-restart re-declarations converge on exactly one active scheduler per id. No manual scheduler cleanup ever exists.
+2. **Stale locks expire via TTL.** Per-monitor locks (`lock:check:{monitorId}`, ≤ 15 s once renewal stops) and the scheduler leader lock (~30 s) simply age out — no cleanup job, no operator action. A lock held by a dead worker cannot delay the next check beyond its TTL.
+3. **In-flight jobs recover as stalled.** Jobs executing at restart time are re-run per the stalled config pinned in §14.1 (`stalledInterval` 30000 ms, `maxStalledCount` 1) — at-least-once, absorbed by the §16 idempotent writers.
+4. **No check storm.** The next tick re-claims monitors via the claim transaction on `next_check_at` (§14.3): claims already advanced at selection time (J-1), so each monitor is re-claimed exactly at its next due slot — never en masse.
+5. **Breaker state is in-process only.** If Postgres was the outage that opened the breaker, the boot-time `readyz` DB ping (§15) fails and the first persist failures re-open the breaker within one tick — the pause never depends on Redis state surviving the restart.
+
+### 13.7 Retention deletes (D-7 / DAT-08 / WRK-13)
+
+Retention deletes (pings > 30 d, RESOLVED incidents > 90 d, `write_guards` > 7 d) run **only** in the `maintenance` queue — never inside a check tick, never in a request handler:
+
+```sql
+-- Loop until a pass deletes fewer than the batch size (batch pinned 5000 in §11):
+DELETE FROM pings
+ WHERE id IN (SELECT id FROM pings WHERE created_at < $cutoff LIMIT 5000);
+```
+
+Looped batched deletes bound row locks, bloat, and replication lag on Neon (D-7). **Dry-run mode is mandatory** (WRK-13): invoked with the dry-run flag, the maintenance job reports the row counts it *would* delete, without deleting.
+
+### 13.8 Redis client configuration and hardening (RDS-01 / RDS-03)
+
+- **Two connections per worker process** (ioredis 6, installed explicitly — BullMQ 6 makes it an optional peer): one **blocking connection** for Workers and one **queue connection** for producers (Queue / Job Scheduler operations); blocking operations must not share a connection with command traffic.
+- **`maxRetriesPerRequest: null` on the worker-side connections** — required for blocking connections; wrong values cause crashes/retry loops.
+- **No `keyPrefix`** — BullMQ manages its own `bull:` prefix; an ioredis `keyPrefix` would corrupt BullMQ key access.
+- **Hardening (RDS-03):** AOF with `appendfsync everysec` (queue durability across restarts); `maxmemory-policy noeviction` so BullMQ keys are never evicted; supervised auto-restart (PM2/systemd); memory alerting at 70 % — early warning before `noeviction` starts rejecting writes.
+- One Redis instance suffices at current scale (Q-3: self-hosted on the VPS + the external heartbeat above).
+
+### 13.9 Failure-mode tables (D-07)
+
+**Breaker transitions:**
+
+| Failure | Detection | Response | Recovery |
+|---|---|---|---|
+| Postgres outage (5th consecutive infra-failure) | breaker counter reaches threshold | OPEN: enqueueing stops (§14.2 steps 3–4), `Queue.pause()` on `monitor-checks`/`db-writes`; heartbeat keeps firing; in-flight jobs finish bounded attempts | 60 s → HALF_OPEN probe → CLOSED on probe success |
+| Probe write fails (Postgres still down) | `breaker:probe:` insert errors in HALF_OPEN | re-OPEN for another 60 s; log carries the probe key for traceability | probe repeats each OPEN window until one lands |
+| Probe write succeeds | HALF_OPEN insert commits | CLOSED: `Queue.resume()`, failure counter reset | next tick claims normally via §14.3; skipped checks self-heal at their due slots |
+| Target failures during the outage window (checked websites also down) | §15.1 step 5 classification — DOWN/timeout/DNS/TLS are successful jobs | never counted by the breaker; only infra-failures increment it | none needed — the classification is the guard |
+| Redis restarts while the breaker is OPEN | boot-time `readyz` Redis ping; BullMQ's paused-queue flag may not survive the restart | in-process breaker re-applies `Queue.pause()` if still OPEN; if pause state was lost, the first persist failures re-open the breaker within one tick (≤ 5 failures execute and fail) | procedure §13.6 runs in parallel |
+
+**Redis restart:**
+
+| Failure | Detection | Response | Recovery |
+|---|---|---|---|
+| Redis process dies / restarts | worker Redis clients error; `readyz` Redis ping fails | monitoring pauses by design (§13.2); heartbeat keeps firing → healthchecks.io gap pages the operator | schedulers re-upserted at boot (§13.6 step 1); AOF `everysec` minimizes queue loss |
+| Stale per-monitor lock outlives its worker | next check's `SET NX` fails (§15.1 step 2) | the job completes successfully without executing — a performance miss only | lock ages out via TTL ≤ 15 s; the next due slot executes normally |
+| In-flight jobs lost at restart | BullMQ stall detection (`stalledInterval` 30000, `maxStalledCount` 1) | jobs re-run at-least-once | §16 write guards + conditional UPDATE make re-runs no-ops (TC-DUP-INCIDENT-01, TC-FLUSH-GUARD-01) |
+| Scheduler duplicated after restart | two ticks running concurrently | claim transaction excludes double-claims (§14.3); the leader lock is defense-in-depth | upsert convergence yields one active scheduler per id (§14.2 step 1) |
+
+### 13.10 Parameter pinning (D-10)
+
+| Parameter | Default | Rationale | Class |
+|---|---|---|---|
+| Breaker threshold | 5 consecutive infra-failures | D-11 shape — high enough to ride through transient blips, low enough to trip before backlog compounds | default — tune in Phase 4/5 with data |
+| OPEN duration | 60 s | bounds probe pressure on a recovering Postgres while keeping pause windows short | default — tune in Phase 4/5 with data |
+| Probe write | single `write_guards` insert, key `breaker:probe:{ts}` | synthetic write — identifiable in logs, never double-applies real data (§11 key-format reservation) | non-negotiable (shape) |
+| Probe interval | follows the OPEN duration (one probe per OPEN window) | no separate timer to configure or drift | default |
+| DLQ retention | `removeOnFail { age: 604800 }` — ≥ ~7 days best-effort | D-14; BullMQ eviction is lazy (no background timer, §13.5) | pinned (best-effort wording) |
+| Backlog-cap multiplier | ~2x active-monitor count | J-5/RES-02 — routine checks droppable above it; matches §14.5's pin | default — tune in Phase 4/5 with data |
+| Redis memory alert threshold | 70 % of `maxmemory` | early warning before `noeviction` rejects writes | default |
+
 
 ---
 
@@ -890,8 +991,8 @@ Target (implement infra early; visual redesign deferred to the final phase per r
 | M4 | **Counter corruption** from overlapping old/new write paths during overlap | Make increments SQL-atomic in the new path first; old path disabled before first new-path flush; verify totals before/after |
 | M5 | **`monitors.id` type drift** breaks public URLs/FKs | Keep `serial` integers (§11.1) |
 | M6 | **Timestamp TZ drift** (Prisma `timestamp` ↔ Drizzle `timestamptz`) silently shifts stored times | Inspect live column types before writing the Drizzle schema; pin explicit modes; validate with a data diff script (§21) |
-| M7 | **Redis becomes a hidden dependency** — outage taken as full outage | §13 degradation rules; routine-ping fallback write; alerts/heartbeat monitor queue health |
-| M8 | **BullMQ repeatable-job drift** after Redis restarts (missing/duplicated schedules) | Repeatable jobs are declarative (upserted at worker boot); idempotency keys absorb duplicates; scheduler leader lock prevents parallel ticks |
+| M7 | **Redis becomes a hidden dependency** — outage taken as full outage | §13.2 pause-by-design with dead-man's-switch detection and staleness UI; no fallback write path exists; heartbeat + queue metrics keep the pause visible |
+| M8 | **BullMQ Job Scheduler drift** after Redis restarts (missing/duplicated schedules) | Job Schedulers are declarative — `upsertJobScheduler` at every worker boot (§13.6 step 1); claim-epoch jobIds absorb duplicates; scheduler leader lock prevents parallel ticks |
 | M9 | **Next 16/React 19 + pnpm migration churn** mixed with backend migration | Do package-manager + Next patch bump as an isolated first step with its own verification (§24 step 0) |
 | M10 | **`typescript.ignoreBuildErrors: true`** hides migration type breakage | Turn it off at migration start; fix errors as part of step 0 (small codebase; feasible) |
 | M11 | **Vercel-mode cron parity** — features silently missing after cutover | `CRON_MODE` is deleted; the worker replaces both modes; update docs/deploy scripts to remove healthchecks/external-cron duplication |

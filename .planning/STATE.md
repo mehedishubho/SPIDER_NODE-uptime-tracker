@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: design-gate-review-verdict-ready
 status: executing
-stopped_at: "Completed 01-03-PLAN.md (platform design slice: audit §13/§12/§25)"
-last_updated: "2026-09-08T20:34:28.022Z"
+stopped_at: Completed 01-04-PLAN.md (deploy runbook + §22 pointer + §9 self-check clean)
+last_updated: "2026-09-08T20:42:00.480Z"
 last_activity: 2026-09-08
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-08)
 ## Current Position
 
 Phase: 01 (design-gate-review-verdict-ready) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-09-08 — Phase 01 execution started
 
@@ -58,6 +58,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P01 | 984s | 3 tasks | 1 files |
 | Phase 01 P02 | 4min | 3 tasks | 1 files |
 | Phase 01 P03 | 9m 20s | 3 tasks | 1 files |
+| Phase 01 P04 | 5min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 01]: 01-03: Postgres breaker state lives in the worker process; restart resets to CLOSED — safe (first infra-failure re-arms within one tick), and the pause never depends on Redis state surviving a restart
 - [Phase ?]: [Phase 01]: 01-03: statement_timeout 30 s on web+worker pools (sized above the 5000-row retention-delete pass), explicitly UNSET on the migration runner — CONCURRENTLY/backfills run long
 - [Phase ?]: [Phase 01]: 01-03: §9 marker item numbers use the plan's prescribed citation scheme verbatim; issue IDs are the load-bearing traceability tokens and all trace greps pass
+- [Phase 01]: 01-04: runbook PM2 values pinned — kill_timeout 20000 ms non-negotiable floor (P-1/DEP-01); wait_ready/listen_timeout/max_restarts/min_uptime marked default-tune-with-data (D-10)
+- [Phase 01]: 01-04: interim smoke check = web-serving check (no worker until Phase 4); synthetic-check smoke is the target-topology form; migrate step is a no-op when nothing is pending so one interim ordering covers Phases 2-3
 
 ### Pending Todos
 
@@ -102,6 +105,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-08T20:34:28.017Z
-Stopped at: Completed 01-03-PLAN.md (platform design slice: audit §13/§12/§25)
+Last session: 2026-09-08T20:42:00.475Z
+Stopped at: Completed 01-04-PLAN.md (deploy runbook + §22 pointer + §9 self-check clean)
 Resume file: None

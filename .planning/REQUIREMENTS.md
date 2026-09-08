@@ -11,7 +11,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 
 ### Design Gate
 
-- [ ] **DSGN-01**: All 8 design addenda from review §8 incorporated into the design documents (amended audit or authored addendum): schema, scheduler spec, check job spec, writer specs, resilience spec, auth spec, connection budget, deploy runbook
+- [x] **DSGN-01**: All 8 design addenda from review §8 incorporated into the design documents (amended audit or authored addendum): schema, scheduler spec, check job spec, writer specs, resilience spec, auth spec, connection budget, deploy runbook
 - [ ] **DSGN-02**: Review §9 pre-implementation checklist fully resolved in design; verdict re-reviewed from NOT READY to READY before implementation code
 
 ### Foundations
@@ -156,10 +156,12 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 Deferred. Tracked, not in the current roadmap.
 
 ### Alerting Extensions
+
 - **ALRT-01**: Incident email notifications via the email abstraction (UPGRADE_PLAN phase 7)
 - **ALRT-02**: N-consecutive-failure DOWN threshold (`consecutive_failures` column reserved in v1)
 
 ### Product Extensions
+
 - **PROD-01**: Windowed uptime display (24 h/7 d/30 d) in dashboard/status pages (backend ships flagged in v1; display switch is a post-milestone product decision)
 - **PROD-02**: Advanced monitor types — keyword, TCP, SSL checks (frozen per M12; schema reserves columns)
 - **PROD-03**: Multi-instance worker scale-out exercise (path is safe by construction in v1; not exercised)
@@ -192,7 +194,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DSGN-01 | Phase 1 | Pending |
+| DSGN-01 | Phase 1 | Complete |
 | DSGN-02 | Phase 1 | Pending |
 | FND-01 | Phase 2 | Pending |
 | FND-02 | Phase 2 | Pending |
@@ -288,6 +290,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | UI-05 | Phase 8 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 94 total
 - Mapped to phases: 94
 - Unmapped: 0 ✓

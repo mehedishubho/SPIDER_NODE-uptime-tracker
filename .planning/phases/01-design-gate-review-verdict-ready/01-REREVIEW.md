@@ -228,4 +228,16 @@ Everything else the gate depends on held up under adversarial pressure: all 25 �
 
 ---
 
+## 9. Ratification record (plan 01-05 Task 2 — human gate, D-18)
+
+> Appended 2026-09-09 by the plan 01-05 continuation executor session (post-checkpoint resume). The re-review content in §1–§8 above is untouched; this section records only the human gate's outcome.
+
+- **Date:** 2026-09-09
+- **Gate:** plan 01-05 Task 2 — `checkpoint:human-verify` (blocking). Per D-16/D-18, a verdict may be recorded only on a ratified outcome; the ratification happened before Task 3 ran.
+- **Ratification:** **"ratify gaps"** — the user ratified the §8 recommendation **GAPS FOUND (RR-01..RR-04)** and **explicitly accepted the §3 criterion-2 interpretation** (D-05/DRZ-01: DDL-precise §11 + Phase 3 live-DDL transcription contract + M-3 empty-diff CI gate = "reflected in the target Drizzle schema"). The interpretation is therefore user-ratified, not merely reviewer-recorded.
+- **New gaps supplied by the user:** none — the findings list stands exactly as §6 numbers it (RR-01 HIGH, RR-02 MEDIUM, RR-03 MEDIUM, RR-04 LOW; all documentation-scope fixes).
+- **Consequence (D-18):** re-review **cycle 1 of max 2 closes with gaps** → **no verdict is recorded this cycle**; Task 3 takes the gap path (verdict stands, findings escalate — recorded in §10 below). The fix cycle is a follow-up plan authored by a **fresh agent** (never this re-reviewer, never the original addenda author); after it applies RR-01..RR-04, this adversarial re-review re-runs as **cycle 2**. A clean cycle-2 pass plus a fresh ratification checkpoint flips the verdict (D-16); gaps persisting after cycle 2 escalate to the user with the verdict permanently unchanged.
+
+---
+
 *Report: 01-REREVIEW.md · Reviewer session: plan 01-05 wave 5 executor · 2026-09-09*

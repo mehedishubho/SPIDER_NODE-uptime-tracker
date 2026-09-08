@@ -1122,6 +1122,10 @@ Sequencing note: the data migration is **mostly schema-additive** because we kee
 
 ## 22. Deployment Changes
 
+*Amended 2026-09-09 (resolves P-1, M-1, M-2, M-3, S-4; §9 items 21, 22)*
+
+The authoritative operator runbook for every release this milestone is [DEPLOY-RUNBOOK.md](./DEPLOY-RUNBOOK.md) — exact step orderings, per-step verification and rollback actions, PM2 settings, and the connection-budget summary. This section stays design-level: the changes below describe the **target** shape. The interim ordering (Phases 2–3, single PM2 app, no worker step until Phase 4) exists and is specified in the runbook; where any ordering statement here and the runbook could be read differently, the runbook wins.
+
 Current: GitHub Actions on push to `main` → `npm ci` → build → SCP tarball → VPS → `npm ci --omit=dev` → `prisma generate` → `prisma db push --accept-data-loss` → `pm2 start` (single PM2 app, [deploy.yml](../.github/workflows/deploy.yml)).
 
 Target changes:
@@ -1133,7 +1137,7 @@ Target changes:
 5. **Env additions:** `REDIS_URL`, `EMAIL_PROVIDER`, provider keys, `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL`, `AI_*` (optional/flagged); retire `NEXTAUTH_*`, `CRON_MODE` (keep `CRON_SECRET` only if the API-triggered cleanup path is retained during transition).
 6. **Health surfaces:** worker `:9090/healthz|readyz` wired to PM2 restart + healthchecks.io; heartbeat moves from web cron to worker scheduler tick.
 7. **Rollback story:** keep previous release tarball on VPS; DB migrations are forward-only but additive-first (§21/D2) so the previous web+worker pair runs against the migrated schema during the verification window.
-8. **Repo hygiene (do early):** remove `ngrok` binary + `ngrok.log` from git (and purge from history or accept the bloat), add `.env.example` documenting the full variable set (currently only prose in README).
+8. **Repo hygiene (do early; S-4):** remove `ngrok` binary + `ngrok.log` from git (and purge from history or accept the bloat), add `.env.example` documenting the full variable set (currently only prose in README); design rule — no endpoint accepts secrets via query strings, and `CRON_SECRET` retires with the cron endpoints (decision note: [DEPLOY-RUNBOOK.md](./DEPLOY-RUNBOOK.md) §9).
 9. Optionally split CI jobs: `lint → typecheck → test → build` gates before deploy (no gates exist today).
 
 ---

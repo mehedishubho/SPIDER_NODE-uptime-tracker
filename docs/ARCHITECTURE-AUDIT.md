@@ -1243,6 +1243,54 @@ Sequenced so every step ships value, remains revertible, and never leaves monito
 
 ---
 
+## 25. PostgreSQL Connection Budget
+
+*Added 2026-09-09 (resolves D-8; §9 item 20)*
+
+Three processes open Postgres connections — web (Next.js), worker, and the migration runner — plus the transitional Prisma pool during Phases 3–7 (M-1). This section is the full budget spec (D-03); the deploy runbook carries only the operational summary table (web 10 / worker 20 / migrations 1).
+
+### 25.1 Per-process pool budget (DAT-09 — non-negotiable)
+
+| Process | Pool `max` | Connection string | Rationale |
+|---|---|---|---|
+| **web** (Next.js, PM2 `uptime-tracker`) | **10** | **POOLED** (provider pooler endpoint) | Request-serving reads/writes; concurrent request handlers share one pool; the pooler multiplexes the server-side connections (D-8, N-10) |
+| **worker** (PM2 `uptime-worker`) | **20** | **DIRECT** | Check concurrency 10 × (Tier 1 transition + Tier 2 flush overlap) plus relay/maintenance lanes; DIRECT keeps full transaction semantics off the pooler |
+| **migration runner** (deploy pipeline, one-shot) | **1** | **DIRECT** | Exactly one runner applies migrations, serially (M-1 — concurrent boot DDL is forbidden); DDL over a transaction-mode pooler is unsafe (D-8) |
+
+Steady-state total ≤ **31** connections. **Assumption A4 — verify before Phase 3:** Neon `max_connections` ≈ 104 at the project's 0.25 CU tier [CITED: neon.com/docs via project research] — the operator must verify the tier. 31 / 104 leaves ≥ 70 % headroom for psql sessions, dashboards, and restart overlap (old + new process coexisting during a deploy).
+
+### 25.2 pg Pool options (node-postgres 8.23; defaults from node-postgres.com/apis/pool)
+
+| Option | Pinned value | node-postgres default | Rationale |
+|---|---|---|---|
+| `max` | per §25.1 (10 / 20 / 1) | 10 | the per-process budget itself |
+| `connectionTimeoutMillis` | **10000** | **0 — no timeout** | The default means a client waits **forever** for a pool slot. A pinned nonzero timeout makes pool exhaustion fail fast (web: 503) instead of hanging requests — this must be pinned on every pool |
+| `idleTimeoutMillis` | 10000 (documented; 0 disables — do not set 0) | 10000 | Releases idle server connections promptly so the budget tracks actual load |
+| `statement_timeout` | 30000 on web + worker pools | none | Sized above the worst legitimate writer statement — the 5000-row retention-delete pass (§13.7) — and far above the Tier 1 transaction's individual statements (§16.1); kills runaway queries. Client-level option accepted via Pool config pass-through |
+| `idle_in_transaction_session_timeout` | 30000 on web + worker pools | none | Reaps sessions stuck idle inside an open transaction (abandoned worker/request) so their locks and snapshots cannot pin the database. Client-level pass-through |
+| `statement_timeout` (migration runner) | **unset — no limit** | none | `CREATE INDEX CONCURRENTLY` and backfill migrations legitimately run long; a statement timeout here would abort a migration mid-flight |
+
+### 25.3 Pooled vs direct strings + ORM transition rule
+
+- **Web → POOLED string** (provider pooler endpoint): short request-scoped statements multiplex well through transaction-mode pooling.
+- **Worker and migration runner → DIRECT strings**: the worker's multi-statement Tier 1 transactions (§16.1) and the runner's DDL both need full connection semantics (D-8, N-10).
+- **Transition rule (DRZ-05 / M-1):** during the Prisma→Drizzle transition (Phases 3–7) both ORMs share **one `pg` Pool per process** — the budget counts pools, not ORMs. Drizzle is adopted additively (new code uses Drizzle only) and the pair **never dual-writes** (out-of-scope table).
+
+### 25.4 Budget pinning table (D-10)
+
+| Parameter | Default | Rationale | Class |
+|---|---|---|---|
+| web pool `max` | 10 (POOLED) | DAT-09 | non-negotiable |
+| worker pool `max` | 20 (DIRECT) | DAT-09 | non-negotiable |
+| migration runner `max` | 1 (DIRECT) | DAT-09 / M-1 single runner | non-negotiable |
+| `connectionTimeoutMillis` | 10000 | default 0 = no timeout; pool exhaustion must fail fast | non-negotiable to pin nonzero; the value is a default — tune in Phase 4/5 with data |
+| `idleTimeoutMillis` | 10000 | node-postgres default retained | default |
+| `statement_timeout` | 30000 (web + worker; unset for migrations) | sized above the worst legitimate writer (§13.7 batch delete) | default — tune in Phase 4/5 with data |
+| `idle_in_transaction_session_timeout` | 30000 (web + worker) | reaps abandoned transactions | default — tune in Phase 4/5 with data |
+| Neon `max_connections` | ~104 at 0.25 CU (assumption A4) | headroom math | assumption — operator verifies the tier |
+
+---
+
 ## Appendix A — Environment Variable Inventory (current)
 
 | Variable | Used in | Notes |

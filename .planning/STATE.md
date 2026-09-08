@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 1
-current_phase_name: Design Gate — Review Verdict READY
+current_phase: 01
+current_phase_name: design-gate-review-verdict-ready
 status: executing
-stopped_at: Phase 1 context gathered
-last_updated: "2026-09-08T19:38:26.200Z"
+stopped_at: "Completed 01-01-PLAN.md (data-correctness design slice: audit §11/§16/§23 + header note)"
+last_updated: "2026-09-08T20:05:55.518Z"
 last_activity: 2026-09-08
-last_activity_desc: Roadmap created (94/94 requirements mapped across 8 phases)
+last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 8
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 5
+  completed_plans: 1
   percent: 0
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-08)
 
 **Core value:** Modernize the infrastructure without breaking existing monitoring — never lose or corrupt uptime data, silently stop checking, or lock users out irrecoverably.
-**Current focus:** Phase 1 — Design Gate (Review Verdict READY)
+**Current focus:** Phase 01 — design-gate-review-verdict-ready
 
 ## Current Position
 
-Phase: 1 of 8 (Design Gate — Review Verdict READY)
-Plan: 0 of 0 in current phase (not yet planned)
+Phase: 01 (design-gate-review-verdict-ready) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-09-08 — Roadmap created (94/94 requirements mapped across 8 phases)
+Last activity: 2026-09-08 — Phase 01 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -55,6 +55,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: —
 
 *Updated after each plan completion*
+| Phase 01 P01 | 984s | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,9 @@ Recent decisions affecting current work:
 - EML-04 placed in Phase 7 — Better Auth hooks cannot delegate to the email queue before Better Auth exists (Phase 6 builds the queue)
 - DAT-11 (windowed-uptime backend) placed in Phase 8 — flagged feature work kept out of the highest-risk migration phase
 - OBS-04/SEC-04 placed in Phase 7 — Bull Board admin gating requires the Better Auth admin plugin
+- [Phase 01]: 01-01: outbox.monitor_id integer (not uuid) — FK must match integer serial monitors.id (M-5); outbox.incident_id added for the alert dedup key
+- [Phase 01]: 01-01: Tier 1 transaction inserts the evidence ping BEFORE the conditional UPDATE — duplicates record evidence but count/gate transition effects once (TC-DUP-INCIDENT-01)
+- [Phase 01]: 01-01: ID generation pinned DB-side gen_random_uuid()::text; spec SQL omits id columns so defaults apply
 
 ### Pending Todos
 
@@ -88,6 +92,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-08T18:51:52.640Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-design-gate-review-verdict-ready/01-CONTEXT.md
+Last session: 2026-09-08T20:05:55.513Z
+Stopped at: Completed 01-01-PLAN.md (data-correctness design slice: audit §11/§16/§23 + header note)
+Resume file: None

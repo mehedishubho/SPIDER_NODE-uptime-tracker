@@ -821,6 +821,8 @@ Target changes:
 
 ## 23. Testing Requirements
 
+*Amended 2026-09-09 (resolves D-1, D-4, J-2; §9 items 2, 8, 12; §10 criterion 3)*
+
 Today there are **no tests** (no unit/integration/E2E framework, no CI gates; only ad-hoc root scripts `test-email.js`, `test-prisma*.js`, `test-webhook.js`). The migration must introduce a safety net *before* the risky steps:
 
 **Stack:** Vitest (unit/integration, workers + lib) · Testcontainers or docker-compose Postgres+Redis for integration · Playwright (E2E, dashboard + status page).
@@ -838,6 +840,28 @@ Today there are **no tests** (no unit/integration/E2E framework, no CI gates; on
 8. **Email abstraction tests:** provider selection by env, retryable vs permanent error classification, queue offload (registration succeeds when SMTP is down).
 9. **E2E smoke (Playwright):** register → verify → login → create monitor → manual check → status appears → incident flow on simulated DOWN → public status page renders; theme toggle persists across reload.
 10. **CI:** GitHub Actions — pnpm install, lint, typecheck (`ignoreBuildErrors` off), unit+integration on PR; deploy job only from `main` after green.
+
+**Data-correctness cases (given/when/then, per review §10 criterion 3).** Each case states its expected observable effect as DB rows, Redis keys, or queue state so Phase 2's characterization suite and Phase 4's failure-injection tests transcribe it directly.
+
+**TC-DUP-INCIDENT-01 — duplicate transition delivery creates exactly one ONGOING incident**
+- Given: monitor id 42 (`status='UP'`, `is_active=true`); an `ONGOING` incident `inc-7` (started 10:00:00Z) exists for monitor 42; a duplicate check-job delivery classifies DOWN again at 10:05:00Z (`$target='DOWN'`)
+- When: the §16.1 transition transaction executes twice for `$mid=42` (each execution supplies a distinct evidence ping, `ping-a1` then `ping-a2`)
+- Then: **DB** — `incidents` still contains exactly one row with `status='ONGOING'` for `monitor_id=42` (`inc-7`; the second run's conditional UPDATE returns 0 rows so no incident INSERT is attempted, and a concurrent double-insert would be a physical no-op via `incidents_one_ongoing`); `pings` contains **both** evidence rows (`ping-a1`, `ping-a2`, `status='DOWN'` — evidence is never deduplicated); `monitors.total_checks` and `failed_checks` advance by **1** each across both runs (counters ride the conditional UPDATE); `outbox` gains exactly **1** new `incident.down` row (first run only). **Queue** — the relay enqueues exactly one alert job for `inc-7`.
+
+**TC-DUP-ALERT-01 — redelivered outbox event sends no second Telegram alert**
+- Given: incident `inc-7` whose Telegram DOWN alert was sent at 10:05:05Z; Redis key `alert:inc-7:down` is held (TTL 86400); the outbox row is already `sent_at=10:05:04Z`; BullMQ redelivers the alert job
+- When: the alerts processor handles the redelivered event
+- Then: **Redis** — zero additional `SET alert:inc-7:down` operations (the `EXISTS` check short-circuits; the key's TTL is untouched). **Telegram** — zero additional `sendMessage` calls. **DB** — the outbox row's `sent_at` stays at its single set value (marked sent exactly once; no re-marking). **Queue** — the redelivered alert job **completes successfully** (not failed); its attempts counter increments toward the ≤ 3 bound without any re-send.
+
+**TC-FLUSH-GUARD-01 — re-applied flush batch changes counters by zero**
+- Given: flush batch `flush:b-1024` for monitor 42 was already applied at 10:06:00Z (a `write_guards` row with `key='flush:b-1024'` exists; `monitors.total_checks=101`); the flush job crashed after COMMIT but before deleting the Redis hash `agg:results:42`, and BullMQ redelivers
+- When: the §16.2 guarded flush re-runs with the same batch id (`flush:b-1024`) and the same deltas (`$dTotal=4`, `$dFailed=0`, `$lastTs=10:05:58Z`, `$lastRt=210`)
+- Then: **DB** — the `write_guards` `INSERT … ON CONFLICT DO NOTHING RETURNING key` returns **0 rows**, and the transaction exits **before** the UPDATE: `monitors.total_checks` stays 101 (change by zero), `last_checked` and `response_time` unchanged; no new `write_guards` row. **Redis** — `agg:results:42` is deleted on the retry's exit path (cleanup proceeds despite the skip).
+
+**TC-MONOTONIC-01 — late-arriving buffered result cannot regress display fields**
+- Given: monitor 42 with `last_checked=T1=10:06:00Z`, `response_time=250`, `total_checks=100`, `failed_checks=5`; a buffered routine result with timestamp `T0=10:04:30Z` (older than T1) and response 900 ms flushes in a batch with deltas `$dTotal=1`, `$dFailed=0`, `$lastTs=T0`, `$lastRt=900`
+- When: the §16.2 guarded flush applies the batch
+- Then: **DB** — `last_checked` stays `T1` (`GREATEST(T1, T0)=T1`); `response_time` stays 250 (`CASE WHEN T0 > T1` is false → ELSE keeps the current value; the older sample does not overwrite); `total_checks=101` and `failed_checks=5` (the buffered deltas still apply additively); `status` is untouched (Tier 2 never writes status). **Redis** — the batch hash is deleted only after the flush transaction commits.
 
 ---
 

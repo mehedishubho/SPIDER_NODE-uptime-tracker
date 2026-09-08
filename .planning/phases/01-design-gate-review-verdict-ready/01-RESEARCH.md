@@ -500,20 +500,25 @@ pass-through ("All valid client config options are also valid here").
 
 **All other claims were verified this session from primary sources (see Sources) or copied from locked decisions (CONTEXT.md) / project-authoritative documents.**
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All three questions are adopted by the phase plans; each resolution names where it is implemented.
 
 1. **§10 criterion (2) interpretation — "schema addenda are reflected in the target Drizzle schema"**
    - What we know: D-05 forbids authoring full Drizzle code in Phase 1 (it would pre-empt the Phase 3 live-DDL baseline, DRZ-01). §10 was written before that decision.
    - What's unclear: whether the re-reviewer should read criterion (2) as "the amended §11 DDL-precise sketch + Phase 3 transcription contract satisfies it".
    - Recommendation: the re-review section should record this interpretation explicitly when granting READY, citing D-05/DRZ-01 — prevents a wasted fix-loop cycle on an unimplementable reading.
+   - **RESOLVED (adopted):** criterion (2) is satisfied by the DDL-precise §11 sketch plus the Phase 3 live-DDL transcription contract (D-05/DRZ-01). Implemented in plan 01-05 Task 1 (the interpretation is recorded explicitly in 01-REREVIEW.md's per-criterion results, citing D-05/DRZ-01) and Task 3 (transcribed into the Re-review section of docs/ARCHITECTURE-REVIEW.md).
 2. **Mechanics of the "separate session/agent" re-review (D-15) inside GSD**
    - What we know: D-15 requires author-blind review; the verdict flip consumes its output.
    - What's unclear: exact spawning mechanism (subagent vs `gsd-review` vs fresh conversation) — a planner detail.
    - Recommendation: plan the re-review as its own task with an explicit instruction block that the executing agent must not have authored the addenda, and give it the D-17 walkthrough script; the verdict flip is a separate downstream task.
+   - **RESOLVED (adopted):** the re-review is planned as its own task in a separate GSD executor session — plan 01-05 runs in wave 5 after plans 01-01…01-04, Task 1 carries the explicit did-not-author constraint plus the D-17 walkthrough script, and the verdict flip is downstream Task 3 (constraint also recorded in 01-PATTERNS.md).
 3. **Breaker probe target under HALF_OPEN (D-11)**
    - What we know: shape is pinned (5 consecutive → OPEN 60 s → single probe write → CLOSED/re-OPEN).
    - What's unclear: whether the probe is a synthetic `write_guards` insert or a replay of the failed write — both defensible.
    - Recommendation (Claude's discretion area): specify a dedicated probe (`INSERT INTO write_guards(key) VALUES ('breaker:probe:{ts}') ON CONFLICT DO NOTHING`) so probe traffic is identifiable in logs and never double-applies real data.
+   - **RESOLVED (adopted):** dedicated synthetic probe with the `breaker:probe:{ts}` key — never a replay of the failed write. Implemented in plan 01-03 Task 1: audit §13's breaker spec specifies the write_guards probe insert with the `breaker:probe:` key prefix.
 
 ## Environment Availability
 

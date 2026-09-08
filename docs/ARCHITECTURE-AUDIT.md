@@ -980,6 +980,43 @@ Today there are **no tests** (no unit/integration/E2E framework, no CI gates; on
 - When: the §16.2 guarded flush applies the batch
 - Then: **DB** — `last_checked` stays `T1` (`GREATEST(T1, T0)=T1`); `response_time` stays 250 (`CASE WHEN T0 > T1` is false → ELSE keeps the current value; the older sample does not overwrite); `total_checks=101` and `failed_checks=5` (the buffered deltas still apply additively); `status` is untouched (Tier 2 never writes status). **Redis** — the batch hash is deleted only after the flush transaction commits.
 
+**SSRF and classification cases (given/when/then, per review §10 criterion 3).** *Amended 2026-09-09 (resolves S-1, J-4; §9 items 4, 18; §10 criterion 3)* — the check-job mechanics under test are §15.1 steps 4–6; each Then names its expected DB rows (`pings.error_class` values), queue state (completed vs retried), and network effect.
+
+**TC-SSRF-REDIRECT-PRIVATE-01 — redirect to a link-local metadata address is blocked, recorded, and never dialed**
+- Given: a monitor whose url is `https://good.example/redirect`; the origin responds `302` with `Location: http://169.254.169.254/latest/meta-data` (link-local cloud-metadata address)
+- When: the check job executes
+- Then: **queue** — the job **completes successfully** carrying result DOWN with `error_class = 'ssrf_blocked'` (never retried); **network** — **no request reaches `169.254.169.254`**: hop 2 is rejected by the per-hop resolve-then-validate of §15.1 step 4 before any connect; **DB** — the resulting ping row records `pings.error_class = 'ssrf_blocked'`.
+
+**TC-SSRF-DNS-REBIND-01 — public at resolve time, private at connect time, refused by the connection-time validator**
+- Given: a hostname that resolves to a public IP (e.g. `203.0.113.10`) at resolve time and to a private IP (e.g. `192.168.0.5`) at connect time (DNS rebinding)
+- When: the check executes
+- Then: **network** — the connection is refused by the connection-time validator: the dialer connects only to addresses from the resolve-time validated set (§15.1 step 4), so no packet reaches `192.168.0.5`; **DB** — the result is DOWN with `pings.error_class = 'ssrf_blocked'`; **queue** — job completed, not retried.
+
+**TC-SSRF-SCHEME-01 — non-http(s) scheme rejected before any network I/O**
+- Given: a monitor url with a non-http(s) scheme (e.g. `file:///etc/passwd` or `gopher://internal.example:6379/_INFO`)
+- When: the check executes
+- Then: **network** — zero DNS queries and zero connections: the scheme allowlist rejects at §15.1 step 4 sub-step 1, before any network I/O; **DB** — result DOWN with an explicit `pings.error_class = 'ssrf_blocked'`; **queue** — job completed successfully.
+
+**TC-SSRF-SIZE-CAP-01 — oversized body aborts at the cap without becoming an infra retry**
+- Given: a target whose response body exceeds 2 MB
+- When: the check executes
+- Then: **network** — the body read aborts at the 2 MB cap and the connection is abandoned; **DB** — the check still records a completed result: a ping row written with the header-derived status and `status_code`; **queue** — job **completed** (a target outcome, not an infra retry).
+
+**TC-CLASSIFY-TIMEOUT-01 — target timeout is a successful DOWN job, never retried**
+- Given: a target that never responds within the 10 s fetch timeout
+- When: the check executes
+- Then: **queue** — the job is a **success** carrying DOWN with `error_class = 'timeout'`; the job is **never retried** for a target timeout (attempts stay at 1 — J-4); **DB** — `pings.error_class = 'timeout'`, `pings.status_code` NULL (no response arrived).
+
+**TC-CLASSIFY-DNS-01 — NXDOMAIN is a successful DOWN job, no retry**
+- Given: a monitor hostname whose DNS lookup returns NXDOMAIN
+- When: the check executes
+- Then: **queue** — the job **succeeds** carrying DOWN with `error_class = 'dns'`; no retry; **DB** — `pings.error_class = 'dns'`, `pings.status_code` NULL.
+
+**TC-CLASSIFY-INFRA-01 — Postgres unreachable at persist time retries with bounded attempts, no partial write**
+- Given: a check whose fetch succeeded and classified a DOWN transition (Tier 1 path, §16.1), with Postgres unreachable at persist time
+- When: the check executes the persistence step
+- Then: **queue** — the job **throws** (infrastructure failure) and is retried with bounded attempts (3) and exponential backoff; if attempts exhaust, it dead-letters (≥ ~7 d best-effort retention, D-14); **DB** — **no partial write survives**: the Tier 1 transaction is atomic — either monitor UPDATE + ping + incident + outbox all commit or none does — and on the successful retry the D-1 conditional UPDATE gates re-application.
+
 ---
 
 ## 24. Recommended Migration Order

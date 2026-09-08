@@ -32,7 +32,14 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. A written design addendum exists for each of the 8 review §8 items — schema (`next_check_at`, write guards, outbox, partial unique ONGOING index, ID generation), scheduler claim spec (J-1), check job spec (J-3/J-4/S-1), writer specs (J-2/D-1/D-5), resilience spec (J-5/R-1), auth spec (A-1/A-2/A-3), connection budget (D-8), deploy runbook (P-1) — each citing the review issues it resolves
   2. Every review §9 pre-implementation checklist item traces to a design decision, and the verdict is re-recorded as READY (dated, reviewer identified) before any implementation code merges
   3. An operator can read the runbook addendum and know the exact production ordering (build → backup → migrate → worker restart → web restart → smoke check), the rollback action at each step, and the per-process connection budget — before any code exists
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Audit data-correctness amendments: DDL-precise §11 schema, literal-SQL §16 writer specs, §23 data test cases (DSGN-01)
+- [ ] 01-02-PLAN.md — Audit orchestration amendments: §14 scheduler + claim SQL + D-12 queue topology, §15 check job + SSRF pipeline, §23 SSRF/classification test cases (DSGN-01)
+- [ ] 01-03-PLAN.md — Audit platform amendments: §13 resilience rewrite (breaker/backlog/DLQ/Redis outage), §12 auth field maps, connection-budget section (DSGN-01)
+- [ ] 01-04-PLAN.md — Operator deliverable: NEW docs/DEPLOY-RUNBOOK.md (both topologies, per-step rollback), §22 pointer, §9 self-traceability check (DSGN-01, DSGN-02)
+- [ ] 01-05-PLAN.md — The gate: fresh adversarial re-review (D-15/D-17), human ratification checkpoint, verdict flip to READY per D-16 (DSGN-02)
 
 ### Phase 2: Foundations & Theme Infrastructure
 **Goal**: A safety net exists — pnpm, enforced CI gates, and characterization tests running against real Postgres/Redis — and stable theme tokens land, all with zero change to monitoring behavior.
@@ -151,7 +158,7 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Design Gate — Review Verdict READY | 0/TBD | Not started | - |
+| 1. Design Gate — Review Verdict READY | 0/5 | Not started | - |
 | 2. Foundations & Theme Infrastructure | 0/TBD | Not started | - |
 | 3. Redis & Drizzle Schema Ownership | 0/TBD | Not started | - |
 | 4. Monitoring Worker — Build & Dark Launch | 0/TBD | Not started | - |

@@ -578,6 +578,8 @@ Transition and aggregation persistence semantics are owned by §16 (Tier 1 / Tie
 
 ## 15. Proposed Worker Architecture
 
+*Amended 2026-09-09 (resolves J-3, J-4, S-1; §9 items 3, 4, 18)*
+
 A **separate long-running Node process**, first-class in the repo:
 
 ```
@@ -600,6 +602,48 @@ worker/
 - **Deployment coupling:** web and worker deploy together from one build (shared TypeScript), versioned by the same git SHA; schema migrations run before worker restart (§22).
 - **Observability:** healthchecks.io heartbeat moves to the worker's scheduler tick; BullMQ event listeners export job counts; structured logs with `monitorId` correlation.
 - **Scale-out path:** N workers are safe by construction — scheduler leader lock, per-monitor locks, idempotency keys, and SQL-side due-selection make duplicate execution impossible rather than merely unlikely.
+
+### 15.1 Check job algorithm (D-07)
+
+The `check` job's id **is** the §14 idempotency key (`check:{monitorId}:{epoch}`): a redelivered job carries the same id and BullMQ ignores duplicate adds; the steps below make any executed duplicate a no-op regardless (at-least-once delivery, J-2).
+
+1. **Re-read the monitor row at execution time** (`SELECT id, url, interval, status, is_active FROM monitors WHERE id = $mid`). Configuration may have changed since the claim (J-1, "also required"): if the row is gone (monitor deleted while claimed/queued) or `is_active = false`, complete the job successfully as a no-op — nothing to check, nothing to write.
+2. **Acquire the per-monitor lock** `lock:check:{monitorId}` via `SET NX PX` — value `{workerId}:{jobId}`, TTL 15000 ms (**TTL = fetch timeout 10 s + margin 5 s**; the formula is non-negotiable, WRK-04/J-3). If `NX` fails, another executor owns the monitor: complete the job successfully without executing. The lock is a performance guard against duplicate concurrent work, never a correctness mechanism — correctness rests on the J-1 claim, the J-2 write guards, and the D-1 conditional transition (see §13's lock row for the key's place in the Redis architecture; the lifecycle contract is specified here).
+3. **Arm renewal every TTL/3 (5 s)** — a compare-and-expire by owner (Lua: extend the TTL only if the stored value equals ours). If renewal fails — key missing, value mismatch, or Redis error — the lock may be lost: **abort immediately**: stop writing, discard the classified result, log `lock_lost`, and complete the job without persisting. Never race a possible new owner.
+4. **Fetch through the SSRF pipeline** (S-1 / SEC-01 — ordered sub-steps, all inside the strict 10 s budget):
+   1. **Scheme allowlist:** parse the URL; accept `http`/`https` only. Any other scheme is rejected **before any network I/O** → result DOWN with `error_class = 'ssrf_blocked'` (defense in depth — create-time validation should have rejected such a URL earlier; the engine does not trust it).
+   2. **Resolve-then-validate:** resolve the host to **all** of its A/AAAA records and validate **every** resolved IP (IPv4 and IPv6) against the private-range denylist (`10/8`, `172.16/12`, `192.168/16`, `127/8`, `169.254/16`, `::1`, `fc00::/7`, `fe80::/10`). Any private-range IP → result DOWN with `error_class = 'ssrf_blocked'`; no connection is attempted.
+   3. **Connection-time re-validation (DNS-rebinding countermeasure):** the dialer connects only to an address from the resolve-time validated set — it never re-resolves. If the peer address at connect time is not in the validated set, abort the connection → result DOWN with `error_class = 'ssrf_blocked'`.
+   4. **Redirect re-validation:** follow redirects manually; every hop re-runs sub-steps 1–3 on the new URL (scheme check, resolve-then-validate), up to a cap of **5 hops**. A hop to a private address, a disallowed scheme, or exceeding the cap → result DOWN with `error_class = 'ssrf_blocked'`; no request reaches the private address.
+   5. **Response cap:** read at most **2 MB** of body; abort the read at the cap and record the check from the response status plus the capped body (keyword checks operate on that prefix). The whole exchange — DNS, connect, redirects, capped body read — must fit inside the 10 s timeout.
+5. **Classify (J-4 / WRK-05).** Target outcomes — **UP, DOWN, timeout, DNS failure, TLS failure** — are **successful jobs** carrying a typed result `{ status, error_class?, response_time, status_code }` with `error_class ∈ { timeout, dns, tls, ssrf_blocked, http_5xx, network }` (the §11 `pings.error_class` vocabulary). A blocked SSRF attempt is a successful job carrying result DOWN with `error_class = 'ssrf_blocked'`. **Only infrastructure failures throw** — Postgres unreachable, Redis unavailable, internal exceptions/bugs — and only those retry per the queue's attempts/backoff (§14.1). A target timeout is never retried; redelivery after a worker crash is absorbed by the idempotent writers, not by classifying target outcomes as failures.
+6. **Persist — dispatch by tier (§16 owns the SQL; §15 does not restate it):** if the classified result changes `monitors.status` (DOWN, RECOVERED, or the first check), run the **Tier 1 transition transaction synchronously inside the job** (§16.1). If the result matches the current status (routine UP, unchanged DOWN), apply the **Tier 2 buffer path** — Redis `HINCRBY`/`HSET` deltas, flushed by §16.2 within 60 s. Never route a transition through the buffer; never write `status` from Tier 2.
+7. **Release the lock in a `finally`** — owner-only, via Lua compare-and-delete (`GET` equals our value → `DEL`); a lock you no longer own is never deleted.
+
+**BullMQ stall hygiene (J-3):** worker `lockDuration` 30000 ms, `stalledInterval` 30000 ms, `maxStalledCount` 1 (source defaults, pinned in §14.1 — verify against Phase 4 BullMQ 6 research); graceful shutdown via `worker.close()` on SIGINT/SIGTERM with PM2 `kill_timeout ≥ 20 s`, so deploys drain in-flight checks instead of manufacturing stalled jobs.
+
+### 15.2 Check failure modes (D-07)
+
+| Failure | Detection | Response | Recovery |
+|---|---|---|---|
+| Lock lost mid-check (TTL expired under a slow target) | step-3 renewal returns 0 / value mismatch | abort: stop writing, discard the classified result, log `lock_lost`, complete the job without persisting | the new owner's execution is the recorded one; correctness never depended on the lock (J-1/J-2/D-1) |
+| Renewal failure (Redis briefly unavailable) | renewal command errors or times out | same abort path — never race a possibly-new owner | the lock expires via TTL if genuinely lost; the next scheduled check is unaffected |
+| Redirect to a private IP | per-hop validation, step 4 sub-step 4 | result DOWN `error_class = 'ssrf_blocked'`; the request to the private address is never issued | none needed — recorded as a normal classified DOWN check |
+| Oversized body (> 2 MB) | byte counter hits the cap mid-read, step 4 sub-step 5 | abort the body read at the cap; record the completed check (headers + capped prefix) | none — this is a target outcome, not an infra retry |
+| Target timeout (> 10 s) | fetch timer fires | result DOWN `error_class = 'timeout'`; the job **succeeds** — a target timeout is never retried | the next scheduled check re-evaluates the target |
+| DNS resolution failure (NXDOMAIN / SERVFAIL) | resolver error in step 4 sub-step 2 | result DOWN `error_class = 'dns'`; job succeeds, no retry | the next scheduled check re-evaluates |
+| Postgres down at persist time (after a successful fetch) | Tier 1 transaction error, step 6 | the job **throws** (infrastructure failure) → BullMQ retry with bounded attempts (3) and exponential backoff; Tier 1 atomicity means no partial write survives | on retry the D-1 conditional UPDATE gates re-application; attempts exhausted → dead-letter with ≥ ~7 d best-effort retention (D-14) |
+
+### 15.3 Check-job parameter pinning (D-10)
+
+| Parameter | Default | Rationale | Class |
+|---|---|---|---|
+| Fetch timeout | 10 s | strict per-check budget covering DNS, connect, redirects, and the capped body read (S-1.3); unchanged from current behavior | non-negotiable |
+| Redirect hop cap | 5 | S-1: bounds redirect chains; every hop is re-validated anyway | non-negotiable |
+| Response body cap | 2 MB | S-1.3: memory-exhaustion / archive-bomb bound; keyword checks use the capped prefix | non-negotiable |
+| Lock TTL | 15 s = 10 s timeout + 5 s margin | **TTL = timeout + margin** (WRK-04 formula — non-negotiable); the 5 s margin absorbs scheduler jitter and the persist-start window after the fetch returns | non-negotiable formula; 5 s margin is the default value |
+| Lock renewal interval | TTL/3 (5 s) | three renewal windows per TTL — a single missed renewal must not expire the lock mid-fetch | non-negotiable |
+| Check-worker concurrency | 10 | pool baseline above: 10 x 10 s timeout bounds in-flight fetches and their sockets | default — tune in Phase 4/5 with data |
 
 ---
 

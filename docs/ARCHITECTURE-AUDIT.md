@@ -532,18 +532,160 @@ worker/
 
 ## 16. Proposed Batching / Aggregation Architecture
 
-Replaces `db-batcher.ts` (deleted). Split by criticality:
+*Amended 2026-09-09 (resolves J-2, D-1, D-2, D-4, D-5, D-6; §9 items 2, 8, 9, 12)*
 
-**Tier 1 — immediate (never batched):** DOWN transition, RECOVERED transition, incident open/resolve, first check of a monitor, manual checks. Written in a single Postgres transaction by the `persist` processor. Durability: BullMQ retries ⇒ Postgres outage yields retryable jobs, not lost data.
+Replaces `db-batcher.ts` (deleted). Split by criticality into two tiers, each specified as literal SQL a Phase 4 implementer transcribes without interpretation:
 
-**Tier 2 — aggregated (routinely batched):** routine UP (and unchanged-DOWN evidence, but flushed on a short 60 s window rather than 15 min so downtime evidence lags ≤1 min). Path: check handler → Redis aggregate hash (atomic `HINCRBY`/`HSET`) → repeatable flusher enqueues `flush-monitor-aggregate` → transactional delta apply with SQL-relative increments → delete hash only after commit.
+**Tier 1 — synchronous transaction (never batched):** every check whose classified result **changes** `monitors.status` — DOWN transition, RECOVERED transition, first check (PENDING → UP/DOWN) — regardless of whether the check was scheduled or manual. Written as **one synchronous Postgres transaction** by the `persist` processor inside the check job: monitor UPDATE + ping INSERT + incident INSERT/UPDATE + outbox INSERT (§16.1). Durability: BullMQ retries ⇒ a Postgres outage yields retryable jobs, not lost data (rule 14).
+
+**Tier 2 — guarded aggregation (routinely batched):** every check whose result **matches** current status (routine UP, unchanged DOWN) — again including manual checks that don't transition. Deltas are aggregated in Redis (atomic `HINCRBY`/`HSET` per monitor) and flushed within 60 s via **one guarded atomic UPDATE per monitor that never writes `status`** (§16.2). Redis hash entries are deleted only after the flush transaction commits.
 
 Invariants:
 1. `monitor.status` is **only** written by Tier 1 (fixes B3 state-regression defect).
-2. Aggregate flush uses `last_checked = GREATEST(existing, incoming)` and additive counters (fixes B4).
+2. Aggregate flush uses `last_checked = GREATEST(existing, incoming)`, additive counters, and the `CASE` response-time guard (fixes B4, D-5).
 3. Redis buffer is loss-tolerable by definition; Postgres is authoritative for every transition (rules 1, 7, 13).
 4. Buffer size is bounded by design (60 s window × check rate) — no unbounded growth (fixes B5).
-5. Idempotency key per flush batch prevents double-apply on retry.
+5. Flush batches are exactly-once per batch id via the same-transaction `write_guards` guard (J-2) — replacing the earlier vague "idempotency key per flush batch".
+
+### 16.1 Transition transaction (Tier 1 — D-1, D-2, DAT-01)
+
+```sql
+BEGIN;
+
+-- 1. Evidence ping: ALWAYS inserted — every executed check leaves evidence,
+--    including duplicate (redelivered) executions. Ids come from the pinned
+--    DB default (D-3): omit the id column or supply values, never undefined.
+INSERT INTO pings (monitor_id, status, response_time, error_class, status_code, created_at)
+VALUES ($mid, $pingStatus, $rt, $errorClass, $statusCode, now());
+
+-- 2. Conditional transition + counters (D-1): only the executor that flips
+--    the status proceeds. Counters ride this statement, so a duplicate
+--    delivery counts the check exactly once. Zero rows returned ⇒ another
+--    executor already made this transition ⇒ skip steps 3–4 and COMMIT.
+UPDATE monitors
+   SET status        = $target,              -- 'DOWN' | 'UP' (UP from DOWN = RECOVERED)
+       last_checked  = now(),
+       response_time = $rt,
+       total_checks  = total_checks + 1,     -- SQL-relative increments only (D-5)
+       failed_checks = failed_checks + CASE WHEN $failed THEN 1 ELSE 0 END
+ WHERE id = $mid
+   AND status <> $target
+   AND is_active
+RETURNING id;
+
+-- (steps 3–4 run only if RETURNING yielded a row)
+
+-- 3a. DOWN: open the incident. The WHERE clause after the conflict target is
+--     the index_predicate matching incidents_one_ongoing (§11) — partial
+--     unique index inference per postgresql.org/docs/current/sql-insert.html
+--     ("Used to allow inference of partial unique indexes… Follows CREATE
+--     INDEX format"). A concurrent double-insert becomes a physical no-op.
+INSERT INTO incidents (monitor_id, status, started_at)
+VALUES ($mid, 'ONGOING', now())
+ON CONFLICT (monitor_id) WHERE status = 'ONGOING' DO NOTHING
+RETURNING id;
+-- (if DO NOTHING swallowed a concurrent insert and no row returns, SELECT the
+--  surviving ONGOING incident id for the outbox row)
+
+-- 3b. RECOVERED: resolve the existing ONGOING incident instead.
+UPDATE incidents
+   SET status      = 'RESOLVED',
+       resolved_at = now()
+ WHERE monitor_id = $mid
+   AND status = 'ONGOING'
+RETURNING id;   -- resolved incident id feeds the outbox row
+
+-- 4. Outbox event (D-2): the alert enqueue is driven from this durable row
+--    AFTER commit by the relay (§16.3) — a crash between commit and alert
+--    enqueue is impossible by construction.
+INSERT INTO outbox (event_type, monitor_id, incident_id, payload, created_at)
+VALUES ($eventType, $mid, $incidentId, $payload::jsonb, now());
+
+COMMIT;
+```
+
+Defense in depth (D-1): the conditional UPDATE is the primary gate; `incidents_one_ongoing` is the physical backstop that makes the one-ONGOING-per-monitor invariant unviolable even if a buggy path ever inserts without the gate.
+
+### 16.2 Guarded monotonic flush (Tier 2 — J-2, D-5, DAT-02/DAT-03)
+
+```sql
+BEGIN;
+
+-- Guard: same-transaction write guard (J-2). Zero rows returned ⇒ this batch
+-- was already applied (worker crashed after commit but before the Redis hash
+-- delete; BullMQ redelivered the flush job) ⇒ COMMIT and exit — the retry is
+-- a no-op. A Redis-side guard alone is insufficient (keys can be flushed/lost).
+INSERT INTO write_guards(key) VALUES ('flush:{batchId}')
+  ON CONFLICT DO NOTHING
+RETURNING key;
+
+-- Additive monotonic UPDATE: never writes status (B3 fix). Deltas only.
+UPDATE monitors SET
+  total_checks  = total_checks + $dTotal,
+  failed_checks = failed_checks + $dFailed,
+  last_checked  = GREATEST(last_checked, $lastTs),
+  response_time = CASE WHEN $lastTs > last_checked THEN $lastRt ELSE response_time END
+WHERE id = $mid;
+
+COMMIT;
+-- Redis aggregate hash is deleted only after this COMMIT succeeds.
+```
+
+**NULL semantics, pinned** (postgresql.org/docs/current/functions-conditional.html):
+
+- `GREATEST` **ignores NULL arguments** — a documented deviation from the SQL standard: *"NULL values in the argument list are ignored. The result will be NULL only if all the expressions evaluate to NULL."* ⇒ `GREATEST(NULL, $lastTs)` = `$lastTs`; **no `COALESCE` is needed** (contrary to SQL-standard intuition — do not "fix" it).
+- Asymmetry: the `CASE` guard's comparison `$lastTs > NULL` yields NULL (not true), so a never-checked row (`last_checked IS NULL`) takes the **ELSE** branch and keeps the old `response_time`.
+- Reachability: this edge is **unreachable by construction** — a monitor's first result is always a Tier 1 transition (PENDING → UP/DOWN writes `last_checked` synchronously), so Tier 2 only ever sees rows with `last_checked` set. If a bug ever reaches it anyway, the outcome is benign: `response_time` is simply not updated for that flush; counters still apply.
+
+### 16.3 Outbox relay (D-2 / DAT-05)
+
+```sql
+BEGIN;
+
+SELECT id, event_type, monitor_id, incident_id, payload
+  FROM outbox
+ WHERE sent_at IS NULL
+ ORDER BY created_at
+ LIMIT $batch                      -- default 100 (pinned in §11 parameter table)
+   FOR UPDATE SKIP LOCKED;         -- postgresql.org/docs/current/sql-select.html:
+                                   -- rows already locked by another relay consumer
+                                   -- are skipped — the queue-table pattern
+
+-- per selected row: enqueue the alerts job (Redis/BullMQ), then:
+UPDATE outbox SET sent_at = now(), attempts = attempts + 1 WHERE id = $id;
+
+COMMIT;                            -- one transaction per relay pass (batched)
+```
+
+- `sent_at` is set **exactly once** per row; `attempts` counts relay passes that picked the row (crash safety — an enqueue that failed mid-pass leaves `sent_at NULL` and the row is re-selected next pass).
+- The relay is a BullMQ-scheduled job on the worker; `FOR UPDATE SKIP LOCKED` keeps multiple relay instances safe without coordination.
+
+### 16.4 Incident-keyed alert dedup (D-4 / DAT-06)
+
+Deduplication is keyed to the **incident event**, not the monitor state — a state-keyed scheme cannot distinguish incidents that recur. The outbox (§16.3) is the durable event source; Redis dedup is a best-effort collapse of at-least-once duplicates on top (rule 2).
+
+- **Key format:** `alert:{incidentId}:{direction}` where `direction ∈ {down, recovered}`.
+- **Write discipline:** `SET alert:{incidentId}:{direction} 1 NX EX 86400` — written **only after a confirmed send** (Telegram API 2xx). TTL 24 h bounds key growth; a recurring incident gets a new `incidentId` anyway.
+- **Check-before-retry:** every attempt (BullMQ retry or a redelivered outbox event) checks `EXISTS alert:{incidentId}:{direction}` first; if held, the processor skips the send and completes the job successfully.
+- **Attempt bound:** ≤ 3 BullMQ attempts, then the job dead-letters (7-day retention, D-14).
+- **Residual duplicates** (send succeeded, response lost, and the key write also lost) are accepted, documented at-least-once behavior — preferable to silence.
+
+### 16.5 Uptime semantics decision (D-6 / Q-1)
+
+Locked decision: **lifetime counters remain the displayed numbers** — `uptime_percent = (total_checks − failed_checks) / total_checks` over the monitor's lifetime, the current behavior (behavior-compatibility constraint). Consequences:
+
+- No display change during the behavior-compatibility window; the dashboard/status-page contract is untouched.
+- The nightly `recompute-uptime` job suggested in earlier queue sketches has no algorithm and no purpose while counters are authoritative — v1 job lists must not include it.
+- Windowed uptime (24 h/7 d/30 d computed from `pings` via the `(monitor_id, created_at)` index, stored per-window) ships **flagged in Phase 8** (DAT-11); those columns are added then, not now.
+
+### 16.6 Writer failure modes (D-07 shape)
+
+| Failure | Detection | Response | Recovery |
+|---|---|---|---|
+| Duplicate job delivery runs the transition transaction twice | Step-2 conditional UPDATE returns 0 rows; or the incident INSERT hits the `ON CONFLICT` no-op | Transaction commits as a near-no-op: evidence ping recorded, no second incident, no double counter increment, no second outbox row | None needed — idempotent by construction; TC-DUP-INCIDENT-01 pins it |
+| Crash between transition commit and alert enqueue | Impossible by construction: the outbox row is committed **inside** the Tier 1 transaction (D-2) | Relay selects the unsent row on its next pass (`sent_at IS NULL`) | Relay retry; §16.4 dedup collapses any duplicate alert deliveries |
+| Flush re-applied after a crash between commit and Redis-hash delete | `write_guards` insert returns 0 rows for the same `flush:{batchId}` key | Transaction exits **before** the UPDATE — counters change by zero | Redis hash deleted on the retry's exit path; TC-FLUSH-GUARD-01 pins it |
+| Outbox relay crashes mid-batch | Row locks released on crash; affected rows still have `sent_at IS NULL` | Unsent rows re-selected on the next relay pass (`FOR UPDATE SKIP LOCKED` clears after crash) | `sent_at` set once per row; §16.4 dedup collapses redelivered alert events; TC-DUP-ALERT-01 pins it |
 
 ---
 

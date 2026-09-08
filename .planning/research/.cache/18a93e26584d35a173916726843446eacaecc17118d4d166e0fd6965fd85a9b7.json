@@ -1,0 +1,1 @@
+{"content":"ioredis 6.0.0 (Jul 2026): Node>=20 required, RESP3 by default (protocol:2 to revert). BullMQ 6 peer allows ioredis>=5 -> 6 OK; BullMQ 6 no longer bundles ioredis, install explicitly. Never use ioredis keyPrefix with BullMQ.","source":"web","provider":"webfetch","confidence":"HIGH","fetched_at":"2026-09-08T17:02:42.822Z","ttl":86400000,"kind":"docs"}

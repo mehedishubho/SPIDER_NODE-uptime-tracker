@@ -1,0 +1,1 @@
+{"content":"drizzle-orm latest 0.45.2 (0.45 line since Dec 2025, 0.45.2 Mar 2026, still 0.x). Peer pg>=8; drizzle-kit 0.31.10 pairs. better-auth 1.7.3 pins drizzle-orm ^0.45.2 exactly -> do not drift below.","source":"web","provider":"npm-registry","confidence":"HIGH","fetched_at":"2026-09-08T17:02:42.555Z","ttl":86400000,"kind":"docs"}

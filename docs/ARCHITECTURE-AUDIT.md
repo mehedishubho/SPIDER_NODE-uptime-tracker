@@ -431,6 +431,8 @@ Mapping decisions to record now:
 
 ## 12. Proposed Better Auth Mapping
 
+*Amended 2026-09-09 (resolves A-1, A-2, A-3, S-2, S-3; §9 items 14, 15, 16, 17, 18)*
+
 Current NextAuth v4 surface → Better Auth equivalent:
 
 | NextAuth v4 today | Better Auth target |
@@ -453,6 +455,105 @@ Migration constraints:
 - **OAuth identities** in `accounts` must be reshaped into Better Auth's `account` table (`providerId`, `accountId`, `accessToken`, etc.) — column mapping is mechanical but must preserve refresh tokens.
 - `verification_tokens` / `password_reset_tokens` rows can be truncated at cutover (users simply re-request; tokens are short-lived).
 - `NEXTAUTH_SECRET`/`NEXTAUTH_URL` env names retire in favor of `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL` (+ `NEXT_PUBLIC_*` where the client needs them).
+- **Canary gate before any route flip (A-1 / AUTH-02).** A canary account must log in through the preserved hash path on the anonymized snapshot, then in production, before any route flips — ordering in §12.2.
+- **Drizzle FKs must reference the schema key, not the modelName** (upstream better-auth issue #8111) — warning in §12.1.
+- **ID generation stays DB-side** (§11 / D-3 pin); Better Auth's `advanced.database.generateId` must agree — §12.1.
+
+### 12.1 Field-mapping tables (D-09)
+
+Field lists below are the **verified Better Auth 1.7 core schema** (extracted from `get-tables.ts` — Phase 1 research, HIGH confidence). Columns: current column → Better Auth field → mapping rule → confidence. Cells the design cannot yet guarantee carry the explicit marker **confirm by Phase 7 dry-run**; Phase 7 research fills only those marked gaps, it never re-derives the mapping.
+
+#### `users` → Better Auth `user` (A-3: bound to the existing table — no renames)
+
+| Current `users` column | Better Auth `user` field | Mapping rule | Confidence |
+|---|---|---|---|
+| `id` (text, cuid PK) | `id` | **preserved verbatim — no rename, no regeneration**; every FK (`monitors`, `feedbacks`, account rows) depends on it | verified |
+| `name` (nullable) | `name` (required, sortable) | copied; existing NULLs backfill to `''` at migration (core marks the field required) | verified |
+| `email` (unique) | `email` (required, unique) | copied; the unique constraint is preserved | verified |
+| `emailVerified` (DateTime, nullable) | `emailVerified` (BOOLEAN, required, not input-accepted) | **truthiness backfill: `emailVerified IS NOT NULL`** — any non-NULL NextAuth verification timestamp ⇒ `true`, NULL ⇒ `false`. The timestamp value itself is not carried; only its presence | verified |
+| `image` (nullable) | `image` | copied verbatim | verified |
+| `createdAt` | `createdAt` | preserved as-is (live column type per the M-6 / DRZ-01 verify-against-pg_dump marker) | verified |
+| `updatedAt` | `updatedAt` | preserved; Better Auth maintains it on write | verified |
+| — (new column) | `role` (admin plugin) | added with the Better Auth admin plugin (§12.4); default `user` | verified |
+
+Unmapped app-owned columns (`telegramChatId`, `timezone`) are untouched — Better Auth only owns the fields above.
+
+#### `sessions` (legacy) → Better Auth `session` (new table)
+
+Better Auth uses **server-side sessions**. The legacy `sessions` table (written by the PrismaAdapter but never consulted under the JWT strategy — dead weight) is **not migrated**: sessions start empty at cutover (forced re-login, §12.6) and the legacy table is retained read-only for one release, then dropped (AUTH-07). The mapping below defines shape compatibility only:
+
+| Legacy `sessions` column | Better Auth `session` field | Mapping rule | Confidence |
+|---|---|---|---|
+| `sessionToken` (unique) | `token` (required, unique) | shape-compatible; **zero rows migrated** — sessions are invalidated at cutover | verified |
+| `userId` | `userId` (required, FK → `user`, cascade, indexed) | shape-compatible; FK references the schema key `user` — see the adapter warning below | verified |
+| `expires` | `expiresAt` (required) | shape-compatible; Better Auth manages session TTLs | verified |
+| — | `ipAddress`, `userAgent` | new; recorded by Better Auth on session create | verified |
+| — | `createdAt`, `updatedAt` | new; Better Auth-managed | verified |
+
+#### `accounts` → Better Auth `account` (reshaped per §21-D4)
+
+| Current `accounts` column | Better Auth `account` field | Mapping rule | Confidence |
+|---|---|---|---|
+| `providerAccountId` | `accountId` (required) | copied verbatim — the provider's immutable user id; unique with `providerId` | verified |
+| `provider` (`google` \| `github`) | `providerId` (required) | assumed lowercase `google` / `github` casing | **confirm by Phase 7 dry-run** |
+| `access_token` (Text, nullable) | `accessToken` | copied | verified |
+| `refresh_token` (Text, nullable) | `refreshToken` | copied — **refresh tokens MUST survive the reshape**; losing them breaks silent re-auth until re-consent | verified |
+| `id_token` (Text, nullable) | `idToken` | copied when present | verify against live pg_dump (M-6) |
+| `expires_at` (nullable) | `accessTokenExpiresAt` | copied; NULL-safe | verified |
+| `scope` (nullable) | `scope` | copied when present | verify against live pg_dump (M-6) |
+| `type` | — (no equivalent field) | dropped at reshape; Better Auth discriminates OAuth vs credential rows via `providerId` | verified |
+| `userId` | `userId` (required, FK → `user`, cascade, indexed) | preserved — user ids unchanged | verified |
+| `users.password` (bcrypt hash) | `password` | moved out of `users` into per-user credential rows (`providerId: 'credential'`, `accountId` = user id) — §12.2 | verified |
+
+#### `verification_tokens` → Better Auth `verification` (new table)
+
+| Current `verification_tokens` column | Better Auth `verification` field | Mapping rule | Confidence |
+|---|---|---|---|
+| `email` | `identifier` (required, indexed) | copied at reshape; Better Auth keys both email-verification and password-reset flows off `identifier` | verified |
+| `token` (unique) | `value` (required) | copied at reshape; ongoing tokens are Better Auth-generated | verified |
+| `expires` | `expiresAt` (required) | copied | verified |
+
+Both legacy token tables (`verification_tokens`, `password_reset_tokens`) truncate at cutover — tokens are short-lived and users simply re-request (§21-D5).
+
+**Adapter warnings (Phase 7 Drizzle):**
+
+- **FKs reference the schema key, not the modelName** (upstream better-auth issue #8111): Better Auth's generated foreign keys reference the schema *key* (`user`) even when the model is aliased to a different physical table (`users` via `modelName`). The Drizzle adapter's FK definitions must reference the schema key or the mapping breaks — verify in the Phase 7 dry-run.
+- **ID pin (cross-ref §11 / D-3):** `advanced.database.generateId` (`false | "serial" | "uuid" | fn`) is the config surface for id generation. The project pin is **DB-side `gen_random_uuid()::text` defaults with existing cuid ids preserved** — configure `generateId` to defer to the column default and confirm the exact adapter behavior in the Phase 7 dry-run.
+- The field-map columns above must stay aligned with §11's schema markers (mapping decision 6: `accounts` replaced by Better Auth's `account`; `session` / `verification` added new).
+
+### 12.2 Password hashing — bcrypt compatibility gate (A-1 / AUTH-01, AUTH-02, AUTH-09)
+
+Better Auth's **default password hashing is scrypt**; every existing credentials user has a bcrypt hash. Without explicit configuration, all of them are locked out at cutover — this is a **gate, not a spike**:
+
+1. **Wire `emailAndPassword.password.hash` / `.verify` to bcrypt-compatible functions** at configuration time (Phase 7), with **hash-prefix routing** in `verify`: stored hashes prefixed `$2a$` / `$2b$` / `$2y$` (bcryptjs output) verify via bcrypt; modern-default hashes verify via the modern verifier. `hash` always produces the modern default.
+2. **Canary login gate — the ordering is non-negotiable:** a canary account must log in through the preserved hash path on the **anonymized snapshot**, then in **production**, **before any route flips**. Snapshot → production → flip. A failed production canary aborts the cutover.
+3. **Lazy rehash-on-login (AUTH-09):** a successful bcrypt verify re-stores the hash through `password.hash` (modern default) — stored hashes upgrade gradually with no bulk rehash job and no forced password resets.
+
+### 12.3 Session architecture — cookieCache (A-2 / AUTH-04)
+
+- **Server-side sessions + `cookieCache`:** the proxy (and API session checks) validate the **signed cookie cache** without a per-request DB hit. TTL **5 min**.
+- **`disableCookieCache: true` on sensitive endpoints** (password change, email change, session list/revocation) — those always read the DB.
+- **DB fallback:** a cold or invalid cache falls back to the session-table read and re-signs — correctness never depends on the cache being warm.
+- **Revocation latency is bounded by the TTL (≤ 5 min worst case)** — the accepted cost of cookieCache; account deletion / plan change revocations apply at TTL expiry at the latest.
+
+### 12.4 Roles and admin surfaces (A-3 / S-3 / SEC-04) + manual-check rate limit (D-13)
+
+- **Better Auth `admin` plugin** adds the `role` column on `users` (§12.1) — the fix vehicle for S-3.
+- **Feedback listing is admin-only** (fixes R17 — today any authenticated user can read every user's name/email via `GET /api/feedback`).
+- **Queue UI (Bull Board) is admin + IP allowlist** (OBS-04) — never an unauthenticated surface.
+- **Manual-check per-user rate limit (D-13 / SEC-05, user-facing choice):** **1 per monitor per 30 s and 6 total per minute per user across monitors** — enforced at the API route via the Redis limiter (`rl:` keys, §13.1) before enqueue, per Q-5's enqueue-and-poll UX.
+
+### 12.5 Telegram webhook authentication (S-2 / SEC-03 — decision note; implementation Phase 6)
+
+The webhook is authenticated with Telegram's `secret_token` mechanism:
+
+- `setWebhook` carries a `secret_token` — charset `[A-Za-z0-9_-]`, length 1–256 (core.telegram.org/bots/api#setwebhook).
+- Telegram then sends the `X-Telegram-Bot-Api-Secret-Token` header with every update; the handler validates it via **constant-time comparison** against the configured secret and rejects wrong/missing headers before touching the payload.
+
+### 12.6 Cutover sequencing — decided items
+
+- **Forced re-login at cutover: DECIDED** — accepted consequence (M2 / §21-D6), **announced in-app and by email per Q-4**. Not an open question. Sessions start empty under Better Auth.
+- **Legacy `sessions` / `verification_tokens` / `password_reset_tokens` tables stay read-only for one release post-flip**, then drop (rollback window, AUTH-07).
 
 ---
 

@@ -13,7 +13,7 @@ A brownfield modernization of a live production uptime-monitoring SaaS. The arc 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Design Gate — Review Verdict READY** - All 8 review addenda incorporated, §9 checklist resolved, verdict flipped NOT READY → READY before any code — **NOT YET: re-review cycle 1 (2026-09-09) found ratified gaps RR-01..RR-04; verdict honestly unchanged, one D-18 fix cycle remains**
+- [ ] **Phase 1: Design Gate — Review Verdict READY** - All 8 review addenda incorporated, §9 checklist resolved, verdict flipped NOT READY → READY before any code — **NOT YET: fix-cycle plans 01-06..01-08 close the ratified gaps RR-01..RR-04 + confirmed criticals CR-01..CR-03; final D-18 cycle-2 re-review gate (01-09) pending — verdict honestly still NOT READY**
 - [ ] **Phase 2: Foundations & Theme Infrastructure** - pnpm, CI gates, characterization tests on real Postgres/Redis; theme tokens land with zero behavior change
 - [ ] **Phase 3: Redis & Drizzle Schema Ownership** - Redis with no correctness dependence; live-DDL Drizzle baseline plus worker schema addenda, rehearsed on a prod snapshot
 - [ ] **Phase 4: Monitoring Worker — Build & Dark Launch** - Dedicated worker owns all monitoring on idempotent, resilient BullMQ machinery; dark-launched while cron still serves users
@@ -36,7 +36,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Every review §9 pre-implementation checklist item traces to a design decision, and the verdict is re-recorded as READY (dated, reviewer identified) before any implementation code merges
   3. An operator can read the runbook addendum and know the exact production ordering (build → backup → migrate → worker restart → web restart → smoke check), the rollback action at each step, and the per-process connection budget — before any code exists
 
-**Plans**: 5/5 plans complete
+**Plans**: 9 plans (5 complete, 4 pending — D-18 fix cycle + final cycle-2 gate)
 
 Plans:
 **Wave 1**
@@ -58,6 +58,19 @@ Plans:
 **Wave 5** *(blocked on Wave 4 completion)*
 
 - [x] 01-05-PLAN.md — The gate: fresh adversarial re-review (D-15/D-17), human ratification checkpoint, verdict flip to READY per D-16 (DSGN-02) — *executed via the gap-path branch: ratified gaps RR-01..RR-04, verdict NOT flipped, D-18 cycle 1 of 2 (see 01-05-SUMMARY.md)*
+
+**Wave 6** *(fix cycle — blocked on 01-05; parallel, no file overlap)*
+
+- [ ] 01-06-PLAN.md — Fix criticals in the audit writer specs: §16.2 exclusive-snapshot flush + bulk ping INSERT (CR-01/CR-02/IN-03/IN-04/OBS-01), dedup vocabulary for all three outbox event types (CR-03), git-track ARCHITECTURE-REVIEW.md (DSGN-01)
+- [ ] 01-07-PLAN.md — Fix runbook executability: phase-conditional Migrate step (WR-03), PM2 process-signal handshake (WR-04), NEW §4a first-worker-cutover path (WR-05), budget wording (IN-05) (DSGN-01)
+
+**Wave 7** *(blocked on 01-06 + 01-07)*
+
+- [ ] 01-08-PLAN.md — Close ratified residuals + advisory hardening: S-1 egress layer in audit §15.4 + runbook §10 (RR-01), maintenance.ts comment (RR-02), §23 degradation assertions (RR-03), spike-vocabulary rewording (RR-04), WR-01/02/07/08 + IN-01/OBS-04/05 pins (DSGN-01)
+
+**Wave 8** *(final gate — blocked on 01-06 + 01-07 + 01-08)*
+
+- [ ] 01-09-PLAN.md — D-18 cycle 2 of 2 (FINAL): fresh adversarial re-review of the amended docs, blocking human ratification, verdict flip to READY per D-16 or permanent escalation with verdict unchanged (DSGN-02)
 
 ### Phase 2: Foundations & Theme Infrastructure
 

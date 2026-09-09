@@ -4,9 +4,9 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 2
 current_phase_name: Foundations & Theme Infrastructure
-status: verifying
-stopped_at: Completed 01-09-PLAN.md (cycle-2 clean pass ratified — verdict flipped to READY; Phase 01 complete 9/9)
-last_updated: "2026-09-09T17:28:26.170Z"
+status: ready_to_plan
+stopped_at: Phase 01 complete, ready to plan Phase 2
+last_updated: "2026-09-09T21:40:40.000Z"
 last_activity: 2026-09-09
 last_activity_desc: Phase 01 complete, transitioned to Phase 2
 progress:
@@ -21,19 +21,19 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-08)
+See: .planning/PROJECT.md (updated 2026-09-09)
 
 **Core value:** Modernize the infrastructure without breaking existing monitoring — never lose or corrupt uptime data, silently stop checking, or lock users out irrecoverably.
-**Current focus:** Phase 01 — design-gate-review-verdict-ready
+**Current focus:** Phase 02 — Foundations & Theme Infrastructure
 
 ## Current Position
 
 Phase: 2 — Foundations & Theme Infrastructure
 Plan: Not started
-Status: Phase complete — ready for verification
+Status: Ready to plan
 Last activity: 2026-09-09 — Phase 01 complete, transitioned to Phase 2
 
-Progress: [███████░░░] 67%
+Progress: [████████████████████] 9/9 plans (100%)
 
 ## Performance Metrics
 
@@ -114,6 +114,7 @@ None yet.
 
 - Research flags requiring `--research-phase` during planning: Phase 4 (BullMQ 6 `upsertJobScheduler`, breaker/backlog tuning, PM2 handshake), Phase 7 (social `providerId` casing, token-flow cutover, cookieCache revocation lag), Phase 3 (drizzle-kit journal-stamping, `CREATE INDEX CONCURRENTLY` transaction wrapping)
 - Live production system: every cutover step needs a full `pg_dump` backup and an anonymized-snapshot rehearsal first (D-9/D-10)
+- [Phase 4/5] Design-debt register (01-VERIFICATION.md): CR-01 (`uptime_percent` has no writer — displayed lifetime uptime would freeze at cutover) and CR-02 (runbook §4a "disable nothing" vs audit M4 ordering) are must-resolve inputs at Phase 4/5 planning, before any plan transcribes §16 or the §4a overlap path; advisory register WR-01..05 / IN-01..07 / RR2-01..03 rides along
 
 ## Deferred Items
 
@@ -125,6 +126,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-09T17:05:50.845Z
-Stopped at: Completed 01-09-PLAN.md (cycle-2 clean pass ratified — verdict flipped to READY; Phase 01 complete 9/9)
+Last session: 2026-09-09T21:40:40.000Z
+Stopped at: Phase 01 complete, ready to plan Phase 2
 Resume file: None

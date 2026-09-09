@@ -17,7 +17,7 @@
 | **worker** (PM2 `uptime-worker`, from Phase 4) | **20** | **DIRECT** |
 | **migration runner** (deploy pipeline, one-shot) | **1** | **DIRECT** |
 
-Operational summary — **web 10 / worker 20 / migrations 1**; steady-state total ≤ 31 connections. Full spec (pool options, timeouts, pooled-vs-direct rationale, Neon limits): audit [§25](./ARCHITECTURE-AUDIT.md).
+Operational summary — **web 10 / worker 20 / migrations 1**; steady-state total ≤ 30 connections (web 10 + worker 20), rising to ≤ 31 only during deploys while the single one-shot migration runner is connected. Full spec (pool options, timeouts, pooled-vs-direct rationale, Neon limits): audit [§25](./ARCHITECTURE-AUDIT.md).
 
 During a release, keep `psql` and dashboard sessions to a minimum: web 10 / worker 20 / migrations 1 leaves ≥ 70 % headroom against Neon's ~104 `max_connections` (assumption A4 — verify the project's tier before Phase 3).
 
@@ -73,6 +73,8 @@ In every release the migration runs **before** any process restart, and in the t
 
 Health surfaces (worker, port 9090): `GET :9090/healthz` = process alive only. `GET :9090/readyz` = process alive **and** Redis ping passes **and** database ping passes. Only `readyz` passing means the worker can take traffic.
 
+Two distinct readiness signals exist, and PM2 watches only the first: the worker must emit the **PM2 ready signal** — a `process.send('ready')` call — once its Redis and DB pings pass, i.e. exactly when `readyz` would return success. The HTTP `readyz` endpoint remains the operator/CI gate; the process ready signal is the PM2 gate (§5 `wait_ready`). An implementer who wires only the HTTP server never signals PM2: with `wait_ready` set, PM2 force-restarts the worker after `listen_timeout` on every boot — a crash loop in the process that gates every Phase 4+ release.
+
 1. **Build.**
    - *Action:* from the release commit, run the CI pipeline (lint → typecheck → test → `pnpm build`) producing **both** artifacts from one SHA: `.next` (web) and `worker/dist/index.js` (worker). Tag both with the commit SHA.
    - *Verification:* every gate exits 0; both artifacts exist and carry the same SHA.
@@ -105,8 +107,8 @@ Health surfaces (worker, port 9090): `GET :9090/healthz` = process alive only. `
 | Setting | Value | Applies to | Why (one line) |
 |---|---|---|---|
 | **`kill_timeout`** | **`20000`** (≥ 20 s) | worker (required), web | Lets in-flight jobs finish and flush before SIGKILL — deploys must not manufacture "stalled" jobs (J-3). Must be ≥ max job duration. |
-| **`wait_ready`** | `true` | worker | PM2 counts the process as started only when it signals ready — pairs with the `readyz` gate. |
-| **`listen_timeout`** | `30000` | worker | How long PM2 waits for the ready/listen signal before force-restarting — covers worker boot (queue workers up, Job Schedulers re-declared, Redis + DB pings). |
+| **`wait_ready`** | `true` | worker | PM2 counts the process as started only when it receives the **process ready signal** (`process.send('ready')`, §4) — not the HTTP `readyz` endpoint. Pairs with the `readyz` gate **via that signal**: an implementer who wires only the HTTP endpoint never signals PM2, and PM2 force-restarts after `listen_timeout` (boot crash loop, §4). |
+| **`listen_timeout`** | `30000` | worker | How long PM2 waits for the **process ready signal from §4** before force-restarting — covers worker boot (queue workers up, Job Schedulers re-declared, Redis + DB pings). If the signal is never sent, this expiry is what manufactures the crash loop. |
 | **`max_restarts`** | `10` | both | Crash-loop visibility: PM2 flags `errored` instead of restarting forever. |
 | **`min_uptime`** | `60000` | both | A process that cannot stay up 60 s counts toward the crash-loop budget. |
 

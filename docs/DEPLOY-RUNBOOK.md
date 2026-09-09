@@ -88,7 +88,7 @@ Two distinct readiness signals exist, and PM2 watches only the first: the worker
    - *Verification:* command exits 0; journal shows the release's entries; the empty-diff check reports no drift (M-3).
    - *Rollback:* no down-migrations inside the verification window — restore the previous tarball pair and restart both apps (additive-only schema, §7).
 4. **Restart worker, then wait for `readyz`.**
-   - *Action:* deploy the new worker tarball, then `pm2 restart uptime-worker`. Poll `curl -fsS http://127.0.0.1:9090/readyz` until it passes. **Do not proceed to the web restart until `readyz` passes.**
+   - *Action:* deploy the new worker tarball, then `pm2 restart uptime-worker`. Poll `curl -fsS http://127.0.0.1:9090/readyz` until it passes. **Do not proceed to the web restart until `readyz` passes.** (This restart form applies from the **second** worker release onward — the first registration of the app follows §4a, not this step.)
    - *Verification:* `pm2 ls` shows `uptime-worker` `online`; `readyz` returns success (Redis ping + DB ping both green); `healthz` alone is not sufficient.
    - *Rollback:* restore the previous worker tarball, `pm2 restart uptime-worker`, and re-check `readyz`. Only if the previous worker also fails `readyz` treat it as an infrastructure fault (Redis/Postgres), not a release fault — stop and escalate.
 5. **Restart web.**
@@ -99,6 +99,25 @@ Two distinct readiness signals exist, and PM2 watches only the first: the worker
    - *Action:* enqueue **one** synthetic check against a known-good target (the dedicated smoke-test monitor), then query the database and assert the new ping row appears for that monitor.
    - *Verification:* a `pings` row for the synthetic monitor exists with a timestamp after the enqueue, within one check interval. The release counts as good only when this row appears **and** `readyz` stayed green.
    - *Rollback:* if no ping row appears (or `readyz` flipped), restore the previous web **and** worker tarballs, restart worker first (`readyz`) then web, and repeat the smoke check. If it still fails, restore the database from the pre-release dump taken in step 2 and escalate.
+
+---
+
+## 4a. First worker release (Phase 4 cutover)
+
+The first release that introduces `uptime-worker` is not a restart: the app does not exist in PM2 yet, there is no previous worker tarball, and the old monitoring path must stay live until the new one has proven continuity (audit M3 — this is the highest-risk release of the milestone). §4 step 4's `pm2 restart` form applies from the **second** worker release onward; this subsection is the complete path for the **first** release only. §4 steps 1–3 (build, backup, migrate) and the §4 step 6 smoke check run unchanged around it.
+
+1. **Register and start the worker — never `pm2 restart`.**
+   - *Action:* deploy the worker artifact, then register the new PM2 app: `pm2 start ecosystem.config.js --only uptime-worker` (or `pm2 startOrReload` — both handle an unregistered app). **Never `pm2 restart uptime-worker`** on the first release: it errors on a name PM2 has never started. The app must emit the PM2 ready signal (`process.send('ready')` after its Redis + DB pings pass — §4/§5).
+   - *Verification:* `pm2 ls` shows `uptime-worker` `online` (not `errored`, not restart-looping); `curl -fsS http://127.0.0.1:9090/readyz` passes; the §4 step 6 synthetic-check smoke passes.
+   - *Rollback:* there is no previous worker tarball on this one release — rollback is **web-only monitoring**: `pm2 delete uptime-worker`. The old `instrumentation.ts` cron path is still live (step 2 keeps it that way), so monitoring never stops.
+2. **Overlap window — verify continuity with both paths live (M3).**
+   - *Action:* disable nothing. The old `instrumentation.ts` cron **keeps running** while the new worker serves — both paths are idempotent by design, so the overlap only wastes duplicate checks, never corrupts data (audit M3). Hold this window until every item below is green.
+   - *Verification:* healthchecks.io heartbeat steady (no `/fail` ping fired); worker queue depth returns to ≈ 0 after the initial drain (Redis/BullMQ metrics); pings still flowing for sampled monitors (fresh `pings` rows appearing under both paths); Telegram alert parity over the window (every DOWN/RECOVERY event alerted exactly once); monitor counter deltas sane (audit M4 — `total_checks`/`failed_checks` advance by ≈ the interval count, no doubling).
+   - *Rollback:* disable nothing and keep web-cron as the monitoring path — a red item in this window means the worker is not yet trusted; the old path was never turned off, so no rollback action exists or is needed.
+3. **Cutover completion — a separate, later release.**
+   - *Action:* only after the overlap window has closed green, ship a follow-up release that deletes the old monitoring path — the `instrumentation.ts` cron registration and `CRON_MODE` (audit §24 step 4). From this release the worker is the sole monitoring path. (The external cron endpoints and `CRON_SECRET` follow their own later retirement path in §9 — they are not deleted here.)
+   - *Verification:* one full check cycle with zero cron-route traffic (`/api/cron/*` access logs silent; `CRON_MODE` absent from the environment); the healthchecks.io heartbeat still green, now fired from the worker scheduler tick; §4 step 6 smoke check green.
+   - *Rollback:* restore the previous release tarball pair and restart both apps — the previous release still carries the cron path, so web-cron returns; watch one check interval to confirm it is firing.
 
 ---
 

@@ -5,7 +5,7 @@
 > **Scope:** every release of this milestone (backend modernization), from Phase 2 foundations through the final visual redesign.
 > **Status:** design-stage runbook — no corresponding code exists yet. Steps marked worker/`readyz` apply from Phase 4 onward (see topology table). Each step is verified live from Phase 2 onward and corrected here when reality disagrees.
 > **Companion document:** [ARCHITECTURE-AUDIT.md](./ARCHITECTURE-AUDIT.md) — all design rationale lives there, not here (D-01/D-03). This document contains ordering, verification, and rollback only.
-> **Amended 2026-09-09 (fix cycle):** §1/§2/§3/§4/§5 amended and §4a added — the Migrate step is phase-conditional (WR-03), the PM2 ready handshake names the process signal (WR-04), the first worker release has its own path (WR-05), and the steady-state budget is stated as ≤ 30 (IN-05 runbook half).
+> **Amended 2026-09-09 (fix cycle):** §1/§2/§3/§4/§5 amended and §4a added — the Migrate step is phase-conditional (WR-03), the PM2 ready handshake names the process signal (WR-04), the first worker release has its own path (WR-05), and the steady-state budget is stated as ≤ 30 (IN-05 runbook half). §10 added later in the same fix cycle — worker-host egress control, closing RR-01's operator half (S-1 layer 1, mirroring audit §15.4).
 
 ---
 
@@ -165,3 +165,16 @@ The target-topology smoke check is: **enqueue one synthetic check against a know
 > **Design rule (S-4):** no endpoint accepts secrets via query strings. Error responses never include stack traces or internal details.
 >
 > `CRON_SECRET` (today accepted as `?secret=` on cron routes) **retires with the cron endpoints** on a dated retirement path: repo hygiene (`.env.example`, no stack traces, no secrets in query) lands in Phase 2 (FND-07); the cron endpoints and `CRON_SECRET` itself are deleted at the Phase 5 overlap-verified cutover, once the worker has proven continuity. During the interim, prefer the `Authorization: Bearer` form where the current routes accept it.
+
+---
+
+## 10. Worker-host egress control (apply once — Phase 4 worker provisioning)
+
+> **Design rule (S-1 layer 1 / audit §15.4):** the worker host denies outbound connections to the private ranges and allows public-internet egress on ports 80/443 only, with DNS and loopback/VPC-internal Postgres (5432) / Redis (6379) as the sole exceptions. The rule set is applied **once**, when the worker host is first provisioned (§4a step 1), before the worker takes production traffic — it is never part of a routine release.
+
+1. **Apply the host-firewall egress rules.**
+   - *Action:* on the worker host, apply and persist outbound firewall rules that (a) **deny** connections to the private ranges — `10/8`, `172.16/12`, `192.168/16`, `127/8`, `169.254/16`, `0.0.0.0/8`, `::1`, `fc00::/7`, `fe80::/10`, `::ffff:0:0/96`, `64:ff9b::/96` — the identical range list audit §15.4 mirrors from the engine denylist (§15.1 step 4 sub-step 2); (b) **allow** outbound `80/tcp` and `443/tcp` to the public internet; (c) **allow** the exceptions — DNS resolution, and loopback/VPC-internal `5432/tcp` (Postgres) and `6379/tcp` (Redis). Make the rules survive a reboot.
+   - *Verification:* from the worker host — a `curl` to a public `http://` target and a public `https://` target both succeed; a direct request to a private-range address (e.g. `http://10.0.0.1/` or `http://169.254.169.254/latest/meta-data`) is refused; a request to a public host on a non-80/443 port is refused; and the worker's `curl -fsS http://127.0.0.1:9090/readyz` stays green (the Redis + DB pings inside `readyz` prove the 6379/5432 exceptions work — §4).
+   - *Rollback:* remove the rules and re-verify `readyz` stays green. The engine-layer SSRF validation (audit §15.1 step 4) remains enforced either way — the OS egress layer is defense-in-depth, so removing it never disables the primary boundary.
+
+This section is not re-run per release. If the denylist itself ever changes, audit §15.1 step 4 sub-step 2, audit §15.4, and this section must be updated in the same change — the three lists are one list.

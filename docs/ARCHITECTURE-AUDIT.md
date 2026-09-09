@@ -784,6 +784,7 @@ Transition and aggregation persistence semantics are owned by §16 (Tier 1 / Tie
 ## 15. Proposed Worker Architecture
 
 *Amended 2026-09-09 (resolves J-3, J-4, S-1; §9 items 3, 4, 18)*
+*Amended 2026-09-09, fix cycle (resolves RR-01, RR-02, WR-01, WR-08; §15.4 worker-host egress layer added, §15.1 denylist extended with canonicalization, maintenance-lane file-tree comment corrected, lock-renewal lifetime pinned)*
 
 A **separate long-running Node process**, first-class in the repo:
 
@@ -797,7 +798,7 @@ worker/
     check-tcp.ts      # future (UPGRADE_PLAN phase 3)
     persist.ts        # transitions (transactional) + aggregate flush
     alerts.ts         # telegram + email dispatch
-    maintenance.ts    # cleanup, uptime recompute
+    maintenance.ts    # cleanup (looped retention deletes, §13.7), ping-rollup, write_guards pruning
   health.ts           # :9090/healthz (process up) + /readyz (Redis+DB ping)
 ```
 
@@ -814,10 +815,10 @@ The `check` job's id **is** the §14 idempotency key (`check:{monitorId}:{epoch}
 
 1. **Re-read the monitor row at execution time** (`SELECT id, url, interval, status, is_active FROM monitors WHERE id = $mid`). Configuration may have changed since the claim (J-1, "also required"): if the row is gone (monitor deleted while claimed/queued) or `is_active = false`, complete the job successfully as a no-op — nothing to check, nothing to write.
 2. **Acquire the per-monitor lock** `lock:check:{monitorId}` via `SET NX PX` — value `{workerId}:{jobId}`, TTL 15000 ms (**TTL = fetch timeout 10 s + margin 5 s**; the formula is non-negotiable, WRK-04/J-3). If `NX` fails, another executor owns the monitor: complete the job successfully without executing. The lock is a performance guard against duplicate concurrent work, never a correctness mechanism — correctness rests on the J-1 claim, the J-2 write guards, and the D-1 conditional transition (see §13's lock row for the key's place in the Redis architecture; the lifecycle contract is specified here).
-3. **Arm renewal every TTL/3 (5 s)** — a compare-and-expire by owner (Lua: extend the TTL only if the stored value equals ours). If renewal fails — key missing, value mismatch, or Redis error — the lock may be lost: **abort immediately**: stop writing, discard the classified result, log `lock_lost`, and complete the job without persisting. Never race a possible new owner.
+3. **Arm renewal every TTL/3 (5 s)** — a compare-and-expire by owner (Lua: extend the TTL only if the stored value equals ours). The renewal timer runs for the **entire job lifetime** — fetch, classification, and Tier 1 persistence (§16.1, which may legitimately take up to the 30 s `statement_timeout`, §25.2) — it does **not** stop when the fetch returns; the lock is released only in the step-7 `finally` (WR-08). Without renewal-through-persist, a legitimately slow transition transaction would outlive the 15 s TTL mid-persist and hand ownership to the next claimant while the original executor is still inside its transaction. If renewal fails — key missing, value mismatch, or Redis error — the lock may be lost: **abort immediately**: stop writing, discard the classified result, log `lock_lost`, and complete the job without persisting. Never race a possible new owner.
 4. **Fetch through the SSRF pipeline** (S-1 / SEC-01 — ordered sub-steps, all inside the strict 10 s budget):
    1. **Scheme allowlist:** parse the URL; accept `http`/`https` only. Any other scheme is rejected **before any network I/O** → result DOWN with `error_class = 'ssrf_blocked'` (defense in depth — create-time validation should have rejected such a URL earlier; the engine does not trust it).
-   2. **Resolve-then-validate:** resolve the host to **all** of its A/AAAA records and validate **every** resolved IP (IPv4 and IPv6) against the private-range denylist (`10/8`, `172.16/12`, `192.168/16`, `127/8`, `169.254/16`, `::1`, `fc00::/7`, `fe80::/10`). Any private-range IP → result DOWN with `error_class = 'ssrf_blocked'`; no connection is attempted.
+   2. **Resolve-then-validate, with canonicalization:** resolve the host to **all** of its A/AAAA records and validate **every** resolved IP (IPv4 and IPv6) against the private-range denylist (`10/8`, `172.16/12`, `192.168/16`, `127/8`, `169.254/16`, `0.0.0.0/8`, `::1`, `fc00::/7`, `fe80::/10`, `::ffff:0:0/96`, `64:ff9b::/96`). Each address is canonicalized **before** comparison: an IPv4-mapped IPv6 address (`::ffff:a.b.c.d`, in `::ffff:0:0/96`) is canonicalized to its embedded IPv4 form and checked against the IPv4 denylist **as that address** (`::ffff:10.0.0.1` → `10.0.0.1` → denied by `10/8`) — the raw mapped literal matches none of the legacy IPv6 ranges and would sail through an uncanonicalized comparison (WR-01). The unspecified range `0.0.0.0/8` is denied because many stacks connect it to localhost; `64:ff9b::/96` is the NAT64 range whose embedded IPv4 side is likewise canonicalized before comparison. This denylist is mirrored verbatim at the OS layer by §15.4 (S-1 layer 1) — extend both statements together, never one alone. Any denylisted IP → result DOWN with `error_class = 'ssrf_blocked'`; no connection is attempted.
    3. **Connection-time re-validation (DNS-rebinding countermeasure):** the dialer connects only to an address from the resolve-time validated set — it never re-resolves. If the peer address at connect time is not in the validated set, abort the connection → result DOWN with `error_class = 'ssrf_blocked'`.
    4. **Redirect re-validation:** follow redirects manually; every hop re-runs sub-steps 1–3 on the new URL (scheme check, resolve-then-validate), up to a cap of **5 hops**. A hop to a private address, a disallowed scheme, or exceeding the cap → result DOWN with `error_class = 'ssrf_blocked'`; no request reaches the private address.
    5. **Response cap:** read at most **2 MB** of body; abort the read at the cap and record the check from the response status plus the capped body (keyword checks operate on that prefix). The whole exchange — DNS, connect, redirects, capped body read — must fit inside the 10 s timeout.
@@ -846,9 +847,23 @@ The `check` job's id **is** the §14 idempotency key (`check:{monitorId}:{epoch}
 | Fetch timeout | 10 s | strict per-check budget covering DNS, connect, redirects, and the capped body read (S-1.3); unchanged from current behavior | non-negotiable |
 | Redirect hop cap | 5 | S-1: bounds redirect chains; every hop is re-validated anyway | non-negotiable |
 | Response body cap | 2 MB | S-1.3: memory-exhaustion / archive-bomb bound; keyword checks use the capped prefix | non-negotiable |
-| Lock TTL | 15 s = 10 s timeout + 5 s margin | **TTL = timeout + margin** (WRK-04 formula — non-negotiable); the 5 s margin absorbs scheduler jitter and the persist-start window after the fetch returns | non-negotiable formula; 5 s margin is the default value |
+| Lock TTL | 15 s = 10 s timeout + 5 s margin | **TTL = timeout + margin** (WRK-04 formula — non-negotiable); the 5 s margin absorbs scheduler jitter and the acquire-to-fetch window — renewal (every TTL/3) then spans the **entire job lifetime** including classification and Tier 1 persistence (§16.1, legitimately up to the 30 s `statement_timeout`), so a slow persist never outlives the lock; release happens only in the step-7 `finally` (WR-08) | non-negotiable formula; 5 s margin is the default value |
 | Lock renewal interval | TTL/3 (5 s) | three renewal windows per TTL — a single missed renewal must not expire the lock mid-fetch | non-negotiable |
 | Check-worker concurrency | 10 | pool baseline above: 10 x 10 s timeout bounds in-flight fetches and their sockets | default — tune in Phase 4/5 with data |
+
+### 15.4 Worker-host network egress control (S-1 layer 1)
+
+*Added 2026-09-09, fix cycle (egress layer — resolves S-1 layer 1 / RR-01)*
+
+S-1's layered defense does not stop at the check engine. Review S-1 names **egress control at the OS/network level on the worker host** as layer 1 — the boundary that still holds when application code is bypassed — and this subsection specifies it as design (S-1 / RR-01):
+
+- **Deny outbound connections to the private ranges, with a range list that mirrors the §15.1 step 4 sub-step 2 engine denylist exactly:** the IPv4 private/loopback/link-local ranges (`10/8`, `172.16/12`, `192.168/16`, `127/8`, `169.254/16`), the IPv6 loopback/ULA/link-local ranges (`::1`, `fc00::/7`, `fe80::/10`), plus the mapped/unspecified/NAT64 additions of this same fix cycle (`0.0.0.0/8`, `::ffff:0:0/96`, `64:ff9b::/96`). The two layers share one list so they cannot drift: every range the engine denies, the host denies too, and any future denylist extension (a newly identified bypass class) must be applied to §15.1, this subsection, and the runbook §10 rule set in the same change.
+- **Egress to the public internet is allowed on ports 80/443 only** — the two ports the engine's scheme allowlist already permits; every other destination port is refused at the host boundary.
+- **Explicit exceptions the worker cannot function without:** DNS resolution (resolve-then-validate needs the resolver), and loopback/VPC-internal reachability to Postgres (5432) and Redis (6379) — the worker's own infrastructure lives inside the boundary the denylist protects, and the engine cannot run without it.
+
+**Rationale (S-1's own layered-defense requirement):** engine validation is strong but retains residual bypass classes — a future engine refactor, a bug in the canonicalization step, or a non-HTTP check type added by a later UPGRADE_PLAN phase could route traffic the engine never validated. The OS layer is the independent backstop that makes the worker host incapable of reaching the private network regardless of what application code does; S-1 is the review's highest-severity security item and its §9 text lists network egress first among the layers for exactly this reason.
+
+**Verification stance:** the host firewall rules are applied **once, at Phase 4 worker provisioning, before the worker takes production traffic** — not per release. The operator steps (apply, verify, rollback) are [DEPLOY-RUNBOOK.md](./DEPLOY-RUNBOOK.md) §10; this subsection is the design-level rule set only — no shell commands live here (D-01 scope split: commands belong to the runbook).
 
 ---
 
@@ -1203,6 +1218,7 @@ Target changes:
 
 *Amended 2026-09-09 (resolves D-1, D-4, J-2; §9 items 2, 8, 12; §10 criterion 3)*
 *Amended 2026-09-09, fix cycle (resolves CR-01, CR-02, CR-03, IN-02, IN-04, OBS-01; TC-FLUSH-GUARD-01 / TC-MONOTONIC-01 staging-key rewrites + new TC-FIRST-CHECK-DEDUP-01)*
+*Amended 2026-09-09, fix cycle (resolves WR-01; new TC-SSRF-MAPPED-V6-01)*
 
 Today there are **no tests** (no unit/integration/E2E framework, no CI gates; only ad-hoc root scripts `test-email.js`, `test-prisma*.js`, `test-webhook.js`). The migration must introduce a safety net *before* the risky steps:
 
@@ -1260,6 +1276,11 @@ Today there are **no tests** (no unit/integration/E2E framework, no CI gates; on
 - Given: a hostname that resolves to a public IP (e.g. `203.0.113.10`) at resolve time and to a private IP (e.g. `192.168.0.5`) at connect time (DNS rebinding)
 - When: the check executes
 - Then: **network** — the connection is refused by the connection-time validator: the dialer connects only to addresses from the resolve-time validated set (§15.1 step 4), so no packet reaches `192.168.0.5`; **DB** — the result is DOWN with `pings.error_class = 'ssrf_blocked'`; **queue** — job completed, not retried.
+
+**TC-SSRF-MAPPED-V6-01 — IPv4-mapped IPv6 AAAA record with a private embedded IPv4 is caught by canonicalization, not the raw range list**
+- Given: a monitor hostname whose AAAA record resolves to the IPv4-mapped address `::ffff:10.0.0.1` (inside `::ffff:0:0/96`; the embedded IPv4 `10.0.0.1` is inside `10/8`) — a raw literal that matches none of the legacy IPv6 denylist ranges
+- When: the check executes
+- Then: **network** — no connection is attempted: §15.1 step 4 sub-step 2's canonicalization rule reduces the address to its embedded IPv4 form (`10.0.0.1`) and the IPv4 denylist rejects it before the dialer runs — canonicalization catches what the raw range list misses (WR-01); **DB** — the result is DOWN with `pings.error_class = 'ssrf_blocked'`; **queue** — the job completes successfully (a target outcome, never an infra retry).
 
 **TC-SSRF-SCHEME-01 — non-http(s) scheme rejected before any network I/O**
 - Given: a monitor url with a non-http(s) scheme (e.g. `file:///etc/passwd` or `gopher://internal.example:6379/_INFO`)

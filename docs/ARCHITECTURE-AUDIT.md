@@ -450,7 +450,7 @@ Current NextAuth v4 surface → Better Auth equivalent:
 
 Migration constraints:
 
-- **Password hashes must survive.** Better Auth stores `account.password` (its own `account` table). Migrate existing `users.password` bcrypt hashes into Better Auth's account rows with `providerId: "credential"`; bcrypt hashes remain verifiable if Better Auth's password config keeps bcrypt (it supports custom hash functions — verify hash prefix compatibility during a spike).
+- **Password hashes must survive.** Better Auth stores `account.password` (its own `account` table). Migrate existing `users.password` bcrypt hashes into Better Auth's account rows with `providerId: "credential"`; bcrypt hashes remain verifiable if Better Auth's password config keeps bcrypt (it supports custom hash functions — the §12.2 compatibility gate's hash-prefix routing step is the specified verification path for this, not an ad-hoc investigation).
 - **User IDs are cuid strings** — Better Auth accepts a text `id` primary key; keep existing IDs so monitors/feedback FKs remain valid.
 - **OAuth identities** in `accounts` must be reshaped into Better Auth's `account` table (`providerId`, `accountId`, `accessToken`, etc.) — column mapping is mechanical but must preserve refresh tokens.
 - `verification_tokens` / `password_reset_tokens` rows can be truncated at cutover (users simply re-request; tokens are short-lived).
@@ -1159,7 +1159,7 @@ Target (implement infra early; visual redesign deferred to the final phase per r
 | ID | Risk | Mitigation |
 |---|---|---|
 | M1 | **Dual-write/divergence during transition** — Prisma and Drizzle against the same tables | Don't dual-write. Cutover is by module with Drizzle owning the schema from day one of the migration branch; Prisma remains read-only fallback only until each module flips (rule 20 ⇒ removed at the end) |
-| M2 | **Auth cutover locks users out** (hash/session/cookie incompatibility) | Password-hash compatibility spike first (§12); keep user IDs; accept forced re-login (sessions invalidated) as a known, announced consequence; keep old NextAuth tables intact for rollback |
+| M2 | **Auth cutover locks users out** (hash/session/cookie incompatibility) | bcrypt compatibility gate (§12.2): canary login on the anonymized snapshot, then production, before any route flip; keep user IDs; accept forced re-login (sessions invalidated) as a known, announced consequence; keep old NextAuth tables intact for rollback *(Amended 2026-09-09, fix cycle — resolves RR-04/WR-06)* |
 | M3 | **Monitoring gap during worker cutover** (checks stop while jobs move) | Run overlap window: worker live and verified (healthchecks.io + queue depth ≈ 0) *before* disabling `instrumentation.ts` cron; both paths idempotent so brief overlap only wastes checks, never corrupts |
 | M4 | **Counter corruption** from overlapping old/new write paths during overlap | Make increments SQL-atomic in the new path first; old path disabled before first new-path flush; verify totals before/after |
 | M5 | **`monitors.id` type drift** breaks public URLs/FKs | Keep `serial` integers (§11.1) |
@@ -1218,7 +1218,7 @@ Target changes:
 
 *Amended 2026-09-09 (resolves D-1, D-4, J-2; §9 items 2, 8, 12; §10 criterion 3)*
 *Amended 2026-09-09, fix cycle (resolves CR-01, CR-02, CR-03, IN-02, IN-04, OBS-01; TC-FLUSH-GUARD-01 / TC-MONOTONIC-01 staging-key rewrites + new TC-FIRST-CHECK-DEDUP-01)*
-*Amended 2026-09-09, fix cycle (resolves WR-01; new TC-SSRF-MAPPED-V6-01)*
+*Amended 2026-09-09, fix cycle (resolves WR-01, RR-03; new TC-SSRF-MAPPED-V6-01 + item 5 rewritten to the real degradation assertions)*
 
 Today there are **no tests** (no unit/integration/E2E framework, no CI gates; only ad-hoc root scripts `test-email.js`, `test-prisma*.js`, `test-webhook.js`). The migration must introduce a safety net *before* the risky steps:
 
@@ -1231,7 +1231,7 @@ Today there are **no tests** (no unit/integration/E2E framework, no CI gates; on
 
 **New-path tests:**
 4. **Worker unit tests:** idempotency key short-circuit; lock acquire/release incl. owner-only release; retry/backoff config; transition transaction (monitor+ping+incident atomic).
-5. **Aggregation tests:** concurrent `HINCRBY` correctness; flush exactly-once (idempotent apply); Redis-down fallback write; buffer bounded.
+5. **Aggregation tests:** concurrent `HINCRBY` correctness; flush exactly-once via the staging/guard semantics (§16.2 — idempotent apply, TC-FLUSH-GUARD-01); buffer bounded. Degradation assertions at the unit level (complementing — not duplicating — item 6's injected-outage rows): with Redis unavailable, the manual-check enqueue path returns **503**, never a silent no-op (§13.2 item 4); monitoring pauses by design; Postgres data stays intact — no fallback write path is exercised because none exists (§13.2 item 1).
 6. **Failure-injection integration tests:** Redis down ⇒ degradation, Postgres intact (rule 13); Postgres down ⇒ jobs retry, no loss (rule 14); duplicate `check` jobs ⇒ single write (rule 10); DOWN then immediate RECOVERED ⇒ one incident pair, correct status (rule 8).
 7. **Auth migration tests:** canary login (bcrypt verify), OAuth account row mapping, session acquisition, email-verification and reset flows end-to-end.
 8. **Email abstraction tests:** provider selection by env, retryable vs permanent error classification, queue offload (registration succeeds when SMTP is down).
@@ -1322,7 +1322,7 @@ Sequenced so every step ships value, remains revertible, and never leaves monito
 | 4 | **BullMQ + dedicated worker (the core move)** | Worker process + queues (§14–15); move check engine; scheduler leader lock, per-monitor locks, idempotency keys, retries/backoff; DOWN/RECOVERED immediate path; aggregation buffer replaces `db-batcher.ts`; overlap-run old cron, then **delete `instrumentation.ts` cron + `CRON_MODE`** | 3–14 |
 | 5 | **API routes become thin** | Manual-check route → enqueue + 202; rate limits via Redis; remove stack-trace leakage; fix feedback exposure (R17), SSRF validation (R19), secret-in-query (R15) | 5, 6 |
 | 6 | **Email abstraction** | `lib/email` interface + SMTP provider + queue offload; Better Auth hooks wired to it | 16 |
-| 7 | **Better Auth cutover** | Password-hash spike → migrate `users`/`accounts`/tokens (§12, §21); flip routes to Better Auth handlers; invalidate sessions (announced); delete NextAuth deps + duplicated Redux auth-token mirror | — |
+| 7 | **Better Auth cutover** | bcrypt compatibility gate (§12.2): canary login on the anonymized snapshot, then production, before any route flip → migrate `users`/`accounts`/tokens (§12, §21); flip routes to Better Auth handlers; invalidate sessions (announced); delete NextAuth deps + duplicated Redux auth-token mirror *(Amended 2026-09-09, fix cycle — resolves RR-04/WR-06)* | — |
 | 8 | **Prisma removal** | Port remaining routes/read paths to Drizzle; delete `prisma/`, generated client, deps; Drizzle is sole ORM | 20 |
 | 9 | **AI SDK (flagged)** | `lib/ai` + streaming endpoints for incident summarization & monitor-setup assistant; feature-flag off by default | 15 |
 | 10 | **Final visual redesign** | The UI overhaul on top of stable theme tokens + stable APIs (shadcn expansion, hugeicons consolidation, light palette refinement, motion polish, sweetalert2 → shadcn alert-dialog) | 17–19 |

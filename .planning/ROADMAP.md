@@ -36,7 +36,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Every review §9 pre-implementation checklist item traces to a design decision, and the verdict is re-recorded as READY (dated, reviewer identified) before any implementation code merges
   3. An operator can read the runbook addendum and know the exact production ordering (build → backup → migrate → worker restart → web restart → smoke check), the rollback action at each step, and the per-process connection budget — before any code exists
 
-**Plans**: 9 plans (5 complete, 4 pending — D-18 fix cycle + final cycle-2 gate)
+**Plans**: 6/9 plans executed
 
 Plans:
 **Wave 1**
@@ -61,7 +61,7 @@ Plans:
 
 **Wave 6** *(fix cycle — blocked on 01-05; parallel, no file overlap)*
 
-- [ ] 01-06-PLAN.md — Fix criticals in the audit writer specs: §16.2 exclusive-snapshot flush + bulk ping INSERT (CR-01/CR-02/IN-03/IN-04/OBS-01), dedup vocabulary for all three outbox event types (CR-03), git-track ARCHITECTURE-REVIEW.md (DSGN-01)
+- [x] 01-06-PLAN.md — Fix criticals in the audit writer specs: §16.2 exclusive-snapshot flush + bulk ping INSERT (CR-01/CR-02/IN-03/IN-04/OBS-01), dedup vocabulary for all three outbox event types (CR-03), git-track ARCHITECTURE-REVIEW.md (DSGN-01)
 - [ ] 01-07-PLAN.md — Fix runbook executability: phase-conditional Migrate step (WR-03), PM2 process-signal handshake (WR-04), NEW §4a first-worker-cutover path (WR-05), budget wording (IN-05) (DSGN-01)
 
 **Wave 7** *(blocked on 01-06 + 01-07)*

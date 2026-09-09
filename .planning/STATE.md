@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: design-gate-review-verdict-ready
 status: executing
-stopped_at: "Completed 01-05-PLAN.md (gap path: verdict stands NOT READY, RR-01..RR-04 escalated, D-18 cycle 1 of 2)"
-last_updated: "2026-09-09T14:38:17.279Z"
-last_activity: 2026-09-08
+stopped_at: Completed 01-06-PLAN.md (CR-01/CR-02/CR-03 + IN-02/03/04 + OBS-01 closed as audit amendments; NOT READY verdict record git-tracked)
+last_updated: "2026-09-09T15:15:08.926Z"
+last_activity: 2026-09-09
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 8
-  completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
-  percent: 13
+  completed_phases: 0
+  total_plans: 9
+  completed_plans: 6
+  percent: 67
 ---
 
 # Project State
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-09-08)
 ## Current Position
 
 Phase: 01 (design-gate-review-verdict-ready) — EXECUTING
-Plan: 5 of 5
+Plan: 7 of 9
 Status: Ready to execute
-Last activity: 2026-09-08 — Phase 01 execution started
+Last activity: 2026-09-09 — Phase 01 execution started
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███████░░░] 67%
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P03 | 9m 20s | 3 tasks | 1 files |
 | Phase 01 P04 | 5min | 3 tasks | 2 files |
 | Phase 01 P05 | 10m (Tasks 2-3 continuation; Task 1 prior session) | 3 tasks | 1 files |
+| Phase 01 P06 | 8m (490s) | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 01-05: gap path taken on user ratification (ratify gaps) — verdict stays NOT READY; DSGN-02 pending a clean cycle-2 pass; no READY-with-exceptions (D-16/D-18)
 - [Phase ?]: 01-05: criterion-2 interpretation user-ratified (D-05/DRZ-01) — DDL-precise §11 + Phase 3 live-DDL transcription contract + M-3 empty-diff gate = reflected in the target Drizzle schema
 - [Phase ?]: 01-05: DSGN-02 deliberately not marked complete — requirement text (verdict to READY) not yet true; plan completed via its legitimate gap-path branch
+- [Phase 01]: 01-06: flush exclusivity is a two-part guarantee — same-transaction write_guards guard (flush:{batchId}) PLUS RENAMENX staging snapshot; plain RENAME rejected because it re-fails CR-02's over-delete case on crash-after-COMMIT redelivery
+- [Phase 01]: 01-06: batchId pinned {epochMs-of-flush-pass}:{monitorId}, carried in BullMQ job data so staging key names and the guard key are deterministic across retries (IN-03, D-10 form)
+- [Phase 01]: 01-06: alert dedup is one key per declared outbox event type — alert:{incidentId}:down / alert:{incidentId}:recovered / alert:{monitorId}:first_check; down/recovered rows REQUIRE non-NULL incident_id, violations dead-letter via UnrecoverableError (CR-03)
 
 ### Pending Todos
 
@@ -110,6 +114,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-08T21:04:18.438Z
-Stopped at: Completed 01-05-PLAN.md (gap path: verdict stands NOT READY, RR-01..RR-04 escalated, D-18 cycle 1 of 2)
+Last session: 2026-09-09T15:15:08.921Z
+Stopped at: Completed 01-06-PLAN.md (CR-01/CR-02/CR-03 + IN-02/03/04 + OBS-01 closed as audit amendments; NOT READY verdict record git-tracked)
 Resume file: None

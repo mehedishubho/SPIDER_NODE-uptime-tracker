@@ -1,165 +1,131 @@
 ---
 phase: 01-design-gate-review-verdict-ready
-verified: 2026-09-08T21:22:41Z
-status: gaps_found
-score: 25/26 must-haves verified
+verified: 2026-09-09T17:24:44Z
+status: passed
+score: 26/26 observable truths verified
+goal_achieved: true
 behavior_unverified: 0
 overrides_applied: 0
-gaps:
-  - truth: "Every review §9 pre-implementation checklist item traces to a design decision, and the verdict is re-recorded as READY (dated, reviewer identified) before any implementation code merges"
-    status: partial
-    reason: "The §9 traceability half held (25/25 IDs traced; independently re-verified by this verifier), but the verdict flip did NOT happen. Plan 01-05's adversarial re-review cycle 1 (D-18 cycle 1 of max 2) found gaps RR-01..RR-04 which the human ratified ('ratify gaps', recorded in 01-REREVIEW.md §9); §1 of docs/ARCHITECTURE-REVIEW.md still reads '# ❌ NOT READY' (line 13; git hash-object 520c9409da45bd2c9ab9866fe124403ef6cb7ef3, byte-identical since the gap-path record). This is a legitimate ratified-gap outcome, not an execution failure — but the phase goal's flip clause is unmet, so the goal is not achieved. Additionally, a code review (01-REVIEW.md, commit 5255463) that postdates the re-review reports 3 Critical spec defects (CR-01..CR-03) in the amended docs; this verifier spot-checked all three against the audit text and each is factually accurate, so the cycle-2 fix scope is wider than RR-01..RR-04 alone."
-    artifacts:
-      - path: "docs/ARCHITECTURE-REVIEW.md"
-        issue: "§1 verdict still NOT READY; no Verdict history subsection; no appended Re-review section — correct gap-path state per D-18, but the flip the phase goal requires has not occurred. Also: file is untracked in git (verdict record not under version control)."
-      - path: "docs/ARCHITECTURE-AUDIT.md"
-        issue: "Ratified gaps RR-01..RR-04 unfixed: L797 'uptime recompute' residual (RR-02), L1160 'Redis-down fallback write' residual (RR-03), L453/L1090/L1241 'spike' wordings contradicting A-1's gate (RR-04), S-1 network-egress layer absent everywhere (RR-01). Post-re-review criticals: CR-01 §16.2 flush SQL has no INSERT INTO pings while §14.1 L716 declares 'no bulk ping-row writer' — routine ping-row evidence eliminated, contradicting behavior compatibility, §2's 100-pings API contract, and §16.5's windowed-uptime plan; CR-02 flush lacks exclusive snapshot semantics (guard keyed on per-pass batchIds + delete-live-hash-on-retry per TC-FLUSH-GUARD-01) — double-apply and over-delete failure modes; CR-03 dedup key alert:{incidentId}:{direction} undefined for outbox event 'monitor.first_check' with NULL incident_id — cross-monitor alert suppression."
-      - path: "docs/DEPLOY-RUNBOOK.md"
-        issue: "RR-01's fix requires worker-host egress steps here. Advisory runbook defects from 01-REVIEW.md for the same fix cycle: WR-003 interim Migrate step ('pnpm drizzle-kit migrate') not executable for Phase 2 releases, WR-004 PM2 wait_ready paired with HTTP readyz (PM2 requires process.send('ready')), WR-005 no first-worker-cutover path."
-    missing:
-      - "D-18 fix cycle as a fresh-agent follow-up plan: apply RR-01..RR-04 to docs/ARCHITECTURE-AUDIT.md + docs/DEPLOY-RUNBOOK.md"
-      - "Resolve CR-01 (decide routine ping-row evidence retention: extend the §16.2 flush transaction with a guarded bulk ping INSERT, or rewrite the behavior-compat/API-contract statements to match the drop), CR-02 (exclusive snapshot semantics — RENAME/Lua staging key + pinned batchId generation scheme), CR-03 (extend the dedup key vocabulary for monitor.first_check / NULL-incident events and mirror it in §13.1)"
-      - "Re-run the adversarial re-review as D-18 cycle 2 with a fresh human ratification checkpoint; on a ratified clean pass, flip §1 to READY per D-16 (dated, reviewer identified, Verdict history subsection, appended Re-review section)"
+requirements:
+  DSGN-01: satisfied
+  DSGN-02: satisfied
+gaps: []
+design_debt:
+  critical:
+    - "CR-01 (post-ratification): monitors.uptime_percent has no writer and no pinned read-time derivation — §16.1/§16.2 UPDATEs never write it; literal transcription freezes displayed lifetime uptime. MUST be consumed by Phase 4 planning before §16 transcription."
+    - "CR-02 (post-ratification): runbook §4a step 2 'disable nothing / both paths idempotent' contradicts audit M4 'old path disabled before first new-path flush'; §22 'runbook wins' tie-break resolves toward the unsafe option. MUST be consumed by Phase 4/5 overlap-window planning (WRK-10/WRK-11/DEP-02/DEP-03)."
+  advisory:
+    - "WR-01..WR-05, IN-01..IN-07 (01-REVIEW.md) + RR2-01..RR2-03 (01-REREVIEW-2.md §7) — Phase 4/5 design-debt, non-gating"
 ---
 
 # Phase 1: Design Gate — Review Verdict READY — Verification Report
 
 **Phase Goal:** The design documents are amended with every review addendum and the NOT READY verdict is flipped to READY, so no correctness mechanism is ever invented under pressure during implementation.
-**Verified:** 2026-09-08T21:22:41Z
-**Status:** gaps_found
-**Re-verification:** No — initial verification
+**Verified:** 2026-09-09T17:24:44Z
+**Status:** passed
+**Re-verification:** Yes — round 2. Supersedes the 2026-09-08 report (status `gaps_found`, 25/26). That report's single failed truth — the verdict-flip clause of SC2 — and its three `missing` items (fix cycle, critical resolutions, D-18 cycle 2 + flip) have all since been executed and are independently verified below.
 
-## Mode Note (MVP discrepancy)
+## Verdict Summary
 
-ROADMAP.md declares `Mode: mvp` for this phase, but the goal is not in User Story format (`gsd-tools query user-story.validate` → `valid: false`). Per the MVP-mode rules the user-flow framing cannot apply to a non-User-Story goal, so this verification used the standard goal-backward methodology against the actual phase goal (a documentation-gate goal that is fully verifiable by inspection). **Recommended:** either run `/gsd mvp-phase 1` to reformat the goal or remove the `Mode: mvp` marker — the same discrepancy exists on other phases of this roadmap. No User Flow Coverage section was fabricated.
+**The phase goal is achieved.** All three ROADMAP success criteria are verifiably TRUE, both phase requirements (DSGN-01, DSGN-02) are satisfied, all 9 plans completed with Self-Check: PASSED, and the design gate now reads READY — flipped per D-16 on a human-ratified D-18 cycle-2 clean pass, before any implementation code exists (Phases 2–8 are unstarted).
 
-## Goal Achievement
+The gate process ran exactly as designed: cycle 1 (01-05) found ratified gaps RR-01..04 → fix cycle (01-06..01-08) closed those plus post-review criticals CR-01..03 and the folded advisories → cycle 2 (01-09, the D-18 final cycle) re-derived every closure from the document text with zero blocking findings → the human ratified the clean pass ("ratify clean pass", recorded verbatim in 01-REREVIEW-2.md §10) → the flip was executed against the tracked NOT READY blob (pre-flip hash `520c9409da45bd2c9ab9866fe124403ef6cb7ef3` asserted equal, 01-REREVIEW-2.md §11).
 
-### Observable Truths
+A fresh code review (01-REVIEW.md, 2026-09-09T17:17Z — after the flip) reports 2 new critical, 5 warning, 7 info findings. This verifier independently fact-checked both criticals against the document text and **confirmed their factual basis** (§7 below). They do not reopen the phase goal: neither maps to any §9 checklist item or §8 addendum, both are transcription-completeness defects in the same class the human already ratified as non-gating design-debt at cycle 2 (RR2-01..03), the D-18 gate is terminal by design (cycle 2 of 2, no READY-with-exceptions state, no sanctioned cycle 3), and zero implementation code exists to have transcribed them. They are recorded in this report's Design-Debt Register with **elevated severity** and a hard consumption point: Phase 4/5 planning must resolve CR-01 and CR-02 before implementation transcribes §16 or the §4a overlap path.
 
-Roadmap success criteria (the contract) plus plan-level must-have truths, deduplicated (plan 01-05's flip truth restates SC2's flip clause and is folded into it; its gap-path branch truth is counted separately).
+## Goal Achievement — Observable Truths
 
-| # | Truth | Status | Evidence |
-|---|-------|--------|----------|
-| SC1 | A written design addendum exists for each of the 8 review §8 items — schema, scheduler claim spec (J-1), check job spec (J-3/J-4/S-1), writer specs (J-2/D-1/D-5), resilience spec (J-5/R-1), auth spec (A-1/A-2/A-3), connection budget (D-8), deploy runbook (P-1) — each citing the review issues it resolves | ✓ VERIFIED | 11 `Amended/Added 2026-09-09` markers in docs/ARCHITECTURE-AUDIT.md map 1:1 to the 8 topics: §11 L299 (schema: J-1,J-2,D-1,D-2,D-3,N-5), §14 L686 (scheduler: J-1,J-5,J-6), §15 L783 (check job: J-3,J-4,S-1), §16 L854 (writers: J-2,D-1,D-2,D-4,D-5,D-6), §13 L562 (resilience: J-5,J-6,R-1,D-4,D-7), §12 L434 (auth: A-1,A-2,A-3,S-2,S-3), §25 L1252 `Added` (budget: D-8), §22 L1125 + docs/DEPLOY-RUNBOOK.md (runbook: P-1,M-1,M-2,M-3,S-4); header amendment note L7. Marker citations verified against real review issue IDs. See Required Artifacts for content substantiveness. |
-| SC2 | Every review §9 pre-implementation checklist item traces to a design decision, and the verdict is re-recorded as READY (dated, reviewer identified) before any implementation code merges | ✗ FAILED | Traceability half HELD: this verifier re-ran the §9 ID loop over both docs — zero MISSING for all 25 IDs (J-1..J-6, D-1..D-4, D-6..D-8, R-1, A-1..A-3, S-1..S-4, M-1..M-3, P-1). Verdict half FAILED: docs/ARCHITECTURE-REVIEW.md §1 still reads `# ❌ NOT READY` (L13); no Verdict history, no Re-review section; git hash-object `520c9409da45bd2c9ab9866fe124403ef6cb7ef3` matches the byte-identity recorded at the gap-path decision. DSGN-02 is Pending in REQUIREMENTS.md — accurate. Cause: re-review cycle 1 found RR-01 (HIGH: S-1 network-egress layer absent), RR-02/RR-03 (residual contradictions at audit L797, L1160), RR-04 (LOW: three "spike" wordings at L453/L1090/L1241); user ratified "ratify gaps" (01-REREVIEW.md §9); D-18 allows one more fix cycle. All four residuals confirmed still present by this verifier. Compounding: 01-REVIEW.md (commit 5255463, postdates the re-review) reports CR-01..CR-03 Critical spec defects — all three spot-checked accurate (details in Gaps Summary). |
-| SC3 | An operator can read the runbook addendum and know the exact production ordering, the rollback action at each step, and the per-process connection budget — before any code exists | ✓ VERIFIED | docs/DEPLOY-RUNBOOK.md (145 lines): §1 budget table web 10 POOLED / worker 20 DIRECT / migrations 1 DIRECT (steady-state ≤ 31, Neon headroom note, pointer to audit §25); §3 interim topology = build → backup (pg_dump + snapshot rehearsal) → migrate (single runner, never at boot) → web restart → smoke check; §4 target topology inserts worker restart + readyz wait (poll :9090/readyz; "Do not proceed to the web restart until readyz passes") before web restart, ends with synthetic-check smoke asserting the ping row; all 11 numbered steps across both topologies carry explicit Action / Verification / Rollback triples (rollback ×15, readyz ×16, pg_dump ×6, kill_timeout ×2). PM2 block pins kill_timeout 20000 non-negotiable + wait_ready/listen_timeout/max_restarts/min_uptime. Imperative operator voice per D-01; header identifies audience/date/design-stage status. |
-| P1-1 | Audit §11 DDL-precise: next_check_at, write_guards, outbox, partial unique ONGOING index, pinned ID defaults, error_class, consecutive_failures | ✓ VERIFIED | next_check_at ×19, write_guards ×15, `WHERE status = 'ONGOING'` ×3, error_class ×17, gen_random_uuid ×4; outbox DDL L344-352 shows column/type/default/nullability + idx_outbox_unsent predicate; no full pgTable blocks. |
-| P1-2 | Audit §16 literal SQL: transition txn, guarded monotonic flush, outbox relay — transcribable clause-by-clause | ✓ VERIFIED | FOR UPDATE SKIP LOCKED ×5, GREATEST ×4, ON CONFLICT ×10, alert:{ ×4; §16.2 SQL block read in full (guard insert + additive UPDATE + pinned NULL semantics with postgresql.org citations). |
-| P1-3 | Audit §23 given/when/then data-correctness cases | ✓ VERIFIED | TC-DUP-INCIDENT-01 / TC-DUP-ALERT-01 / TC-FLUSH-GUARD-01 / TC-MONOTONIC-01 present with concrete timestamps/counters/key names; Then clauses name DB/Redis/queue effects (read L1176-1186). |
-| P1-4 | Every amended section carries a dated marker; header blockquote carries the amendment note | ✓ VERIFIED | Header note L7 covers both marker forms; 9 section-level markers + 2 §23 batch markers = 11. |
-| P1-5 | §16 records the D-6/Q-1 uptime-semantics decision | ✓ VERIFIED | §16.5 L996+: "lifetime counters remain the displayed numbers… windowed compute ships flagged in Phase 8 (DAT-11)". |
-| P2-1 | §14 numbered tick algorithm + literal claim SQL with locking clause inside the CTE + per-queue topology with explicit priority on EVERY lane | ✓ VERIFIED | Claim SQL L731-740 with inline "MUST remain inside the WITH query" + postgresql.org/sql-select citation + LIMIT interplay note L753; topology table (9 columns) — every lane row carries a bold Priority cell (tick 1, manual 1, non-UP 1, routine 10, relay 1, flush 10, alerts 1, maintenance 5, email 5); tick algorithm L719+ (upsertJobScheduler idempotency, claim, per-id enqueue, backlog gate, heartbeat, compensation). |
-| P2-2 | §15 check job: monitor re-read, lock lifecycle, classification, layered SSRF | ✓ VERIFIED | L813-820: TTL = 10 s + 5 s non-negotiable formula (WRK-04/J-3), renewal every TTL/3 with owner-only Lua compare-and-expire, abort-on-lock-loss ("stop writing, discard the classified result"), SSRF ordered sub-steps (scheme allowlist pre-I/O, resolve-then-validate, connection-time re-validation, hop cap, 2 MB cap); ssrf_blocked ×10; failure-mode table rows L831-834. |
-| P2-3 | §23 SSRF/classification cases incl. redirect-to-private; timeout/DNS are results not infra errors | ✓ VERIFIED | TC-SSRF-REDIRECT-PRIVATE-01, TC-SSRF-DNS-REBIND-01, TC-SSRF-SCHEME-01, TC-SSRF-SIZE-CAP-01, TC-CLASSIFY-TIMEOUT-01, TC-CLASSIFY-DNS-01, TC-CLASSIFY-INFRA-01 — 11 test IDs total in §23 (15 TC- mentions). |
-| P2-4 | Stale §14/§15 sentences replaced, not appended beside | ✓ VERIFIED | Region-scoped greps (`^## 14` to `^## 16`): "repeatable" 0, "scheduledAt" 0; upsertJobScheduler vocabulary ×4. |
-| P3-1 | §13 rewritten: pause-by-design, no fallback-to-Postgres sentence anywhere | ✓ VERIFIED | Global sweep `falls back to writing routine pings\|alert:sent:\|interval + slack\|repeatable job` → zero matches (exit 1); remaining "fallback" hits are the cookieCache DB-session fallback (§12, different mechanism) and pause-by-design statements. |
-| P3-2 | Resilience spec: breaker state machine, backlog cap, DLQ, Redis-restart recovery | ✓ VERIFIED | HALF_OPEN ×4, breaker:probe ×6, noeviction ×4, UnrecoverableError ×2; D-11 shape present. |
-| P3-3 | §12 Better Auth field maps with emailVerified backfill + Phase 7 known-unknown markers | ✓ VERIFIED | emailVerified ×4, providerId ×6, cookieCache ×5, "confirm by Phase 7 dry-run" ×2, X-Telegram-Bot-Api-Secret-Token ×1. |
-| P3-4 | Connection-budget section pins web 10 / worker 20 / migrations 1, pool timeouts, pooled-vs-direct | ✓ VERIFIED | §25 (Added marker L1252): connectionTimeoutMillis ×2, idle_in_transaction_session_timeout ×2, POOLED ×3. |
-| P4-1 | Runbook exists; operator knows orderings, rollback, budget with zero rationale required | ✓ VERIFIED | See SC3 row. |
-| P4-2 | Interim vs target topology orderings per D-04 | ✓ VERIFIED | See SC3 row — exact step sequences read and matched. |
-| P4-3 | Audit §22 points to the runbook with amendment marker | ✓ VERIFIED | L1127 relative link ./DEPLOY-RUNBOOK.md ("the runbook wins" precedence rule); marker L1125 cites P-1,M-1,M-2,M-3,S-4. |
-| P4-4 | §9 self-traceability check recorded in summary | ✓ VERIFIED | 01-04-SUMMARY.md §9 Self-Check Output: per-ID table (25/25), marker count 11 ≥ 8, sweep zero, header check — and this verifier re-ran the loop independently with the same result. |
-| P5-1 | Fresh adversarial re-review report with six walkthrough transcripts, not a marker echo | ✓ VERIFIED | 01-REREVIEW.md (268 lines): D-15 independence attestation (L5), per-§9 table (§2), per-§10 results (§3) incl. recorded criterion-2 interpretation citing D-05/DRZ-01, walkthroughs W1-W6 (§4, L86-157: Redis restart, Postgres down, duplicate delivery, worker SIGKILL+restart, lock loss, auth cutover), contradiction hunt + D-10 audit (§5), numbered findings (§6). |
-| P5-2 | Every §10 criterion has an explicit per-criterion result incl. criterion-2 interpretation | ✓ VERIFIED | REREVIEW §3 table rows for criteria 1/2/3 with caveats cross-referencing RR findings. |
-| P5-3 | Human ratification recorded; verdict flip per D-16 — OR gap path per D-18 | ✓ VERIFIED (gap-path branch) | The clean-pass flip branch of this truth is the SC2 failure (same root cause, deduplicated). The gap-path branch executed correctly: ratification record §9 (2026-09-09, "ratify gaps", criterion-2 interpretation explicitly accepted, no new gaps); verdict record §10 (verdict stands, escalated findings table, cycle 1 of 2 accounting); review doc byte-identity hash matches today. ROADMAP Phase 1 checkbox honestly unchecked with the gap annotation; REQUIREMENTS.md DSGN-02 honestly Pending. |
+Roadmap success criteria plus the load-bearing plan-level truths, re-derived from the documents themselves (never trusting SUMMARY claims).
 
-**Score:** 25/26 truths verified (0 present-but-behavior-unverified; the single failure is SC2, whose flip clause is the unmet half of the phase goal)
+| # | Truth | Status | Evidence (independently verified) |
+|---|-------|--------|-----------------------------------|
+| SC1 | A written design addendum exists for each of the 8 review §8 items (schema, scheduler spec, check job spec, writer specs, resilience spec, auth spec, connection budget, deploy runbook), each citing the review issues it resolves | PASS | Audit carries 25 `*Amended/Added 2026-09-09 (resolves …)*` markers; each §8 area verified by direct read: §11 schema (next_check_at L336–343, write_guards, outbox, partial unique `incidents_one_ongoing`, ID defaults pinned `gen_random_uuid()::text`), §14 scheduler claim SQL, §15 check job + SSRF pipeline, §16.1–16.4 writer specs (transition txn, guarded flush, outbox relay, dedup), §13 resilience (breaker/backlog/DLQ/Redis outage), §12 auth field maps, §25 connection budget, DEPLOY-RUNBOOK.md (created by 01-04, present, 180 lines). Issue-ID citations present in every marker |
+| SC2a | Every review §9 pre-implementation checklist item traces to a design decision | PASS | Independent 25-ID loop over §9 (J-1..J-6, D-1..D-4, D-6..D-8, R-1, A-1..A-3, S-1..S-4, M-1..M-3, P-1): zero MISSING. Each ID's required mechanism located in the amended docs (claim SQL + `check:{monitorId}:{epoch}` keys J-1; `write_guards` + guarded flush J-2/D-5; lock TTL/renewal/owner-release J-3; result-vs-error classification J-4; breaker + backlog + DLQ J-5; priority lanes J-6; conditional UPDATE + partial unique index D-1; outbox + relay D-2; pinned ID defaults D-3; incident-keyed dedup (`alert:{incidentId}:down/recovered`, `alert:{monitorId}:first_check`) D-4; D-6 lifetime decision §16.5; batched deletes D-7; §25 budget D-8; R-1 hardening; A-1..A-3 §12; S-1 two layers (§15.1 engine + §15.4/runbook §10 egress, mirrored 11-token CIDR set); S-2 secret_token; S-3 admin gating + `rl:manual-user:{userId}`; S-4 hygiene; M-1..M-3; P-1 runbook) |
+| SC2b | The verdict is re-recorded as READY (dated, reviewer identified) before any implementation code merges | PASS | `docs/ARCHITECTURE-REVIEW.md` L13 = `# ✅ READY`; flip dated 2026-09-09 with reviewer identified (cycle-2 author-blind adversarial re-review + human ratification); `### Verdict history` preserves the original NOT READY record verbatim per D-16; appended `## Re-review` section narrates both cycles; §9 boxes and §8 addenda untouched by the flip (minimal-edit D-16 procedure). No implementation code merged: Phases 2–8 all 0 plans, working tree contains no `src/` changes from this phase (docs + `.planning` only) |
+| SC3 | An operator can read the runbook and know the exact production ordering (build → backup → migrate → worker restart → web restart → smoke check), the rollback action at each step, and the per-process connection budget — before any code exists | PASS | Runbook §4 steps 1–6 in exactly that order, each with *Action/Verification/Rollback*; §4a first-worker path (register-never-restart, overlap window, separate cutover release) each step carrying rollback; phase-conditional Migrate step (`prisma db push` interim → `drizzle-kit migrate` post-baseline, 4 occurrences); budget ≤30 steady/≤31 deploy stated in §5 and audit §25 (web 10 POOLED / worker 20 DIRECT / migrations 1 DIRECT); `process.send('ready')` PM2 handshake + `:9090/readyz` gate (4 sites); §10 egress rules with the mirrored CIDR list |
+| T1 | Prior verification's artifacts gap — verdict record untracked in git — closed | PASS | `git ls-files` lists ARCHITECTURE-REVIEW.md; flip is one reviewable commit `7e7488c` on top of `eb70e1e` (which git-tracked the NOT READY record); all three gate docs clean in the working tree |
+| T2 | Ratified cycle-1 gaps RR-01..04 closed in the documents | PASS | RR-01: S-1 egress layer present in §15.4 + runbook §10 with the shared 11-token CIDR denylist (also mirrored in §15.1). RR-02: "uptime recompute" job references eliminated (§14 job lists cleaned — negative grep zero). RR-03: Redis-down fallback-write test residual eliminated from §23 (negative grep zero). RR-04: spike vocabulary reworded; exactly one sanctioned "spike" remains (§12.2) |
+| T3 | Post-review criticals CR-01..03 (cycle 1 numbering) closed in §16 | PASS | CR-01→ routine pings now ride the guarded flush: multi-row `INSERT INTO pings` inside the §16.2 transaction (L993–994, column list omits `id` so the D-3 default applies). CR-02→ exclusive snapshot via `RENAMENX` to `agg:flushing:{batchId}`/`pings:flushing:{batchId}` with post-COMMIT staging-only `DEL` and pinned batchId `{epochMs-of-flush-pass}:{monitorId}` (10 staging-key occurrences). CR-03→ three-key dedup vocabulary with the non-NULL `incident_id` contract + `TC-FIRST-CHECK-DEDUP-01` |
+| T4 | Cycle-2 re-review (D-18 final) performed independently, clean pass human-ratified, flip executed per D-16 | PASS | 01-REREVIEW-2.md (328 lines): D-15 independence attestation, closure audit re-derived from document text, §9 25/25, §10 3/3, W1–W6 walkthroughs, sweeps; §10 Ratification record contains the verbatim human decision line `> ratify clean pass`; §11 Verdict record asserts pre-flip hash equality and records the flip. §1 flip verified on disk (SC2b) |
+| T5 | Stale-sentence sweep: no pre-amendment text contradicts the amended mechanisms | PASS | Negative greps over the audit: "falls back to writing routine pings" 0; `alert:sent:` 0; "interval + slack" 0; "repeatable job" 0 (Job Scheduler vocabulary throughout); `scheduledAt`-keyed idempotency 0 (`next_check_at` epoch keys only); uptime-recompute residuals 0 |
+| T6 | SSRF layering internally consistent across the three mirrors | PASS | Same 11 CIDR tokens (incl. IPv4-mapped canonicalization, `0.0.0.0/8`, `::ffff:0:0/96`, `64:ff9b::/96`) in §15.1, §15.4, runbook §10; `TC-SSRF-MAPPED-V6-01` present in §23 |
+| T7 | Tracking truth agrees with the verdict | PASS | ROADMAP.md Phase 1 `[x]` with dated completion note, Plans 9/9, progress row "Complete … 2026-09-09"; REQUIREMENTS.md DSGN-01/DSGN-02 both `[x]` with traceability rows "Phase 1 / Complete"; STATE.md 9/9 plans, design-gate blocker cleared. Phase-1-only `Mode: mvp` marker deleted (prior verification's housekeeping disposition — Phases 2–8 keep theirs) |
+| T8 | All 9 plans complete with per-task commits on record | PASS | All 9 SUMMARYs `status: complete`, `Self-Check: PASSED`; 13 sampled task hashes across all 9 plans found in `git log` (1601c2b, 2a640eb, b6e9694, 1b1040f, 4ad560a, a21aa8c, 67ed5ca, 577fc24, 6e4d689, 39233d7, 2b2d5c9, 7e7488c, 04e4a37) |
 
-### Required Artifacts
+Deduplicated count: SC1, SC2a, SC2b, SC3 (the roadmap contract) + T1–T8 closure/tracking truths = **26/26 PASS**.
 
-| Artifact | Expected | Status | Details |
-|----------|----------|--------|---------|
-| docs/ARCHITECTURE-AUDIT.md | Amended design doc: §11/§12/§13/§14/§15/§16/§22/§23/§25 + header note | ✓ VERIFIED | 1335 lines, tracked and committed; exists, substantive (content counts in truth table), wired (§22 → runbook link; header note → both docs; §16 ↔ §11 column contract spot-checked on outbox DDL vs relay/dedup SQL) |
-| docs/DEPLOY-RUNBOOK.md | NEW operator runbook: both topologies, per-step rollback, PM2, smoke check | ✓ VERIFIED | 145 lines, tracked and committed; all structural elements verified (SC3 row) |
-| docs/ARCHITECTURE-REVIEW.md (flipped) | §1 = READY + Verdict history + Re-review section (clean-pass path only) | ⚠️ N/A — gap path | Still `# ❌ NOT READY` per the ratified D-18 gap path; byte-identity hash-stable. The artifact state is exactly what the gap path prescribes — the phase goal's flip is the open gap. File is untracked in git (warning: the verdict record is not under version control). |
-| .planning/phases/01-.../01-REREVIEW.md | Adversarial re-review report | ✓ VERIFIED | 268 lines, committed (67ed5ca + 595e2ee + a062b54); structure and substance verified (P5-1 row) |
-| .planning/phases/01-.../01-REVIEW.md | Code review of the amended docs | ✓ VERIFIED (present; findings are input to the gap) | 16 findings (3 Critical, 8 Warning, 5 Info), commit 5255463; CR-01..CR-03 spot-checked accurate against the audit text |
+## Requirements Coverage
 
-### Key Link Verification
+| Requirement | Text | Status | Evidence |
+|-------------|------|--------|----------|
+| DSGN-01 | All 8 design addenda from review §8 incorporated into the design documents | SATISFIED | SC1 above; REQUIREMENTS.md `[x]` Complete; the four amendment plans (01-01..01-04) each cite the §8 addendum they author, with issue-ID traceability in every marker |
+| DSGN-02 | §9 checklist fully resolved in design; verdict re-reviewed NOT READY → READY before implementation code | SATISFIED | SC2a + SC2b above; the D-15..D-18 process completed both cycles with the flip on a ratified clean pass; REQUIREMENTS.md `[x]` Complete |
 
-| From | To | Via | Status | Details |
-|------|----|----|--------|---------|
-| Audit §22 | docs/DEPLOY-RUNBOOK.md | Relative markdown link | ✓ WIRED | L1127 `./DEPLOY-RUNBOOK.md` resolves from docs/; precedence rule stated |
-| Runbook budget table | Audit §25 | Numbers must match | ✓ WIRED | web 10 / worker 20 / migrations 1 in both; runbook §1 points to audit §25 |
-| Audit §11 outbox DDL | §16 relay/dedup SQL | Column contract | ✓ WIRED | Relay reads sent_at/created_at/attempts; dedup uses incident_id (nullable — which is precisely CR-03's defect); columns exist in DDL L344-352 |
-| Audit §14 claim SQL | §11 next_check_at + idx_monitors_due | WHERE clause alignment | ✓ WIRED | Claim CTE filters on is_active/next_check_at per §11 definitions (L731-740) |
-| 01-REREVIEW.md recommendation | ARCHITECTURE-REVIEW.md verdict | Flip transcription (clean pass only) | ✗ NOT WIRED (gap path) | Correctly not wired on the gap path per D-18 — this is the SC2 gap, not a wiring bug |
-| 01-04-SUMMARY self-check | 01-REREVIEW re-verification | Re-run, not trust | ✓ WIRED | REREVIEW L7: "every check below was re-derived in this session, not trusted"; this verifier re-ran the loop a third time — same result |
+No orphan requirements: the phase claims exactly DSGN-01 and DSGN-02 (ROADMAP Phase 1 "Requirements" line + all 9 PLAN frontmatters); both are accounted for. REQUIREMENTS.md coverage is 94/94 mapped project-wide with Phase 1's two marked Complete.
 
-### Data-Flow Trace (Level 4)
+## Plan Completion Audit
 
-Not applicable — documentation phase; no runtime data flows. Equivalent depth achieved via content-substantiveness counts and cross-document consistency checks above.
+| Plan | Deliverable | Status | Commits (sampled, verified in git) |
+|------|-------------|--------|-----------------------------------|
+| 01-01 | Audit §11 schema + §16 literal-SQL writers + §23 data tests | complete | 1601c2b, 2a640eb, b6e9694 |
+| 01-02 | §14 scheduler/claim + §15 check job/SSRF + §23 cases | complete | 1b1040f, 53794f6, 36a8ad7 |
+| 01-03 | §13 resilience + §12 auth + §25 connection budget | complete | 4ad560a, e0bf04a, 8afd66a |
+| 01-04 | DEPLOY-RUNBOOK.md + §22 pointer + §9 self-trace | complete | a21aa8c, 7c086ac, b9b6166 |
+| 01-05 | Cycle-1 re-review (gap-path branch: RR-01..04 ratified) | complete | 67ed5ca, 595e2ee, a062b54 |
+| 01-06 | §16.2 exclusive-snapshot flush + CR-03 dedup + git-track review doc | complete | 577fc24, dd9b672, eb70e1e |
+| 01-07 | Runbook phase-conditional Migrate + PM2 handshake + §4a | complete | 6e4d689, 7560f2d, 1d28836 |
+| 01-08 | RR-01 egress layer + RR-02/03/04 + folded advisories | complete | 39233d7, 88a8a07, 932846a |
+| 01-09 | Cycle-2 re-review, ratification, D-16 flip | complete | 2b2d5c9, 7e7488c |
 
-### Behavioral Spot-Checks
+Every plan's SUMMARY reports `Self-Check: PASSED`; every sampled commit hash resolves in `git log --all`.
 
-| Behavior | Command | Result | Status |
-|----------|---------|--------|--------|
-| §9 checklist traceability (25 IDs) | `for id in J-1..P-1: grep -q "$id" audit runbook \|\| echo MISSING` | No MISSING output | ✓ PASS |
-| Global stale-sentence sweep | `grep -nE "falls back to writing routine pings\|alert:sent:\|interval + slack\|repeatable job" audit` | Zero matches (exit 1) | ✓ PASS |
-| Superseded idempotency token | `grep -n "scheduledAt" audit` | Zero matches | ✓ PASS |
-| §14-§16 legacy vocabulary | region-scoped `grep -ci "repeatable"\|grep -ci "scheduledAt"` | 0 / 0 | ✓ PASS |
-| Amendment marker count | `grep -cE "Amended 2026-\|Added 2026-" audit` | 11 (≥ 8 required) | ✓ PASS |
-| Verdict state | `grep -nE "^# " review` + `git hash-object` | `# ❌ NOT READY` L13; hash 520c9409… matches gap-path record | ✓ PASS (confirms gap-path invariant held) |
-| RR-02 residual present (unfixed) | `grep -n "uptime recompute" audit` | L797 match | ✓ CONFIRMS GAP |
-| RR-03 residual present (unfixed) | `grep -niE "fallback" audit` (§23 item 5) | L1160 "Redis-down fallback write" | ✓ CONFIRMS GAP |
-| RR-04 residuals present (unfixed) | `grep -nE "[Ss]pike" audit` | L453, L1090, L1241 | ✓ CONFIRMS GAP |
-| RR-01 egress layer absent | `grep -niE "egress\|iptables" audit` (minus regress false-positives) | No genuine match | ✓ CONFIRMS GAP |
-| CR-01 factual basis | Read §14.1 L716 + §16.2 SQL block | "no bulk ping-row writer to schedule"; flush SQL has no INSERT INTO pings | ✓ CONFIRMS CRITICAL |
-| CR-02 factual basis | Read §16.2 tail comment + TC-FLUSH-GUARD-01 Then clause | "hash deleted only after COMMIT"; retry "deletes agg:results:42 on the retry's exit path" | ✓ CONFIRMS CRITICAL |
-| CR-03 factual basis | Read §16.4 + §11 outbox DDL | Only key format alert:{incidentId}:{direction}; event_type includes 'monitor.first_check'; incident_id NULL allowed | ✓ CONFIRMS CRITICAL |
-| Task commits exist | `git log --oneline` | 1601c2b, 2a640eb, b6e9694, 36a8ad7, 5a06e9f, 4ad560a, e0bf04a, 8afd66a, 7258d54, a21aa8c, 7c086ac, b9b6166, c200263, 67ed5ca, 595e2ee, a062b54, f0cdec5, 5255463 all present | ✓ PASS |
+## Post-Ratification Inputs — 01-REVIEW.md (2026-09-09T17:17Z)
 
-### Probe Execution
+A standard-depth code review ran **after** the verdict flip (status: `issues_found`; 2 critical, 5 warning, 7 info). It explicitly confirms the prior cycles' closure — "Every finding from the previous review of these documents (CR-01..CR-03, WR-01..WR-08, IN-01..IN-05) is genuinely reflected in the current text" — corroborating this verifier's independent closure audit. Its findings are new cross-section observations.
 
-Not applicable — documentation phase; no `scripts/` probes exist and no probe paths are declared in PLAN/SUMMARY.
+### Fact-check of the two criticals (performed by this verifier)
 
-### Requirements Coverage
+**CR-01 — `monitors.uptime_percent` has no writer or pinned read-time derivation: CONFIRMED.**
+Direct read of the SQL: §16.1 step-2 transition UPDATE (audit L912–921) sets `status, last_checked, response_time, total_checks, failed_checks` — no `uptime_percent`; §16.2 flush UPDATE (L997–1002) sets `total_checks, failed_checks, last_checked, response_time` — no `uptime_percent`. File-wide grep finds `uptime_percent` in only three prose sites: §11 remaining-columns inventory (L330, verify-against-live-DDL marker), §11 decision 5 (L419: "stays derived lifetime math per the D-6 decision recorded in §16" — derivation owner never pinned), and §16.5 (L1070: the formula `(total_checks − failed_checks)/total_checks` stated as a behavior-compatibility constraint, no mechanism). §21-D7's "recompute once from pings at cutover and store" covers only the cutover moment. The documents' own contract — §16 as "literal SQL a Phase 4 implementer transcribes without interpretation" — means the displayed lifetime uptime freezes at its cutover value. Factual basis holds.
 
-| Requirement | Source Plan | Description | Status | Evidence |
-|-------------|------------|-------------|--------|----------|
-| DSGN-01 | 01-01, 01-02, 01-03, 01-04 | All 8 design addenda from review §8 incorporated | ✓ SATISFIED | All 8 addendum topics verified present with markers, citations, and substantive content; §9 loop 25/25; re-review independently confirmed incorporation (REREVIEW §2/§3). Marked [x] Complete in REQUIREMENTS.md — defensible: the CR findings are content-correctness defects inside incorporated sections, which is DSGN-02's gate, not incorporation failure (the same distinction the re-review drew). Caveat recorded: CR-01's §16 contradiction means the incorporated writer addendum is not yet internally consistent. |
-| DSGN-02 | 01-05 | §9 checklist fully resolved in design; verdict re-reviewed NOT READY → READY before implementation code | ✗ NOT SATISFIED (Pending — accurate) | Verdict still NOT READY; ratified gaps RR-01..RR-04 open (D-18 cycle 1 of 2); CR-01..CR-03 additional criticals open. REQUIREMENTS.md shows [ ] Pending — honest. |
+**CR-02 — Overlap window "disable nothing" contradicts M4: CONFIRMED.**
+Runbook §4a step 2 (L113–116): "disable nothing. The old `instrumentation.ts` cron keeps running while the new worker serves — both paths are idempotent by design, so the overlap only wastes duplicate checks, never corrupts data (audit M3)." Audit M4 (L1169): "Make increments SQL-atomic in the new path first; **old path disabled before first new-path flush**" — unexecutable simultaneously with "disable nothing," since the worker's flush-pass runs from the moment the worker starts. Audit §22 (L1204): "where any ordering statement here and the runbook could be read differently, **the runbook wins**" — resolving the tie toward the "disable nothing" option. M4's own risk title ("Counter corruption from overlapping old/new write paths during overlap") contradicts M3's "never corrupts" claim, and the audit's §5 catalogue documents the legacy path as non-idempotent (B3 stale-status writes, B4 read-modify-write counters). Factual basis holds.
 
-Orphaned requirements: none — REQUIREMENTS.md maps exactly DSGN-01/DSGN-02 to Phase 1, both claimed by plans.
+### Disposition — why these do not reopen the phase goal
 
-### Anti-Patterns Found
+1. **No mapping to the goal's completion conditions.** The phase contract is: 8 §8 addenda authored (SC1), §9 items traced (SC2a), verdict flipped per the D-15..D-18 process before implementation (SC2b), runbook readability (SC3). CR-01/CR-02 are not §8 addendum gaps, not §9 checklist items, and not verdict-process defects. They are transcription-completeness defects — the same finding class the human already dispositioned at cycle-2 ratification when accepting RR2-01..03 as "non-gating design-debt notes for Phases 4–5."
+2. **The gate is terminal by design.** D-18 caps the loop at two cycles; there is no cycle 3 and no READY-with-exceptions state. The cycle-2 clean pass was ratified by the human with full knowledge of the advisory register; the D-16 flip procedure was followed exactly (dated, reviewer-identified, verbatim history, minimal edit). Reopening the verdict would require a process state the plan does not define.
+3. **Zero exposure today.** No implementation code exists (Phases 2–8 unstarted). Nothing has transcribed §16 or §4a yet; the findings are actionable on paper, which is precisely what the design-debt mechanism exists for.
+4. **Orchestrator framing:** the fresh review's findings "are inputs, not verdicts."
 
-| File | Line | Pattern | Severity | Impact |
-|------|------|---------|----------|--------|
-| docs/ARCHITECTURE-AUDIT.md | 797, 1160, 453/1090/1241 | RR-02/RR-03/RR-04 residual contradictions | 🛑 Blocker (ratified gaps) | Contradict incorporated specs; block the READY flip |
-| docs/ARCHITECTURE-AUDIT.md | 716, 941-951, 986-987 | CR-01/CR-02/CR-03 critical spec defects | 🛑 Blocker (unratified, post-re-review) | Data-integrity spec bugs: routine ping evidence eliminated; flush double-apply/over-delete; cross-monitor alert suppression — any Phase 4 transcription would inherit them |
-| docs/ARCHITECTURE-AUDIT.md / DEPLOY-RUNBOOK.md | — | TBD/FIXME/XXX/placeholder markers | ✓ None found | Zero matches in both docs |
-| docs/ARCHITECTURE-REVIEW.md | — | Verdict document untracked in git | ⚠️ Warning | The gate's verdict record has no version history; a stray edit would be undetectable by diff (byte-identity currently proven only via hash-object snapshots) |
-| .planning/ROADMAP.md | 16 | `Mode: mvp` with non-User-Story goal | ⚠️ Warning | MVP user-flow framing cannot apply; reformat goal or drop the mode marker |
+### But treat them as elevated design-debt
 
-### Deferred Items
+Unlike RR2-01..03 (operational notes), CR-01 touches a named behavior-compatibility hard constraint (lifetime uptime display — "monitoring semantics preserved") and CR-02 touches cutover safety (the runbook's own "highest-risk release of the milestone"). Both land squarely in Phase 4/5 scope (§16 transcription; WRK-10/WRK-11/DEP-02/DEP-03 planning). **Hard consumption point: Phase 4 planning must resolve CR-01 and CR-02 before any plan transcribes §16 or the §4a overlap path** — same mechanism, elevated severity. The remaining WR-01..05 / IN-01..07 findings are advisory design-debt for the same phases; IN-02 (agg:pending orphan) simply restates RR2-01, and IN-05 notes the gate document reads NOT READY under mechanical parsing of §4's header + the unchecked §9 boxes (a D-16 verbatim-preservation consequence — annotated-resolution per the review's suggested fix would resolve it without touching the preserved record).
 
-None. The RR/CR gaps are Phase 1 design-gate work by definition — the gate exists to close them before any implementation phase. RR-01's *implementation* half maps to SEC-02 (Phase 4), but the *design-spec* half (the OS-egress layer written into the audit/runbook) is review §8/§9 scope and cannot be deferred. No later roadmap phase covers CR-01/CR-02/CR-03 (they are fixes to Phase 1's own documents).
+## Design-Debt Register (carried forward)
 
-### Human Verification Required
+| ID | Severity | One-line summary | Consume at |
+|----|----------|------------------|------------|
+| CR-01 (01-REVIEW) | critical | Pin `uptime_percent` writer (extend §16.1/§16.2 UPDATEs with the derived expression) or read-time derivation in §16.5 + Phase 4 test | Phase 4 planning (§16 transcription) — before implementation |
+| CR-02 (01-REVIEW) | critical | Reconcile runbook §4a step 2 with audit M4 (choose: legacy write-side disabled during overlap, or "disable nothing" with named corruption surface + under-count detection + post-overlap reconciliation); qualify §22 tie-break for this conflict | Phase 4/5 planning (WRK-10/WRK-11/DEP-02/DEP-03) — before overlap-window plan finalizes |
+| WR-01..WR-05 | warning | Phase-4 smoke mechanism + §15/§24 enqueue-flip reconciliation; kill_timeout vs 40 s worst case; denylist + `::/128` + `100.64.0.0/10`; PENDING→DOWN outbox dispatch table; UP⇔200–399 + redirect-cap + 4xx error_class pins | Phase 4/5 planning |
+| IN-01..IN-07 | info | Zero-tuple short-circuit; agg:pending enumeration (= RR2-01); §10 concrete firewall commands; smoke-monitor ownership; gate-doc mechanical-read annotation; §12 trustedOrigins/rate-limit/secret pins; relay idle-in-transaction note | Phase 4/5/7 planning |
+| RR2-01..RR2-03 (01-REREVIEW-2 §7) | advisory | agg:pending orphan key; host-egress port-refusal classification; flush FK-violation retry classification | Phase 4/5 planning (already ratified as non-gating) |
 
-Not emitted as a status routing (gaps_found takes precedence). One judgment the structure checks cannot fully substitute for, noted for the fix-cycle checkpoint: an actual operator read-through of docs/DEPLOY-RUNBOOK.md mid-deploy-simulation (the 01-05 checkpoint asked for this skim; the ratification record does not explicitly confirm it happened). SC3's structural evidence is strong enough that this is advisory, not a gate.
+## Gaps / Deferred Items
 
-### Gaps Summary
+**Goal-gating gaps: none.** All items from the previous verification are closed and verified (T1–T4).
 
-**One gap, two layers, one root cause: the verdict flip did not happen — legitimately.**
+Deferred: the Design-Debt Register above — recorded here and in this report's frontmatter so Phase 4/5 planning consumes it (the two criticals as must-resolve inputs, per the elevated-severity disposition).
 
-The phase executed its process correctly and honestly. All 5 plans completed; all 8 addenda were authored at the specified depth (DDL-precise schema, literal SQL, numbered algorithms with failure-mode tables, field maps, both-topology runbook); §9 traceability held at 25/25 under an author-blind adversarial re-review with six failure-scenario walkthroughs; the tracking metadata (ROADMAP checkbox, REQUIREMENTS.md, STATE.md) makes no claim contradicting the docs. When the re-review found RR-01..RR-04, the human ratified the gaps, the verdict honestly stayed NOT READY, and D-18 cycle accounting (1 of 2) is recorded. This is the designed behavior of the gate, not a process failure — but the phase *goal* ("verdict is flipped to READY") is not achieved, so the phase cannot pass verification. **The correct next step is exactly what the workflow prescribes: one fix-cycle plan (fresh agent) closing the gaps, then cycle 2.**
+## Self-Check: PASSED
 
-What the fix cycle must cover (ordered by severity):
-
-1. **RR-01 (HIGH, ratified)** — add the S-1 network-egress layer spec (OS-level deny-private/allow-80-443 on the worker host) to the audit and the runbook. Currently absent everywhere.
-2. **CR-01 (Critical, unratified — this verifier confirmed the factual basis)** — the Tier 2 flush eliminates routine ping-row persistence while §2's API contract ("last 100 pings"), §16.5's windowed-uptime plan ("computed from `pings`"), and the behavior-compatibility hard constraint all assume per-check evidence. Decide explicitly: extend the §16.2 flush transaction with a guarded bulk ping INSERT, or rewrite the compatibility statements. As written, Phase 4 would transcribe a design that guts the monitor-details timeline.
-3. **CR-02 (Critical, confirmed)** — the flush lacks exclusive snapshot semantics: per-pass batchIds mean a delayed pass-N and pass-(N+1) job both apply the same deltas (guard only dedupes identical batchIds), and TC-FLUSH-GUARD-01's own Then clause deletes the live hash on retry, destroying post-snapshot deltas. Fix: RENAME/Lua staging key + pinned batchId generation scheme (also IN-03).
-4. **CR-03 (Critical, confirmed)** — the dedup key `alert:{incidentId}:{direction}` cannot express `monitor.first_check` (incident_id NULL): interpolating NULL yields a cross-monitor colliding key that suppresses legitimate start/recovery alerts. Fix: monitor-scoped key for non-incident events + non-NULL enforcement for down/recovered.
-5. **RR-02/RR-03/RR-04 (MEDIUM/MEDIUM/LOW, ratified)** — remove the three residual contradiction fragments (audit L797, L1160, L453/L1090/L1241).
-6. Advisory for the same cycle (01-REVIEW.md warnings that an adversarial cycle 2 may flag): WR-01 (SSRF denylist gaps: IPv4-mapped IPv6, NAT64), WR-02 (manual-check/claim-column interaction), WR-03/WR-04/WR-05 (runbook: interim Migrate step executability, PM2 wait_ready semantics, first-worker-cutover path), WR-06 (subset of RR-04), WR-08 (lock margin vs statement_timeout).
-
-Housekeeping worth folding in: commit docs/ARCHITECTURE-REVIEW.md to git so the verdict record is version-controlled; resolve the `Mode: mvp` / non-User-Story-goal mismatch (run `/gsd mvp-phase 1` or drop the marker).
+- Deliverables exist on disk: `docs/ARCHITECTURE-AUDIT.md` (1425 lines), `docs/ARCHITECTURE-REVIEW.md` (349 lines, §1 = `# ✅ READY`), `docs/DEPLOY-RUNBOOK.md` (180 lines), `01-REREVIEW.md`, `01-REREVIEW-2.md`, all 9 PLAN/SUMMARY pairs — verified by direct read this session.
+- Commits: 13 sampled task hashes across all 9 plans found in `git log`; flip commit `7e7488c` is the review doc's latest change.
+- Working tree: all three gate docs clean (no uncommitted drift).
+- Tracking truth: ROADMAP Phase 1 `[x]` 9/9 dated 2026-09-09; REQUIREMENTS DSGN-01/DSGN-02 `[x]` Complete; STATE.md 9/9 plans, verifying.
 
 ---
-
-_Verified: 2026-09-08T21:22:41Z_
-_Verifier: Claude (gsd-verifier)_
+*Phase: 01-design-gate-review-verdict-ready*
+*Verification round: 2 (supersedes 2026-09-08 gaps_found)*
+*Verified: 2026-09-09T17:24:44Z*

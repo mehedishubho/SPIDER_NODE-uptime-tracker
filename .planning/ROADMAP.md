@@ -80,6 +80,7 @@ Plans:
 **Success Criteria** (what must be TRUE):
 
   1. A fresh clone installs and builds with pnpm; every PR runs lint → typecheck → unit/integration → build green, a typecheck failure blocks merge (`ignoreBuildErrors` off), and the Node version is pinned identically in dev and CI
+     - *Amendment (2026-09-10, CONTEXT D-01/D-02): no GitHub Actions or PR-level CI in this phase — `.github/workflows/deploy.yml` is deleted; the "every PR runs" clause is superseded by the single local `pnpm verify` gate chain (docker up --wait → lint → typecheck → test → build → e2e), operator-run before every deploy, with Node pinned identically in dev and on the VPS. Evaluate this criterion against the manual verify contract, not a CI system.*
   2. `docker compose up` brings up Postgres + Redis locally, and the characterization suite proves current behavior: due-time filtering, PENDING→UP / UP→DOWN / DOWN→UP transitions, incident open/resolve, Telegram message selection, db-batcher enqueue/flush math, and API contracts (auth required, ownership scoping, status codes) — deliberately changing any pinned behavior turns the suite red
   3. A user can toggle Light/Dark/System in the header: theme applies before first paint (no flash of wrong theme, no hydration mismatch), dark mode is visually identical to today, toasts follow the resolved theme, and hardcoded hex classes now route through semantic tokens with no visual change
   4. The repo contains no ngrok binary or log, `.env.example` documents every variable the app reads, and error responses never include stack traces

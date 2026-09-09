@@ -4,7 +4,7 @@
 > **Audit date:** 2026-09-08
 > **Scope:** Full-repository inspection (backend, frontend, data layer, jobs, deployment) in preparation for the modernization to Next.js 16 App Router + Drizzle + Better Auth + Redis + BullMQ + dedicated monitoring worker.
 > **Status of this document:** Audit + target architecture proposal. **No application code was modified.**
-> **Amendment note:** This document was amended on 2026-09-09 to incorporate the design addenda required by [ARCHITECTURE-REVIEW.md](./ARCHITECTURE-REVIEW.md) §8. Amendment markers appear inline as "Amended 2026-09-09 (resolves &lt;issue-ids&gt;)" — new sections carry the same marker form prefixed "Added". The operator-facing deploy procedure is [DEPLOY-RUNBOOK.md](./DEPLOY-RUNBOOK.md).
+> **Amendment note:** This document was amended on 2026-09-09 to incorporate the design addenda required by [ARCHITECTURE-REVIEW.md](./ARCHITECTURE-REVIEW.md) §8. Amendment markers appear inline as "Amended 2026-09-09 (resolves &lt;issue-ids&gt;)" — new sections carry the same marker form prefixed "Added". The operator-facing deploy procedure is [DEPLOY-RUNBOOK.md](./DEPLOY-RUNBOOK.md). A 2026-09-09 fix-cycle pass (re-review cycle 1 follow-up, per 01-REREVIEW.md §6/§10) further amended sections to close the escalated gap set; fix-cycle amendments carry markers of the form "Amended 2026-09-09, fix cycle (resolves &lt;issue-ids&gt;)".
 
 ---
 
@@ -852,19 +852,20 @@ The `check` job's id **is** the §14 idempotency key (`check:{monitorId}:{epoch}
 ## 16. Proposed Batching / Aggregation Architecture
 
 *Amended 2026-09-09 (resolves J-2, D-1, D-2, D-4, D-5, D-6; §9 items 2, 8, 9, 12)*
+*Amended 2026-09-09, fix cycle (resolves CR-01, CR-02, IN-03; §16.2 exclusive-snapshot flush + evidence-row INSERT)*
 
 Replaces `db-batcher.ts` (deleted). Split by criticality into two tiers, each specified as literal SQL a Phase 4 implementer transcribes without interpretation:
 
 **Tier 1 — synchronous transaction (never batched):** every check whose classified result **changes** `monitors.status` — DOWN transition, RECOVERED transition, first check (PENDING → UP/DOWN) — regardless of whether the check was scheduled or manual. Written as **one synchronous Postgres transaction** by the `persist` processor inside the check job: monitor UPDATE + ping INSERT + incident INSERT/UPDATE + outbox INSERT (§16.1). Durability: BullMQ retries ⇒ a Postgres outage yields retryable jobs, not lost data (rule 14).
 
-**Tier 2 — guarded aggregation (routinely batched):** every check whose result **matches** current status (routine UP, unchanged DOWN) — again including manual checks that don't transition. Deltas are aggregated in Redis (atomic `HINCRBY`/`HSET` per monitor) and flushed within 60 s via **one guarded atomic UPDATE per monitor that never writes `status`** (§16.2). Redis hash entries are deleted only after the flush transaction commits.
+**Tier 2 — guarded aggregation (routinely batched):** every check whose result **matches** current status (routine UP, unchanged DOWN) — again including manual checks that don't transition. Counter deltas aggregate in the `agg:results:{monitorId}` Redis hash (atomic `HINCRBY`/`HSET` per routine check) **and one per-check evidence row is buffered per routine check (`RPUSH` onto the `pings:pending:{monitorId}` list)** — Tier 2 carries per-check ping evidence, it does not discard it (CR-01). Both containers are flushed within 60 s by the §16.2 guarded transaction: a job-start `RENAMENX` moves the live keys to batch-scoped staging keys, one transaction applies a **multi-row `INSERT INTO pings`** plus **one guarded atomic UPDATE per monitor that never writes `status`**, and only the staging keys are deleted after COMMIT — the live keys are never deleted by a flush job.
 
 Invariants:
 1. `monitor.status` is **only** written by Tier 1 (fixes B3 state-regression defect).
 2. Aggregate flush uses `last_checked = GREATEST(existing, incoming)`, additive counters, and the `CASE` response-time guard (fixes B4, D-5).
 3. Redis buffer is loss-tolerable by definition; Postgres is authoritative for every transition (rules 1, 7, 13).
-4. Buffer size is bounded by design (60 s window × check rate) — no unbounded growth (fixes B5).
-5. Flush batches are exactly-once per batch id via the same-transaction `write_guards` guard (J-2) — replacing the earlier vague "idempotency key per flush batch".
+4. Buffer size — hash deltas **and** pending evidence rows — is bounded by design (60 s window × check rate) — no unbounded growth (fixes B5).
+5. Flush batches are exactly-once by a two-part guarantee (CR-02): the same-transaction `write_guards` guard keyed `flush:{batchId}` (J-2) **plus** `RENAMENX` staging exclusivity — a flush reads and deletes only its own `agg:flushing:{batchId}` / `pings:flushing:{batchId}` staging keys, so concurrent or retried passes can neither double-apply deltas nor destroy post-snapshot deltas.
 
 ### 16.1 Transition transaction (Tier 1 — D-1, D-2, DAT-01)
 
@@ -927,16 +928,43 @@ Defense in depth (D-1): the conditional UPDATE is the primary gate; `incidents_o
 
 ### 16.2 Guarded monotonic flush (Tier 2 — J-2, D-5, DAT-02/DAT-03)
 
+*Amended 2026-09-09, fix cycle (resolves CR-01, CR-02, IN-03)*
+
+One transcribable sequence: **step 0** — job-start exclusive snapshot (Redis); **step 1** — guarded transaction (SQL); **step 2** — post-commit cleanup (Redis). The `{batchId}` in every key and guard name is generated by the pinned scheme at the end of this subsection and rides the BullMQ job's `data`, so a redelivered job re-derives the same staging key names and the same guard key.
+
+**Step 0 — job-start exclusive snapshot (Redis, before the transaction).** First a read-only guard pre-check — `SELECT 1 FROM write_guards WHERE key = 'flush:{batchId}'`: a returned row means this batch already committed (worker crashed after COMMIT, before cleanup); the job skips straight to step 2 (cleanup) and never touches the live keys. Otherwise the job takes the exclusive snapshot:
+
+```redis
+RENAMENX agg:results:{monitorId}   agg:flushing:{batchId}
+RENAMENX pings:pending:{monitorId} pings:flushing:{batchId}
+```
+
+- `RENAMENX` is atomic (redis.io/commands/renamenx): a concurrent flush pass for the same monitor either gets the whole live container or finds nothing (source key absent ⇒ that pass completes as a no-op). Routine deltas accrued after the snapshot accumulate in freshly created live keys (`HINCRBY`/`RPUSH` create on first write) that no in-flight flush touches.
+- The **NX clause is what makes redelivery safe** (CR-02): a redelivered job whose staging keys still hold its earlier snapshot (crash before COMMIT) does not recapture the live keys — the rename is skipped, the staged snapshot is applied by this run, and post-snapshot deltas stay in the live keys for the next pass. A plain `RENAME` here would overwrite the staged snapshot (or, on the already-applied path, drag post-snapshot live deltas into a staging key that the exit path then deletes) — do not "simplify" it.
+- **Missing-key handling:** if neither live key exists **and** neither staging key for this batch exists, nothing was accrued and nothing is staged — the job completes successfully without opening a transaction.
+
+**Step 1 — guarded transaction (SQL).** The UPDATE's parameters are read from the staging hash `agg:flushing:{batchId}` (`HGETALL`: `count`→`$dTotal`, `failedCount`→`$dFailed`, `lastCheckedAt`→`$lastTs`, `lastResponseTime`→`$lastRt`); the INSERT's tuples are the staged evidence rows read from the staging list `pings:flushing:{batchId}` (`LRANGE 0 -1`).
+
 ```sql
 BEGIN;
 
 -- Guard: same-transaction write guard (J-2). Zero rows returned ⇒ this batch
--- was already applied (worker crashed after commit but before the Redis hash
+-- was already applied (worker crashed after commit but before the staging-key
 -- delete; BullMQ redelivered the flush job) ⇒ COMMIT and exit — the retry is
--- a no-op. A Redis-side guard alone is insufficient (keys can be flushed/lost).
+-- a no-op BEFORE the pings INSERT and the UPDATE. A Redis-side guard alone is
+-- insufficient (keys can be flushed/lost).
 INSERT INTO write_guards(key) VALUES ('flush:{batchId}')
   ON CONFLICT DO NOTHING
 RETURNING key;
+
+-- Per-check evidence rows (CR-01): one row per routine check staged in the
+-- pings:flushing:{batchId} list — Tier 2 carries per-check ping evidence, it
+-- never discards it. The id column is omitted so the pinned DB default
+-- applies (D-3) — ids are never bound. Natural row bound (D-10): rows per
+-- flush = checks accrued in one flush window at the monitor's interval —
+-- 1-2 rows per pass at the 1-minute minimum interval — no artificial cap.
+INSERT INTO pings (monitor_id, status, response_time, error_class, status_code, created_at)
+VALUES ($mid, $status, $rt, $errClass, $statusCode, $ts), ... ;  -- multi-row: one tuple per staged check
 
 -- Additive monotonic UPDATE: never writes status (B3 fix). Deltas only.
 UPDATE monitors SET
@@ -947,8 +975,21 @@ UPDATE monitors SET
 WHERE id = $mid;
 
 COMMIT;
--- Redis aggregate hash is deleted only after this COMMIT succeeds.
 ```
+
+**Step 2 — post-commit cleanup (Redis, after COMMIT succeeds):**
+
+```redis
+DEL agg:flushing:{batchId} pings:flushing:{batchId}
+```
+
+Both **staging** keys are deleted only after COMMIT succeeds — including on the guard's no-op exit paths (the step-0 pre-check exit and the in-transaction 0-rows exit). The **live** keys `agg:results:{monitorId}` / `pings:pending:{monitorId}` are never deleted by a flush job; they are only ever moved by the *next* pass's step-0 snapshot.
+
+**batchId generation (IN-03, pinned per D-10):**
+
+| Parameter | Default | Rationale | Class |
+|---|---|---|---|
+| batchId scheme | `{epochMs-of-flush-pass}:{monitorId}` | the flush-pass scheduler job's creation timestamp (epoch ms) plus the monitor id — unique per flush-job creation (`{epochMs}` separates passes, `{monitorId}` separates monitors; the `flush-pass` scheduler creates one job per monitor per pass, so a created job's batchId never repeats); carried in the BullMQ job's `data`, so a redelivery re-derives the identical staging key names and guard key — deterministic under retry (CR-02) | non-negotiable (shape) |
 
 **NULL semantics, pinned** (postgresql.org/docs/current/functions-conditional.html):
 

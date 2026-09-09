@@ -84,7 +84,42 @@ Plans:
   3. A user can toggle Light/Dark/System in the header: theme applies before first paint (no flash of wrong theme, no hydration mismatch), dark mode is visually identical to today, toasts follow the resolved theme, and hardcoded hex classes now route through semantic tokens with no visual change
   4. The repo contains no ngrok binary or log, `.env.example` documents every variable the app reads, and error responses never include stack traces
 
-**Plans**: TBD
+**Plans**: 9 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 02-01-PLAN.md — Toolchain migration & repo hygiene: pnpm exact-freeze, Node 24 pin, deploy.yml/ngrok/test-script deletions, .env.example, error-leak fix (FND-01, FND-03, FND-07)
+
+**Wave 2** *(blocked on 02-01)*
+
+- [ ] 02-02-PLAN.md — Test scaffold: docker Postgres/Redis stack, Vitest + Playwright configs, localhost DB guard, ONE smoke E2E, pnpm verify chain (FND-04, DEP-04)
+
+**Wave 3** *(blocked on 02-02; parallel, no file overlap)*
+
+- [ ] 02-03-PLAN.md — Data-path characterization: cron-logic transitions + db-batcher flush math on real Postgres, audit §23 transcribed (FND-05, FND-06)
+- [ ] 02-04-PLAN.md — Runbook amendments: manual-deploy steps, one-time VPS Node/pnpm switch, typed post-deploy checks (DEP-04; D-01..D-05/D-14/D-26)
+
+**Wave 4** *(blocked on 02-02 + 02-03 — shared docker test stack)*
+
+- [ ] 02-05-PLAN.md — API contract characterization: handler-import harness + pinned defects + HTTP-level core routes via Playwright api project (FND-06)
+
+**Wave 5** *(blocked on 02-01 + 02-03 + 02-05 — flip gated on green suite per D-19)*
+
+- [ ] 02-06-PLAN.md — Typecheck fix-all-then-flip: size pile (D-12 gate), minimal-churn fixes, ignoreBuildErrors off + stale configs deleted, canary proof (FND-02)
+
+**Wave 6** *(blocked on 02-06)*
+
+- [ ] 02-07-PLAN.md — Theme infrastructure vertical slice: RED e2e first, next-themes + toggle + toaster, palette split with frozen .dark (THM-01, THM-02)
+
+**Wave 7** *(blocked on 02-07)*
+
+- [ ] 02-08-PLAN.md — Hex→token mechanical migration, same dark values, status-token adoption, hex gate (THM-03)
+
+**Wave 8** *(final — blocked on 02-03 + 02-05 + 02-08)*
+
+- [ ] 02-09-PLAN.md — D-21 mutation spot-check: three deliberate behavior breaks proven red then reverted; final full pnpm verify (FND-05, FND-06)
+
 **UI hint**: yes
 
 ### Phase 3: Redis & Drizzle Schema Ownership
@@ -210,7 +245,7 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Design Gate — Review Verdict READY | 9/9 | Complete — cycle-2 clean pass ratified 2026-09-09, verdict flipped to READY (RR2-01/02/03 advisory Phase 4/5 design-debt) | 2026-09-09 |
-| 2. Foundations & Theme Infrastructure | 0/TBD | Not started | - |
+| 2. Foundations & Theme Infrastructure | 0/9 | Planned — 9 plans across 8 waves | - |
 | 3. Redis & Drizzle Schema Ownership | 0/TBD | Not started | - |
 | 4. Monitoring Worker — Build & Dark Launch | 0/TBD | Not started | - |
 | 5. Worker Cutover & Operational Hardening | 0/TBD | Not started | - |

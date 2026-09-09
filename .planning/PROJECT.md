@@ -4,7 +4,7 @@
 
 SpiderNode is a live, production uptime-monitoring SaaS (Next.js 16 App Router, single VPS under PM2) that checks user-defined URLs on cron schedules, records pings/incidents in PostgreSQL, and alerts via Telegram. This milestone is a **backend/infrastructure modernization — no new user-facing features** — migrating to Drizzle ORM, Better Auth, Redis + BullMQ job orchestration, and a dedicated monitoring worker process, followed by Redux pruning, an AI SDK integration (flagged off), and a final visual redesign.
 
-Authoritative source documents: `docs/ARCHITECTURE-AUDIT.md` (audit + target architecture, §1–24) and `docs/ARCHITECTURE-REVIEW.md` (NOT READY verdict, 14 blocking issues J/D/R/A/S/M/P, §9 pre-implementation checklist, §8 required design addenda).
+Authoritative source documents: `docs/ARCHITECTURE-AUDIT.md` (audit + target architecture, §1–24) and `docs/ARCHITECTURE-REVIEW.md` (verdict **READY** since 2026-09-09 — flipped from NOT READY via the Phase 01 design gate; §9 pre-implementation checklist resolved, §8 addenda incorporated).
 
 ## Core Value
 
@@ -30,6 +30,7 @@ Inferred from existing codebase (`.planning/codebase/` map) — current capabili
 - ✓ Profile management with Cloudinary avatar upload — existing
 - ✓ Feedback submission — existing
 - ✓ Dual-cron trigger (internal node-cron or Vercel Cron HTTP) with healthchecks.io dead-man's switch — existing (replaced, not preserved)
+- ✓ Design gate: all 8 §8 addenda incorporated into audit/runbook, 25/25 §9 checklist items resolved, review verdict flipped NOT READY → READY on a human-ratified D-18 cycle-2 clean pass — **Validated in Phase 01: design-gate-review-verdict-ready** (26/26 verification; design-debt register in `01-VERIFICATION.md` — CR-01/CR-02 must be consumed by Phase 4/5 planning)
 
 ### Active
 
@@ -46,7 +47,7 @@ The modernization. Binding hard constraints (treat as non-negotiable; audit rule
 
 Derived scope (audit §24 order — the chosen sequence):
 
-- [ ] Design addenda phase: amend the audit/incorporate all 8 review addenda (§8) — schema (`next_check_at`, `write_guards`, `outbox`, partial unique index on ongoing incidents, ID-generation), scheduler spec (J-1 claims), check job spec (J-3/J-4/S-1), writer specs (J-2/D-1/D-5), resilience spec (J-5/R-1), auth spec (A-1/A-2/A-3), connection budget (D-8), deploy runbook (P-1) — flipping the review verdict to READY before implementation
+- [x] Design addenda phase: amend the audit/incorporate all 8 review addenda (§8) — schema (`next_check_at`, `write_guards`, `outbox`, partial unique index on ongoing incidents, ID-generation), scheduler spec (J-1 claims), check job spec (J-3/J-4/S-1), writer specs (J-2/D-1/D-5), resilience spec (J-5/R-1), auth spec (A-1/A-2/A-3), connection budget (D-8), deploy runbook (P-1) — flipping the review verdict to READY before implementation — **done (Phase 01)**
 - [ ] Phase 0 foundations: pnpm migration, typecheck gate (`ignoreBuildErrors` off), Vitest + Playwright scaffolding, characterization tests for cron/batcher/API contracts, repo hygiene (remove ngrok binary/log, `.env.example`)
 - [ ] Theme infrastructure early (`next-themes`, light palette tokens, toggle; no visual redesign)
 - [ ] Redis introduction (ioredis, Redis-backed rate limiting + cache; AOF + `noeviction` documented)
@@ -84,7 +85,7 @@ Derived scope (audit §24 order — the chosen sequence):
 
 - **Tech stack (target):** Next.js 16.3 App Router · Drizzle ORM · Better Auth · PostgreSQL (unchanged, source of truth) · Redis + BullMQ · dedicated Node worker process · Redux Toolkit + Redux Persist (pruned) · Tailwind v4, shadcn/ui, Hugeicons, Sonner, Radix UI, Framer Motion · Vercel AI SDK (off critical path) · multi-provider email abstraction · pnpm
 - **Hard constraints:** the eight binding requirements listed under Active above (audit rules 1–20 traceable in audit Appendix B)
-- **Review gate:** all §9 checklist items resolved in design before implementation (verdict READY)
+- **Review gate:** all §9 checklist items resolved in design before implementation (verdict READY) — ✅ satisfied 2026-09-09 (Phase 01); post-ratification design debt (CR-01 `uptime_percent` writer, CR-02 §4a/M4 overlap contradiction) is registered in `01-VERIFICATION.md` with a hard consumption point at Phase 4/5 planning
 - **Behavior compatibility:** monitoring semantics preserved through cutover — 1-strike DOWN, lifetime uptime math, Telegram alert content, public API shapes
 - **Deployment:** single VPS, two PM2 apps, forward-only additive-first migrations, health gates (`readyz`) before a release counts as good
 - **Forced re-login at auth cutover:** accepted consequence (M2/D6), announced (Q-4)
@@ -95,7 +96,7 @@ Derived scope (audit §24 order — the chosen sequence):
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Follow audit §24 migration order (worker core move before Better Auth) | Reviewed dependency-engineered sequence; highest-risk core move lands with foundations in place | — Pending |
-| Dedicated design-amendment phase before any implementation | Review verdict is NOT READY; §8 addenda cheap on paper, expensive in production | — Pending |
+| Dedicated design-amendment phase before any implementation | Review verdict is NOT READY; §8 addenda cheap on paper, expensive in production | ✓ Done (Phase 01 — verdict READY 2026-09-09) |
 | Full phase 0 incl. characterization tests | Review §7.9: "the single most valuable safety investment" — pins current behavior before rewrite | — Pending |
 | All 5 product defaults accepted (Q-1 lifetime uptime, Q-2 1-strike DOWN, Q-3 self-host Redis, Q-4 announced re-login, Q-5 enqueue+poll) | Behavior compatibility + lowest operational change during migration | — Pending |
 | v1 spans the full sequence through AI SDK and visual redesign | One coherent arc; AI flagged-off makes it safe to include | — Pending |
@@ -121,4 +122,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-08 after initialization*
+*Last updated: 2026-09-09 after Phase 01 completion (design gate READY; implementation phases 2–8 next)*

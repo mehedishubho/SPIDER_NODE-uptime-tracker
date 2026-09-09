@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: design-gate-review-verdict-ready
 status: executing
-stopped_at: Completed 01-06-PLAN.md (CR-01/CR-02/CR-03 + IN-02/03/04 + OBS-01 closed as audit amendments; NOT READY verdict record git-tracked)
-last_updated: "2026-09-09T15:15:08.926Z"
+stopped_at: Completed 01-07-PLAN.md (WR-03/WR-04/WR-05 + IN-05 runbook half closed as DEPLOY-RUNBOOK amendments)
+last_updated: "2026-09-09T15:25:29.590Z"
 last_activity: 2026-09-09
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 9
-  completed_plans: 6
-  percent: 67
+  completed_plans: 7
+  percent: 0
 ---
 
 # Project State
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-08)
 ## Current Position
 
 Phase: 01 (design-gate-review-verdict-ready) — EXECUTING
-Plan: 7 of 9
+Plan: 8 of 9
 Status: Ready to execute
 Last activity: 2026-09-09 — Phase 01 execution started
 
@@ -61,6 +61,7 @@ Progress: [███████░░░] 67%
 | Phase 01 P04 | 5min | 3 tasks | 2 files |
 | Phase 01 P05 | 10m (Tasks 2-3 continuation; Task 1 prior session) | 3 tasks | 1 files |
 | Phase 01 P06 | 8m (490s) | 3 tasks | 2 files |
+| Phase 01 P07 | 213s (~4m) | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -93,6 +94,9 @@ Recent decisions affecting current work:
 - [Phase 01]: 01-06: flush exclusivity is a two-part guarantee — same-transaction write_guards guard (flush:{batchId}) PLUS RENAMENX staging snapshot; plain RENAME rejected because it re-fails CR-02's over-delete case on crash-after-COMMIT redelivery
 - [Phase 01]: 01-06: batchId pinned {epochMs-of-flush-pass}:{monitorId}, carried in BullMQ job data so staging key names and the guard key are deterministic across retries (IN-03, D-10 form)
 - [Phase 01]: 01-06: alert dedup is one key per declared outbox event type — alert:{incidentId}:down / alert:{incidentId}:recovered / alert:{monitorId}:first_check; down/recovered rows REQUIRE non-NULL incident_id, violations dead-letter via UnrecoverableError (CR-03)
+- [Phase 01]: 01-07: interim-topology Migrate step is phase-conditional keyed on the Phase 3 baseline PR (same switchover event as audit §24 step 3) — Phase 2 runs no migrate command (legacy CI prisma db push is the interim schema authority on its dated removal path), Phase 3+ runs the single drizzle-kit migrate runner (WR-03)
+- [Phase 01]: 01-07: PM2 readiness is two signals with distinct consumers — process.send('ready') is the PM2 gate (wait_ready/listen_timeout), HTTP :9090/readyz is the operator/CI gate; wiring only the HTTP endpoint boot-crash-loops the worker (WR-04)
+- [Phase 01]: 01-07: first worker release is its own §4a path — pm2 start/startOrReload (never restart on an unregistered name), M3 overlap window verifying continuity (heartbeat, queue depth ≈ 0, ping flow, alert parity, M4 counters) before anything is disabled, cutover completion as a separate release deleting instrumentation.ts cron + CRON_MODE; §4 restart form applies from the second release onward (WR-05)
 
 ### Pending Todos
 
@@ -114,6 +118,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-09T15:15:08.921Z
-Stopped at: Completed 01-06-PLAN.md (CR-01/CR-02/CR-03 + IN-02/03/04 + OBS-01 closed as audit amendments; NOT READY verdict record git-tracked)
+Last session: 2026-09-09T15:25:20.663Z
+Stopped at: Completed 01-07-PLAN.md (WR-03/WR-04/WR-05 + IN-05 runbook half closed as DEPLOY-RUNBOOK amendments)
 Resume file: None

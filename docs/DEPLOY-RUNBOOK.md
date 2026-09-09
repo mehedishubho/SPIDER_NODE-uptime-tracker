@@ -5,6 +5,7 @@
 > **Scope:** every release of this milestone (backend modernization), from Phase 2 foundations through the final visual redesign.
 > **Status:** design-stage runbook — no corresponding code exists yet. Steps marked worker/`readyz` apply from Phase 4 onward (see topology table). Each step is verified live from Phase 2 onward and corrected here when reality disagrees.
 > **Companion document:** [ARCHITECTURE-AUDIT.md](./ARCHITECTURE-AUDIT.md) — all design rationale lives there, not here (D-01/D-03). This document contains ordering, verification, and rollback only.
+> **Amended 2026-09-09 (fix cycle):** §1/§2/§3/§4/§5 amended and §4a added — the Migrate step is phase-conditional (WR-03), the PM2 ready handshake names the process signal (WR-04), the first worker release has its own path (WR-05), and the steady-state budget is stated as ≤ 30 (IN-05 runbook half).
 
 ---
 
@@ -30,7 +31,7 @@ Two orderings exist this milestone. Pick by phase, then follow the numbered step
 |---|---|---|
 | **1** | Build (web from one SHA) | Build (web **and** worker from one SHA) |
 | **2** | Backup (`pg_dump`) + rehearsal | Backup (`pg_dump`) + rehearsal |
-| **3** | Migrate (single runner) | Migrate (single runner) |
+| **3** | Migrate — Phase 2: no migrate step (CI `prisma db push` is still the live schema mechanism); Phase 3+: single runner (`drizzle-kit migrate`) | Migrate (single runner) |
 | **4** | — | **Restart worker → wait for `readyz`** |
 | **5** | Restart web | Restart web |
 | **6** | Smoke check | Smoke check (synthetic check → ping row) |
@@ -51,9 +52,9 @@ In every release the migration runs **before** any process restart, and in the t
    - *Action:* on the VPS, take a full database backup: `pg_dump "$DATABASE_URL" -F c -f /var/backups/uptime/pre-release-<SHA>.dump`. Before any cutover-adjacent release (schema or auth changes), rehearse the release first against an anonymized local copy of that snapshot (restore → run migration → run smoke check locally).
    - *Verification:* `pg_dump` exits 0; the dump file is non-empty; the rehearsal completed with the smoke check passing.
    - *Rollback:* abort the release — production data is unchanged. (No rollback action is ever taken against the dump itself; it is retained as the restore point of last resort.)
-3. **Migrate.**
-   - *Action:* run the migration runner from the deploy pipeline — one runner, once: `pnpm drizzle-kit migrate`. Never run migrations at process boot; never run two runners concurrently (concurrent boot = concurrent DDL is forbidden, M-1). If no migrations are pending, the command is a no-op that exits 0.
-   - *Verification:* command exits 0; the migrations journal shows the release's entries; the empty-diff check (`drizzle-kit` diff against the live database) reports no drift (M-3).
+3. **Migrate (phase-conditional — check which phase you are releasing).**
+   - *Action:* **Phase 2 releases: run no migrate command in this step.** No migration runner exists yet — schema changes still flow through the existing CI schema step (`prisma db push` in the deploy pipeline, as deployed today), which the Phase 3 baseline PR removes (audit §24 step 3); do not run it ad hoc from this runbook. **Phase 3 onward: run the single migration runner from the deploy pipeline — one runner, once:** `pnpm drizzle-kit migrate`. Never run migrations at process boot; never run two runners concurrently (concurrent boot = concurrent DDL is forbidden, M-1). If no migrations are pending, the command is a no-op that exits 0.
+   - *Verification:* Phase 2 — the CI schema step (`prisma db push`) exited 0 in the build pipeline; nothing else to check here. Phase 3+ — command exits 0; the migrations journal shows the release's entries; the empty-diff check (`drizzle-kit` diff against the live database) reports no drift (M-3).
    - *Rollback:* do not run down-migrations inside the verification window. Migrations are forward-only, additive-first (§7): restore the previous release tarball and restart — the previous code runs against the expanded schema.
 4. **Restart web.**
    - *Action:* deploy the new tarball to `/var/www/uptime-tracker`, then `pm2 restart uptime-tracker`.
@@ -132,7 +133,7 @@ The target-topology smoke check is: **enqueue one synthetic check against a know
 ## 8. Migration discipline (M-1 / M-3)
 
 - **Exactly one migration runner** — the deploy pipeline step (§3 step 3 / §4 step 3). Running migrations at web or worker boot is forbidden: concurrent boot = concurrent DDL.
-- **Versioned SQL files are the only schema authority** after the Phase 3 baseline; `prisma db push` is deleted from CI in the same PR that lands the baseline.
+- **Versioned SQL files are the only schema authority** after the Phase 3 baseline; `prisma db push` is deleted from CI in the same PR that lands the baseline. Before that baseline (Phase 2 releases), the legacy CI schema step (`prisma db push`) is the acknowledged interim schema mechanism — already on its dated removal path — and Phase 2 releases carry no migrate step at all (§3 step 3).
 - **Baseline from live DDL:** the Phase 3 baseline is authored from `pg_dump --schema-only` of production (not `schema.prisma`), and `drizzle-kit` diff against the live database must be empty — or an explicitly reviewed, intentional delta list — before any application cutover.
 - **Empty-diff CI gate:** the diff check runs in CI on every release so schema drift cannot silently return.
 

@@ -1,10 +1,11 @@
 ---
 phase: 2
 slug: foundations-theme-infrastructure
-status: draft
+status: approved
 shadcn_initialized: true
 preset: none
 created: 2026-09-10
+reviewed_at: 2026-09-10
 ---
 
 # Phase 2 — UI Design Contract

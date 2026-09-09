@@ -36,7 +36,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Every review §9 pre-implementation checklist item traces to a design decision, and the verdict is re-recorded as READY (dated, reviewer identified) before any implementation code merges
   3. An operator can read the runbook addendum and know the exact production ordering (build → backup → migrate → worker restart → web restart → smoke check), the rollback action at each step, and the per-process connection budget — before any code exists
 
-**Plans**: 7/9 plans executed
+**Plans**: 8/9 plans executed
 
 Plans:
 **Wave 1**
@@ -66,7 +66,7 @@ Plans:
 
 **Wave 7** *(blocked on 01-06 + 01-07)*
 
-- [ ] 01-08-PLAN.md — Close ratified residuals + advisory hardening: S-1 egress layer in audit §15.4 + runbook §10 (RR-01), maintenance.ts comment (RR-02), §23 degradation assertions (RR-03), spike-vocabulary rewording (RR-04), WR-01/02/07/08 + IN-01/OBS-04/05 pins (DSGN-01)
+- [x] 01-08-PLAN.md — Close ratified residuals + advisory hardening: S-1 egress layer in audit §15.4 + runbook §10 (RR-01), maintenance.ts comment (RR-02), §23 degradation assertions (RR-03), spike-vocabulary rewording (RR-04), WR-01/02/07/08 + IN-01/OBS-04/05 pins (DSGN-01)
 
 **Wave 8** *(final gate — blocked on 01-06 + 01-07 + 01-08)*
 

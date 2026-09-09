@@ -6,14 +6,14 @@ current_phase: 01
 current_phase_name: design-gate-review-verdict-ready
 status: executing
 stopped_at: Completed 01-07-PLAN.md (WR-03/WR-04/WR-05 + IN-05 runbook half closed as DEPLOY-RUNBOOK amendments)
-last_updated: "2026-09-09T15:25:29.590Z"
+last_updated: "2026-09-09T15:39:20.092Z"
 last_activity: 2026-09-09
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-08)
 ## Current Position
 
 Phase: 01 (design-gate-review-verdict-ready) — EXECUTING
-Plan: 8 of 9
+Plan: 9 of 9
 Status: Ready to execute
 Last activity: 2026-09-09 — Phase 01 execution started
 
@@ -62,6 +62,7 @@ Progress: [███████░░░] 67%
 | Phase 01 P05 | 10m (Tasks 2-3 continuation; Task 1 prior session) | 3 tasks | 1 files |
 | Phase 01 P06 | 8m (490s) | 3 tasks | 2 files |
 | Phase 01 P07 | 213s (~4m) | 3 tasks | 1 files |
+| Phase 01 P08 | 602s (~10m) | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,10 @@ Recent decisions affecting current work:
 - [Phase 01]: 01-07: interim-topology Migrate step is phase-conditional keyed on the Phase 3 baseline PR (same switchover event as audit §24 step 3) — Phase 2 runs no migrate command (legacy CI prisma db push is the interim schema authority on its dated removal path), Phase 3+ runs the single drizzle-kit migrate runner (WR-03)
 - [Phase 01]: 01-07: PM2 readiness is two signals with distinct consumers — process.send('ready') is the PM2 gate (wait_ready/listen_timeout), HTTP :9090/readyz is the operator/CI gate; wiring only the HTTP endpoint boot-crash-loops the worker (WR-04)
 - [Phase 01]: 01-07: first worker release is its own §4a path — pm2 start/startOrReload (never restart on an unregistered name), M3 overlap window verifying continuity (heartbeat, queue depth ≈ 0, ping flow, alert parity, M4 counters) before anything is disabled, cutover completion as a separate release deleting instrumentation.ts cron + CRON_MODE; §4 restart form applies from the second release onward (WR-05)
+- [Phase 01]: 01-08: S-1 egress layer is one denylist in three statements — §15.1 engine list (post-WR-01), §15.4 OS mirror, runbook §10 operator rules; drift control is shared 11-token CIDR set + same-change mandate (RR-01/WR-01)
+- [Phase 01]: 01-08: manual checks advance next_check_at one interval at enqueue via the §14.3-shaped atomic UPDATE; manual jobId check:{monitorId}:manual:{epochMs-of-enqueue} is unique per enqueue — admission is the D-13 limiter's job, never the jobId's (WR-02)
+- [Phase 01]: 01-08: rate-limit atomicity pinned as one Lua script doing INCR + EXPIRE-with-NX on first increment — separate calls strand a TTL-less counter and permanently limit a user (IN-01/OBS-04)
+- [Phase 01]: 01-08: steady-state Postgres total restated ≤ 30 (web 10 + worker 20), ≤ 31 only during deploys; web process budgets 2 Redis connections (queue producer + limiter/cache) separate from the worker's 2 (IN-05/OBS-05)
 
 ### Pending Todos
 
@@ -118,6 +123,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-09T15:25:20.663Z
+Last session: 2026-09-09T15:39:20.087Z
 Stopped at: Completed 01-07-PLAN.md (WR-03/WR-04/WR-05 + IN-05 runbook half closed as DEPLOY-RUNBOOK amendments)
 Resume file: None

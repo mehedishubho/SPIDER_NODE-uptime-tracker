@@ -12,7 +12,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 ### Design Gate
 
 - [x] **DSGN-01**: All 8 design addenda from review §8 incorporated into the design documents (amended audit or authored addendum): schema, scheduler spec, check job spec, writer specs, resilience spec, auth spec, connection budget, deploy runbook
-- [ ] **DSGN-02**: Review §9 pre-implementation checklist fully resolved in design; verdict re-reviewed from NOT READY to READY before implementation code
+- [x] **DSGN-02**: Review §9 pre-implementation checklist fully resolved in design; verdict re-reviewed from NOT READY to READY before implementation code
 
 ### Foundations
 
@@ -195,7 +195,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | DSGN-01 | Phase 1 | Complete |
-| DSGN-02 | Phase 1 | Pending |
+| DSGN-02 | Phase 1 | Complete |
 | FND-01 | Phase 2 | Pending |
 | FND-02 | Phase 2 | Pending |
 | FND-03 | Phase 2 | Pending |

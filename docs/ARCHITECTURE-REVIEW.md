@@ -10,9 +10,11 @@
 
 ## 1. Verdict
 
-# ❌ NOT READY
+# ✅ READY
 
-**The architectural direction is validated. The written design is not yet implementable.**
+**Verdict flipped 2026-09-09 per D-16** — reviewer: cycle-2 adversarial re-review (fresh author-blind session per D-15; cycle 2 of 2 per D-18) + human ratification of its clean-pass outcome. Basis: zero blocking findings across the closure audit of every fix-cycle claim (RR-01..RR-04, CR-01..CR-03, folded WR/IN/OBS advisories), the §9 checklist (25/25 traced; S-1 now two-layer), the §10 criteria (3/3 — criterion 2 under the interpretation ratified at cycle 1), and the six failure-scenario walkthroughs replayed against the amended documents. Evidence and records: [01-REREVIEW-2.md](../.planning/phases/01-design-gate-review-verdict-ready/01-REREVIEW-2.md) (§2 closure audit, §3–§5 battery, §7 findings, §10–§11 ratification/verdict records); the two-cycle narrative is appended as the Re-review section at the end of this document. Three cycle-2 advisory observations (RR2-01..RR2-03) are recorded as non-gating design-debt notes for Phases 4–5.
+
+**The architectural direction is validated. The written design is implementable as amended.**
 
 The mandated topology is correct and confirmed:
 
@@ -25,7 +27,19 @@ PostgreSQL            →  sole source of truth
 
 The proposed design already satisfies the hard constraint that **the old in-memory queue must not remain a required source of monitoring state** — `db-batcher.ts` is deleted, transitions are written immediately, and the only buffered state (routine-UP aggregation) lives in Redis, is lossy-tolerable, and nothing depends on it for correctness. PostgreSQL remains authoritative in every scenario examined.
 
-However, the review found **14 blocking issues** in the design as written — several of which would cause *duplicate monitoring jobs*, *duplicate incidents*, *lost or duplicated alerts*, *corrupted counters*, or a *silent monitoring blackout* in realistic failure scenarios. Every blocking issue below has a concrete required resolution. Once the design is amended to incorporate them (all are incremental to the current proposal — none change the target stack), the verdict becomes READY. See §10 for re-review criteria.
+Every blocking issue from the original review has since been resolved in the documents themselves: the §8 addenda were authored (plans 01-01..01-04), re-review cycle 1 ratified four residual gaps (RR-01..RR-04), the fix cycle (plans 01-06..01-08) closed them together with the post-review criticals CR-01..CR-03 and the folded advisories, and re-review cycle 2 — the D-18 final cycle — re-derived every closure with zero blocking findings. The original NOT READY record is preserved verbatim below.
+
+### Verdict history
+
+> **Original verdict (2026-09-08), preserved verbatim per D-16:**
+>
+> # ❌ NOT READY
+>
+> **The architectural direction is validated. The written design is not yet implementable.**
+>
+> However, the review found **14 blocking issues** in the design as written — several of which would cause *duplicate monitoring jobs*, *duplicate incidents*, *lost or duplicated alerts*, *corrupted counters*, or a *silent monitoring blackout* in realistic failure scenarios. Every blocking issue below has a concrete required resolution. Once the design is amended to incorporate them (all are incremental to the current proposal — none change the target stack), the verdict becomes READY. See §10 for re-review criteria.
+
+**Flip reason (2026-09-09):** clean pass at re-review cycle 2 — zero blocking findings — ratified by the human maintainer per D-16/D-18. Ratification and verdict records: [01-REREVIEW-2.md](../.planning/phases/01-design-gate-review-verdict-ready/01-REREVIEW-2.md) §10–§11.
 
 ---
 
@@ -319,3 +333,17 @@ Implement these as amendments before coding begins:
 ## 10. Re-review criteria (what flips the verdict to READY)
 
 READY is granted when: (1) every checklist item above is incorporated into the design documents (audit amended, or a design-spec addendum authored), (2) the schema addenda are reflected in the target Drizzle schema, and (3) the SSRF and duplicate-incident/duplicate-alert test cases are added to the §23 test plan. No code needs to exist for READY — this is a design-gate review; the issues above are cheap to fix on paper and expensive to discover in production.
+
+---
+
+## Re-review
+
+This section records the two adversarial re-review cycles (decisions D-15/D-17/D-18) that carried this document's verdict from the original ❌ NOT READY (2026-09-08) to ✅ READY (2026-09-09).
+
+**Cycle 1 — 2026-09-09 ([01-REREVIEW.md](../.planning/phases/01-design-gate-review-verdict-ready/01-REREVIEW.md)).** A fresh, author-blind session re-derived the §9 checklist (25/25 traced), the §10 criteria (3/3 — criterion 2 under the D-05/DRZ-01 literal-SQL interpretation, subsequently ratified by the human), and the six D-17 failure-scenario walkthroughs against the documents as amended by plans 01-01..01-04, and swept the amendments for cross-section contradictions. It found four gaps: **RR-01** (S-1 network-egress layer missing from the documents, HIGH), **RR-02** (uptime-recompute job residual in §14 listings, MEDIUM), **RR-03** (Redis-down fallback-write test residual in §23, MEDIUM), **RR-04** (spike vocabulary contradicting the overlap-gate/canary mechanism, LOW). The human ratified those findings as gaps; per D-16/D-18 the verdict stood NOT READY with exactly one fix cycle remaining.
+
+**Post-review confirmation.** A code-review pass over the fix-planning artifacts surfaced three additional critical findings, folded into the same fix cycle: **CR-01** (routine pings written outside the guarded flush transaction), **CR-02** (flush snapshot not crash-exclusive — staging-key over-delete window on redelivery), **CR-03** (alert dedup vocabulary incomplete for the three outbox event types).
+
+**Fix cycle — plans 01-06..01-08 (2026-09-09).** 01-06 closed CR-01/CR-02/CR-03 in the §16 writer specs (bulk ping INSERT inside the guarded transaction; RENAMENX staging exclusivity + post-COMMIT staging-only DEL + pinned batchId; three-key dedup with the non-NULL `incident_id` contract + TC-FIRST-CHECK-DEDUP-01). 01-07 closed the runbook executability findings (WR-03 phase-conditional Migrate step, WR-04 PM2 readiness handshake, WR-05 first-worker-cutover path §4a, IN-05 budget wording). 01-08 closed RR-01 (S-1 egress layer as one 11-token CIDR denylist stated identically in audit §15.1/§15.4 and runbook §10), RR-02/RR-03/RR-04 (file-wide negative greps), and the folded advisories WR-01/02/07/08, IN-01/05, OBS-04/05.
+
+**Cycle 2 — 2026-09-09 ([01-REREVIEW-2.md](../.planning/phases/01-design-gate-review-verdict-ready/01-REREVIEW-2.md); D-18 final cycle).** A second fresh, author-blind session re-derived every closure from the document text (never trusting the fix-plan summaries), re-ran the full §9/§10/walkthrough battery on the amended documents, and swept the fix-cycle edits themselves for new contradictions. Result: **zero blocking findings**. Three advisory observations remain — **RR2-01** (`agg:pending` orphan key-inventory token, §13.1), **RR2-02** (host-egress 80/443 port-refusal classification note, §15.4), **RR2-03** (flush bulk-INSERT FK-violation retry classification, §16.2/§16.6) — recorded as non-gating design-debt notes consumed by Phases 4–5. The human ratified the clean pass the same day (§10 of that report), and §1 above was flipped to READY per D-16. This was cycle 2 of 2 — the loop is closed; no READY-with-exceptions state exists.

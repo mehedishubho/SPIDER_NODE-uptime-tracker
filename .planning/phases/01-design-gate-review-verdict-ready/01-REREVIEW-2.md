@@ -3,7 +3,7 @@ phase: 01-design-gate-review-verdict-ready
 reviewed: 2026-09-09T15:43:04Z
 cycle: 2
 cycle_final: true
-status: pending-ratification
+status: clean-pass-ratified-verdict-flipped
 blocker_for: plan 01-09 Task 2 (D-16/D-18 human gate)
 ---
 
@@ -302,13 +302,25 @@ Recommendation to the human: ratify the **clean pass**, enabling the D-16 verdic
 
 ---
 
-## 10. Ratification record (plan 01-09 Task 2 — pending; appended by the continuation agent)
+## 10. Ratification record (plan 01-09 Task 2 — closed 2026-09-09)
 
-> *This section is intentionally empty until the human gate closes. The continuation agent must append: the date, the human's decision line verbatim (with the canonical classification token in brackets if paraphrased), and the interpretation/scope notes — before Task 3 runs.*
+**Decision line (verbatim, 2026-09-09):**
 
-## 11. Verdict record (plan 01-09 Task 3 — pending; appended per the ratified branch)
+> ratify clean pass
 
-> *This section is intentionally empty until Task 3 executes the ratified branch (D-16 flip with Verdict history + Re-review section, or D-18 permanent escalation with the review document byte-identical at blob `520c9409da45bd2c9ab9866fe124403ef6cb7ef3`).*
+- **Canonical classification:** the reply carries the canonical token unparaphrased — no bracketed annotation required. Executed branch: **clean pass**.
+- **Interpretation:** the human accepts this report's §9 recommendation as-is — zero blocking findings; the three §7 advisories (RR2-01, RR2-02, RR2-03) are recorded as non-gating design-debt notes consumed by Phases 4–5; the D-16 verdict flip is authorized.
+- **Scope:** the ratification binds the cycle-2 outcome as a whole — the §2 closure audit, the §3–§5 battery (§9 checklist, §10 criteria, walkthroughs W1–W6), and the §6 sweeps. It is the FINAL D-18 gate (cycle 2 of 2): no further review cycle exists between this decision and the implementation phases.
+- **Downstream action:** plan 01-09 Task 3 executes the D-16 flip — recorded in §11 below.
+
+## 11. Verdict record (plan 01-09 Task 3 — executed 2026-09-09, clean-pass branch)
+
+**Verdict flipped to READY per D-16. D-18 accounting: cycle 2 of 2 (final) — the loop terminates in the clean-pass terminal state; no third cycle and no READY-with-exceptions state exists.**
+
+- **Pre-flip integrity (passed):** `git hash-object docs/ARCHITECTURE-REVIEW.md` re-verified equal to `520c9409da45bd2c9ab9866fe124403ef6cb7ef3` (the tracked NOT READY blob) immediately before the edit — no drift since Task 1's read-only review.
+- **Flip action:** §1's first H1 replaced in place (`❌ NOT READY` → `✅ READY`), carrying the flip date (2026-09-09) and reviewer identification (this cycle-2 adversarial re-review + the §10 human ratification). A history subsection preserves the original NOT READY heading, date, and reasoning block verbatim, with the flip reason (cycle-2 clean pass ratified per D-16/D-18). An appended end-of-document Re-review section narrates both cycles end-to-end. The §9 checklist boxes and §8 addenda are untouched — they are the reviewer's record, not the verdict's.
+- **Advisory design-debt carried forward (non-gating):** RR2-01 — `agg:pending` orphan key-inventory token (delete it or state its consumer; audit §13.1 L575); RR2-02 — host-egress 80/443 refusal classification consequence unpinned (one sentence: firewall-refused connects classify DOWN with `error_class='network'`; audit §15.4 / §15.1 step 5); RR2-03 — flush bulk-INSERT FK violation on a monitor deleted mid-window should throw `UnrecoverableError` (permanent failure), not burn retries (audit §16.2 / §16.6). **Consumed by Phases 4–5** at transcription time; each one-line fix is restated in §7 above.
+- **Tracking truth:** ROADMAP.md Phase 1 checkbox checked with a dated completion note (and the Phase-1-only `**Mode:** mvp` marker deleted per the 01-VERIFICATION round-2 disposition); REQUIREMENTS.md DSGN-02 marked Complete (checkbox + traceability row); STATE.md design-gate blocker cleared. The flip is a single reviewable commit against the tracked NOT READY blob.
 
 ---
 

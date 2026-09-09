@@ -111,7 +111,6 @@ None yet.
 
 - Research flags requiring `--research-phase` during planning: Phase 4 (BullMQ 6 `upsertJobScheduler`, breaker/backlog tuning, PM2 handshake), Phase 7 (social `providerId` casing, token-flow cutover, cookieCache revocation lag), Phase 3 (drizzle-kit journal-stamping, `CREATE INDEX CONCURRENTLY` transaction wrapping)
 - Live production system: every cutover step needs a full `pg_dump` backup and an anonymized-snapshot rehearsal first (D-9/D-10)
-- Phase 01 design gate: re-review cycle 1 found ratified gaps RR-01 (S-1 network-egress layer missing, HIGH), RR-02 (uptime recompute residual, MEDIUM), RR-03 (Redis-down fallback-write test residual, MEDIUM), RR-04 (spike wording, LOW) — verdict stays NOT READY; one fix cycle remains (fresh-agent follow-up plan + cycle-2 re-review per D-18) before any implementation phase
 
 ## Deferred Items
 

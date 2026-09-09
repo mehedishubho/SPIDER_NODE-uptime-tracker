@@ -13,7 +13,7 @@ A brownfield modernization of a live production uptime-monitoring SaaS. The arc 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Design Gate — Review Verdict READY** - All 8 review addenda incorporated, §9 checklist resolved, verdict flipped NOT READY → READY before any code — **NOT YET: fix-cycle plans 01-06..01-08 close the ratified gaps RR-01..RR-04 + confirmed criticals CR-01..CR-03; final D-18 cycle-2 re-review gate (01-09) pending — verdict honestly still NOT READY**
+- [x] **Phase 1: Design Gate — Review Verdict READY** - All 8 review addenda incorporated, §9 checklist resolved, verdict flipped NOT READY → READY before any code — **complete 2026-09-09: cycle-2 re-review clean pass (zero blocking findings) human-ratified, verdict flipped to READY per D-16; RR2-01/02/03 recorded as advisory Phase 4/5 design-debt (01-09)**
 - [ ] **Phase 2: Foundations & Theme Infrastructure** - pnpm, CI gates, characterization tests on real Postgres/Redis; theme tokens land with zero behavior change
 - [ ] **Phase 3: Redis & Drizzle Schema Ownership** - Redis with no correctness dependence; live-DDL Drizzle baseline plus worker schema addenda, rehearsed on a prod snapshot
 - [ ] **Phase 4: Monitoring Worker — Build & Dark Launch** - Dedicated worker owns all monitoring on idempotent, resilient BullMQ machinery; dark-launched while cron still serves users
@@ -27,7 +27,6 @@ Decimal phases appear between their surrounding integers in numeric order.
 ### Phase 1: Design Gate — Review Verdict READY
 
 **Goal**: The design documents are amended with every review addendum and the NOT READY verdict is flipped to READY, so no correctness mechanism is ever invented under pressure during implementation.
-**Mode:** mvp
 **Depends on**: Nothing (first phase)
 **Requirements**: DSGN-01, DSGN-02
 **Success Criteria** (what must be TRUE):
@@ -36,7 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Every review §9 pre-implementation checklist item traces to a design decision, and the verdict is re-recorded as READY (dated, reviewer identified) before any implementation code merges
   3. An operator can read the runbook addendum and know the exact production ordering (build → backup → migrate → worker restart → web restart → smoke check), the rollback action at each step, and the per-process connection budget — before any code exists
 
-**Plans**: 8/9 plans executed
+**Plans**: 9/9 plans executed
 
 Plans:
 **Wave 1**
@@ -70,7 +69,7 @@ Plans:
 
 **Wave 8** *(final gate — blocked on 01-06 + 01-07 + 01-08)*
 
-- [ ] 01-09-PLAN.md — D-18 cycle 2 of 2 (FINAL): fresh adversarial re-review of the amended docs, blocking human ratification, verdict flip to READY per D-16 or permanent escalation with verdict unchanged (DSGN-02)
+- [x] 01-09-PLAN.md — D-18 cycle 2 of 2 (FINAL): fresh adversarial re-review of the amended docs, blocking human ratification, verdict flip to READY per D-16 or permanent escalation with verdict unchanged (DSGN-02) — *executed via the clean-pass branch: zero blocking findings ratified 2026-09-09, verdict flipped (see 01-09-SUMMARY.md)*
 
 ### Phase 2: Foundations & Theme Infrastructure
 
@@ -210,7 +209,7 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Design Gate — Review Verdict READY | 5/5 | Plans complete — gate open: RR-01..RR-04 escalated, fix cycle pending (D-18) | - |
+| 1. Design Gate — Review Verdict READY | 9/9 | Complete — cycle-2 clean pass ratified 2026-09-09, verdict flipped to READY (RR2-01/02/03 advisory Phase 4/5 design-debt) | 2026-09-09 |
 | 2. Foundations & Theme Infrastructure | 0/TBD | Not started | - |
 | 3. Redis & Drizzle Schema Ownership | 0/TBD | Not started | - |
 | 4. Monitoring Worker — Build & Dark Launch | 0/TBD | Not started | - |

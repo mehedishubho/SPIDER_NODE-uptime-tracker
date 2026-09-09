@@ -1,209 +1,202 @@
 ---
 phase: 01-design-gate-review-verdict-ready
-reviewed: 2026-09-08T21:14:48Z
+reviewed: 2026-09-09T17:17:11Z
 depth: standard
-files_reviewed: 2
+files_reviewed: 3
 files_reviewed_list:
   - docs/ARCHITECTURE-AUDIT.md
+  - docs/ARCHITECTURE-REVIEW.md
   - docs/DEPLOY-RUNBOOK.md
 findings:
-  critical: 3
-  warning: 8
-  info: 5
-  total: 16
+  critical: 2
+  warning: 5
+  info: 7
+  total: 14
 status: issues_found
 ---
 
 # Phase 1: Code Review Report
 
-**Reviewed:** 2026-09-08T21:14:48Z
+**Reviewed:** 2026-09-09T17:17:11Z
 **Depth:** standard
-**Files Reviewed:** 2
+**Files Reviewed:** 3
 **Status:** issues_found
 
 ## Summary
 
-This is a design-gate phase: the deliverables under review are engineering documents (the amended `ARCHITECTURE-AUDIT.md` and the new `DEPLOY-RUNBOOK.md`), so they were reviewed as specifications — internal consistency, SQL/DDL correctness, cross-document agreement, and completeness of the "literal SQL a Phase 4 implementer transcribes without interpretation" contract — rather than as executable code.
+Design-gate phase: the three deliverables are engineering documents (amended target-architecture audit, adversarial design review with flipped verdict, deploy runbook), reviewed as specifications — internal consistency, correctness of the pinned SQL/Redis/BullMQ semantics against the documented invariants (1-strike DOWN, lifetime uptime math, Telegram alert content, guarded-flush durability), security posture of the egress rule set, and runbook executability.
 
-**What holds up well (verified, not assumed):**
+**Prior-cycle closure verified.** Every finding from the previous review of these documents (CR-01..CR-03, WR-01..WR-08, IN-01..IN-05) is genuinely reflected in the current text: §16.2 now carries the staging-key exclusive snapshot (RENAMENX), the multi-row ping INSERT inside the guarded transaction, and the pinned batchId scheme; §15.1 carries IPv4-mapped canonicalization plus `0.0.0.0/8`/`::ffff:0:0/96`/`64:ff9b::/96`; §12.4/§13.1 carry the `rl:manual-user:{userId}` key with Lua INCR/EXPIRE-NX; the runbook has the phase-conditional Migrate step, the `process.send('ready')` handshake, §4a (first worker release), and §10 (egress). Spot-checked technical claims hold: the §14.3 claim transaction (FOR UPDATE SKIP LOCKED inside the CTE is required and correctly placed), partial-unique-index inference for `ON CONFLICT (monitor_id) WHERE status = 'ONGOING'`, `GREATEST` NULL-ignoring semantics and the CASE asymmetry note, `gen_random_uuid()` PG13+ availability, BullMQ 6 `UnrecoverableError`/lazy KeepJobs eviction, and the RENAMENX redelivery-safety argument. The GREATEST/monotonic flush, the outbox relay pattern, and the breaker classification are internally consistent across §13/§14/§15/§16.
 
-- Every code citation I spot-checked against the repository is accurate: `db-batcher.ts` flush-drops batches (lines 108–112), `api/cron/check/route.ts` leaks `err.stack` (lines 44–47) and flushes inline (lines 34–37), `cron-logic.ts` alerts before persisting (lines 100–135), persists non-transactionally (lines 165–205), and runs cleanup every tick (lines 212–217), `deploy.yml:74` runs `prisma db push --accept-data-loss`, `telegram.ts` has no fetch timeout, `reset-password` silently sets `emailVerified`, `schema.prisma` has exactly 9 models, and the referenced `ARCHITECTURE-REVIEW.md` / `UPGRADE_PLAN.md` / `ADVANCED_MONITORING_PLAN.md` all exist. All "resolves X-n" amendment markers map to real issue IDs in ARCHITECTURE-REVIEW.md.
-- The §14.3 claim transaction, the §11 partial unique index + `ON CONFLICT (monitor_id) WHERE status = 'ONGOING'` inference, and the §16.2 `GREATEST`-ignores-NULL semantics are all technically correct and well-cited.
+**Where it fails now.** Two cross-section defects survived both adversarial re-review cycles and the fix cycles:
 
-**Where it fails:** the two-tier persistence design contains two data-integrity specification bugs (routine ping-row evidence is silently eliminated; the Tier 2 flush has no exclusive snapshot semantics, permitting double-applied and destroyed counters) and one alert-pipeline gap (the dedup key is undefined for one of the three declared outbox event types, with a cross-monitor alert-suppression failure mode). The runbook contains an instruction that cannot execute in part of its declared phase range, and pairs PM2 `wait_ready` with an HTTP endpoint where PM2 actually requires a process signal.
+1. **`monitors.uptime_percent` has no writer and no specified read-time derivation** after the move to SQL-relative counters. §16.1's transition UPDATE and §16.2's flush UPDATE maintain `total_checks`/`failed_checks` only; §16.5 deletes the recompute job; §11 decision 5 says the value "stays derived lifetime math" without pinning by whom. A Phase 4 implementer transcribing §16 literally — the documents' own stated contract — freezes the displayed lifetime uptime at its cutover value forever, violating the behavior-compatibility hard constraint on the dashboard/status-page contract (CR-01).
+2. **The Phase 4 overlap window contradicts the audit's own M4 mitigation and runs non-idempotent legacy code against a schema that now enforces invariants the legacy code was never written for.** Runbook §4a step 2 ("disable nothing … both paths are idempotent by design … never corrupts data") is false about the legacy path — §5's own defect catalogue documents B3 (stale-status write) and B4 (read-modify-write counters) — and M4's mitigation ("old path disabled before first new-path flush") is unexecutable simultaneously with it. Audit §22's "the runbook wins" tie-breaker resolves the contradiction toward the unsafe option (CR-02).
 
-## Narrative Findings (AI reviewer)
+Three further warnings concern runbook executability at exactly the releases the runbook itself labels highest-risk (smoke check not executable at Phase 4; `kill_timeout` below the documented worst-case job duration), one concerns remaining gaps in the mirrored SSRF denylist, and two pin unspecified behavior-compat details of the classification/alert pipeline.
 
 ## Critical Issues
 
-### CR-01: Tier 2 design eliminates routine ping-row persistence entirely — contradicts behavior compatibility, §16.5, and the public API contract
+### CR-01: `monitors.uptime_percent` has no specified writer or read-path derivation — literal transcription freezes displayed lifetime uptime
 
-**File:** `docs/ARCHITECTURE-AUDIT.md:860` (§16 Tier 2), `docs/ARCHITECTURE-AUDIT.md:716` (§14.1), `docs/ARCHITECTURE-AUDIT.md:930-951` (§16.2 SQL), cf. `docs/ARCHITECTURE-AUDIT.md:998` (§16.5), `docs/ARCHITECTURE-AUDIT.md:111` (§2), `docs/ARCHITECTURE-AUDIT.md:389-392` (§11)
+**File:** `docs/ARCHITECTURE-AUDIT.md:912-921` (§16.1 step-2 UPDATE), `docs/ARCHITECTURE-AUDIT.md:996-1002` (§16.2 flush UPDATE), cf. `docs/ARCHITECTURE-AUDIT.md:1068-1074` (§16.5), `docs/ARCHITECTURE-AUDIT.md:419` (§11 decision 5), `docs/ARCHITECTURE-AUDIT.md:286` (§10 `uptimePercent Float`)
 
-**Issue:** The Tier 2 path aggregates routine (status-unchanged) checks in Redis as counters only (`agg:results:{monitorId}` hash: `count, failedCount, sumResponseTime, lastResponseTime, lastStatus, lastCheckedAt` — §13.1 line 573), and §16.2's literal SQL is a single guarded `UPDATE monitors` with **no `INSERT INTO pings`**. §14.1 line 716 makes this explicit and deliberate: "`record-pings-bulk` … there is no bulk ping-row writer to schedule." But the current system (verified in `src/lib/db-batcher.ts:28-33,72-76`) writes **one ping row per routine check** via `ping.createMany` on flush. Consequences of the design as written:
+**Issue:** In the current system, every write path recomputes `uptimePercent` and stores it (§3, §5); the API and dashboards read the stored column — that is part of the "public API shapes" behavior-compatibility constraint. In the target design:
 
-1. `GET /api/monitors/[id]/details` ("monitor + last 100 pings", §2 line 111) — the uptime-history timeline would only contain transition rows, gutting the monitor-details UI. This directly violates the project's hard "Behavior compatibility" constraint ("monitoring semantics preserved … public API shapes").
-2. §16.5 line 998 is unimplementable: "Windowed uptime (24 h/7 d/30 d **computed from `pings`** via the `(monitor_id, created_at)` index)" cannot be computed from a table that only receives transition evidence.
-3. The new `pings.error_class` / `pings.status_code` columns (§11, lines 389–392) are never populated for non-transition checks: a monitor that is already DOWN and times out again (Tier 2, unchanged DOWN) records no `error_class='timeout'` row, partially undermining the TC-CLASSIFY-* test cases and §13.7's retention design (pings volume collapses from per-check to per-transition).
-4. §5's own defect table flags B6 ("Batching applies to routine DOWN checks — downtime evidence delayed/lossy") as something the redesign must eliminate; the new design makes routine DOWN evidence **absent**, not merely delayed.
+- §16.1's transition UPDATE sets `status, last_checked, response_time, total_checks, failed_checks` — not `uptime_percent`.
+- §16.2's guarded flush UPDATE sets `total_checks, failed_checks, last_checked, response_time` — not `uptime_percent`.
+- §16.5 kills the `recompute-uptime` job ("lifetime counters are authoritative; the job has no algorithm and no purpose in v1") and asserts "the dashboard/status-page contract is untouched" — but never says the read path computes `(total_checks − failed_checks) / total_checks` on the fly.
+- §11 decision 5 says only "`uptime_percent` stays derived lifetime math per the D-6 decision recorded in §16" — "derived" by whom is never pinned.
 
-**Fix:** Decide explicitly and reconcile the document. If per-check evidence must be preserved (behavior compatibility says it must), extend the §16.2 flush transaction with a bulk insert of the batch's ping rows, guarded by the same `write_guards` key:
+The documents set their own bar: §16 is "literal SQL a Phase 4 implementer transcribes without interpretation." Transcribed literally, no writer ever touches `uptime_percent` after cutover, the column freezes at its migration-time value, and the dashboard and public status pages display a stale lifetime uptime percentage indefinitely — a silent, user-visible behavior regression of exactly the kind the "monitoring semantics preserved" hard constraint forbids. This is not the Phase 8 windowed-uptime question (§16.5 defers that correctly); it is the *lifetime* display path for the entire compatibility window, and it is unspecified.
+
+**Fix:** Pin one of two mechanisms explicitly:
 
 ```sql
-BEGIN;
-INSERT INTO write_guards(key) VALUES ('flush:{batchId}')
-  ON CONFLICT DO NOTHING RETURNING key;
--- (0 rows => no-op exit, as today)
-
--- per-check evidence rows carried in the flush job payload (count-bounded by
--- the 60 s window × check rate):
-INSERT INTO pings (monitor_id, status, response_time, error_class, status_code, created_at)
-VALUES ($mid, $status, $rt, $errClass, $statusCode, $ts), ... ;  -- multi-row
-
-UPDATE monitors SET ... ;  -- unchanged §16.2 UPDATE
-COMMIT;
+-- Option A (preferred — keeps the stored column and the public API shape unchanged):
+-- both §16.1 step 2 and §16.2 extend their UPDATEs with the derived expression:
+UPDATE monitors SET
+  ...
+  total_checks  = total_checks + $dTotal,
+  failed_checks = failed_checks + $dFailed,
+  uptime_percent = CASE WHEN total_checks + $dTotal > 0
+                        THEN round(100.0 * ((total_checks + $dTotal) - (failed_checks + $dFailed))
+                                         / (total_checks + $dTotal), 2)
+                        ELSE uptime_percent END,
+  ...
 ```
 
-and delete the "Deliberately absent jobs: `record-pings-bulk`" paragraph. Alternatively, if dropping routine ping rows is an accepted product change, then §16.5's windowed-uptime plan, the details API contract, and the behavior-compatibility constraint must all be rewritten to say so — silently is not acceptable.
+or Option B: state in §16.5 that reads derive uptime from the counters (`(total_checks − failed_checks)/total_checks`) at query time, that the stored column becomes derived/dead (excluded from API responses or computed in the read query), and reconcile §10/§11 accordingly. Add a Phase 4 test asserting `uptime_percent` (or its read-path equivalent) changes after a recorded check.
 
-### CR-02: Tier 2 flush has no exclusive snapshot semantics — concurrent flushes double-apply deltas; a retried flush destroys newer deltas
+### CR-02: Overlap window contradicts M4 — "disable nothing" runs non-idempotent legacy code (B3/B4) against the new schema and the new worker's writers
 
-**File:** `docs/ARCHITECTURE-AUDIT.md:941-951` (§16.2 SQL), `docs/ARCHITECTURE-AUDIT.md:860` (§16 Tier 2), `docs/ARCHITECTURE-AUDIT.md:1179-1182` (TC-FLUSH-GUARD-01), cf. `docs/ARCHITECTURE-AUDIT.md:699` (§14.1 flush lane)
+**File:** `docs/DEPLOY-RUNBOOK.md:113-116` (§4a step 2), `docs/ARCHITECTURE-AUDIT.md:1168-1169` (M3 vs M4), cf. `docs/ARCHITECTURE-AUDIT.md:163-176` (§5 flush algorithm, B3/B4), `docs/ARCHITECTURE-AUDIT.md:373` (§11 `incidents_one_ongoing` at the Phase 3 baseline), `docs/ARCHITECTURE-AUDIT.md:1204` (§22 "the runbook wins")
 
-**Issue:** The specified sequence is: read the hash → run the guarded transaction (key `flush:{batchId}`) → delete the hash after COMMIT. Two failure modes follow from the spec as written:
+**Issue:** Three mutually inconsistent statements govern the Phase 4 first-worker overlap window:
 
-1. **Double-apply.** `flush-monitor-aggregate` jobs are produced every 30 s by the `flush-pass` scheduler with **fresh batchIds per pass**, and the writer pool has concurrency 5. A delayed pass-N job and a pass-(N+1) job for the same monitor can execute concurrently (or back-to-back before the delete); both read the same hash values and both apply the same deltas under *different* batchIds. `write_guards` only dedupes an identical `batchId`, so the counters are applied twice — silent `total_checks`/`failed_checks` inflation and `uptime_percent` drift. The old design's "snapshot + clear immediately" (§5, db-batcher.ts:63-68) closed this hole; the new design removed that step without replacing its exclusivity.
-2. **Over-delete.** TC-FLUSH-GUARD-01 (lines 1180–1182) requires the redelivered flush job to "delete `agg:results:42` on the retry's exit path (cleanup proceeds despite the skip)". But the retry deletes the **live** hash, which by then may contain post-snapshot deltas accrued after the crashed attempt — those deltas are destroyed without ever being applied (silent counter loss, worse than the loss the guard exists to prevent).
+- M3 / runbook §4a step 2: keep the old `instrumentation.ts` cron running while the new worker serves — "both paths are idempotent by design, so the overlap only wastes duplicate checks, never corrupts data."
+- M4's mitigation: "**old path disabled before first new-path flush**" — but the new worker's `flush-pass` runs every 30 s from the moment it starts, so this is unexecutable simultaneously with "disable nothing."
+- §22: "where any ordering statement here and the runbook could be read differently, the runbook wins" — which resolves the tie toward the "disable nothing" option.
 
-**Fix:** Specify an exclusive, atomic snapshot keyed to the batch, e.g. at job start:
+The claim that both paths are idempotent is false for the legacy path, per the audit's own §5 defect catalogue, and the overlap window reactivates both catalogued defects against the new writers:
 
-```
-RENAME agg:results:{monitorId} agg:flushing:{batchId}
-```
+1. **B3 state regression, cross-path:** the legacy flusher's `pendingMonitorUpdates` carries a stale in-memory `status` and writes it on flush (`monitor.update` includes `status`). Legacy routine UP delta queued at 09:58; new-path Tier 1 DOWN transition at 10:00 (status=DOWN, incident ONGOING, alert sent); legacy 15-min flush at 10:00:15 writes `status='UP'` back. Result: monitor displays UP while down (the cardinal sin for an uptime monitor), a dangling ONGOING incident, and a spurious re-DOWN transition at the next new-path check.
+2. **B4 lost increments, cross-path:** the legacy flusher is find-then-update (read counters → compute → write absolute values). Any new-path SQL-relative increment committed between the legacy read and write is silently lost — permanent drift in the lifetime counters that CR-01's uptime display is computed from.
+3. **Legacy code against a schema it has never seen:** `incidents_one_ongoing` (partial unique index) lands at the Phase 3 baseline, *before* the Phase 4 overlap. The legacy `incident.create({status:"ONGOING"})` has no `ON CONFLICT` handling; whenever the new worker opens the incident first, the legacy insert throws a unique-violation inside its non-transactional slow path (§5: "three-plus separate statements, not a transaction") — a partial write plus an unhandled error in the fallback path, during the release the runbook itself calls "the highest-risk release of the milestone."
 
-(or a Lua `HGETALL`+`DEL`). The job then reads only its staging key `agg:flushing:{batchId}`; new deltas accumulate in a fresh `agg:results:{monitorId}` hash untouched by the retry; after COMMIT, delete the staging key. A redelivery re-reads the same staging key, the guard no-ops, and the staging key is cleaned — both failure modes close. Also pin the `batchId` generation scheme (see IN-03).
+§4a step 2's verification ("counter deltas sane … no doubling", citing M4) checks for doubling but not for the under-counting B3/B4 actually produce, and cites M4 as if its sequencing were satisfied.
 
-### CR-03: Alert dedup key is undefined for outbox events with NULL `incident_id` — cross-monitor key collision suppresses legitimate alerts
-
-**File:** `docs/ARCHITECTURE-AUDIT.md:986-987` (§16.4), `docs/ARCHITECTURE-AUDIT.md:349` (§11 outbox `event_type`), `docs/ARCHITECTURE-AUDIT.md:920-921` and `docs/ARCHITECTURE-AUDIT.md:909-915` (§16.1 steps 3b/4), cf. `docs/ARCHITECTURE-AUDIT.md:577` (§13.1 dedup row)
-
-**Issue:** §16.4 defines exactly one key format: `alert:{incidentId}:{direction}` with `direction ∈ {down, recovered}`. But §11 declares three outbox event types, and the `outbox.incident_id` column is nullable. Two declared/common paths produce rows the key format cannot express:
-
-1. **`monitor.first_check`** — for a PENDING→UP first check, step 3b's `UPDATE incidents … WHERE status='ONGOING'` matches nothing, so step 4 inserts the outbox row with `incident_id = NULL` (this is the event that carries today's "MONITORING STARTED" Telegram message, §3). Interpolating a NULL incidentId yields a shared key (`alert:null:…`) that **collides across all monitors**: after the first monitor's first-check alert, every other new monitor's start alert inside 24 h is suppressed by the `EXISTS` check.
-2. **RECOVERED with no ONGOING incident** (edge: incident resolved out-of-band) — same NULL-incident collision suppresses real recovery alerts for other monitors for 24 h. Recovery alerts are exactly the J-6 case the design exists to protect.
-
-**Fix:** Extend the dedup vocabulary to cover non-incident events, e.g. `alert:{monitorId}:first_check` (monitor-scoped, not incident-scoped), and state that `down`/`recovered` events require a non-NULL `incident_id` (reject or alert-and-skip at relay time otherwise). Mirror the change in the §13.1 key-inventory row.
+**Fix:** Amend both documents to a single consistent rule. Either (a) during the overlap window the legacy path's *write side* is disabled (flag the legacy cron read-only / verification-only so it never persists, keeping it only as a cold-standby check path if the worker fails its window), or (b) keep "disable nothing" but (i) correct M3/§4a to state the legacy path is not idempotent and name the accepted corruption surface, (ii) make the §4a step-2 verification detect under-count drift, not just doubling, and (iii) add a mandatory post-overlap reconciliation release that repairs counters from the per-check evidence (`SELECT count(*), count(*) FILTER (WHERE status='DOWN') FROM pings WHERE monitor_id=$mid` — every new-path check leaves a ping row) and re-derives `status` from the latest transition. Additionally reconcile M4's mitigation text with whichever rule is chosen, and delete or qualify §22's blanket "the runbook wins" for this specific conflict.
 
 ## Warnings
 
-### WR-01: SSRF denylist omits IPv4-mapped IPv6, unspecified-address, and NAT64 ranges; no canonicalization step is specified
+### WR-01: The smoke check is not executable at Phase 4 — §4a step-1 verification cites it prematurely, and the "web enqueue" leg does not exist yet
 
-**File:** `docs/ARCHITECTURE-AUDIT.md:817` (§15.1 step 4 sub-step 2)
+**File:** `docs/DEPLOY-RUNBOOK.md:110-111` (§4a step 1 verification), `docs/DEPLOY-RUNBOOK.md:140` (§6 smoke definition), cf. `docs/ARCHITECTURE-AUDIT.md:812` (§15 "API routes never execute checks — they enqueue"), `docs/ARCHITECTURE-AUDIT.md:1327-1328` (§24 steps 4–5)
 
-**Issue:** The pinned denylist is `10/8, 172.16/12, 192.168/16, 127/8, 169.254/16, ::1, fc00::/7, fe80::/10`. A hostname with an AAAA record of `::ffff:10.0.0.1` (IPv4-mapped, in `::ffff:0:0/96`) is in none of the listed IPv6 ranges, yet connecting to it reaches 10.0.0.1 — a textbook SSRF-filter bypass. Similarly missing: `0.0.0.0/8` (connects to localhost on many stacks) and `64:ff9b::/96` (NAT64). The step says "validate every resolved IP … against the denylist" but never requires canonicalizing IPv4-mapped addresses to IPv4 before comparison.
+**Issue:** §6 defines the target smoke check as proving "web enqueue → Redis/BullMQ → worker check → Postgres persist." Two problems at Phase 4:
 
-**Fix:** Add to sub-step 2: "Canonicalize each address first: an IPv4-mapped IPv6 (`::ffff:a.b.c.d`) is checked against the IPv4 denylist as `a.b.c.d`. Denylist additionally includes `::ffff:0:0/96`, `0.0.0.0/8`, and `64:ff9b::/96`." Add a TC-SSRF test case for the mapped form.
+1. §4a step 1's verification list includes "the §4 step 6 synthetic-check smoke passes" — but §4a replaces §4 step 4 and runs *before* §4 step 5 (web restart), and at first-worker-release time the deployed web is still the old build with no enqueue capability. The operator is told to verify, at step 1, a check that cannot run until after step 5 (or ever — see 2).
+2. Per §24, the enqueue-based manual-check route lands at step 5 (Phase 5), *after* the worker (step 4). So no web enqueue surface exists at any Phase 4 release, and the smoke as defined cannot prove its "web enqueue" leg. §15's ownership statement ("API routes never execute checks — they enqueue") reads as if the route flips with the worker, contradicting §24's sequencing — the two sections disagree on when the route flips.
 
-### WR-02: Manual-check interaction with the claim column is unspecified — deterministic duplicate samples per interval and an undefined manual-lane jobId
+**Fix:** Specify the Phase 4 interim smoke mechanism (a pinned enqueue script / `redis-cli`-based BullMQ add against the smoke-test monitor, asserting the ping row), move the smoke verification in §4a step 1 to after §4 step 5, and reconcile §15 vs §24 on when `monitors/[id]/check` flips to enqueue+202 (state it explicitly in §24 step 4 or 5, in one place only).
 
-**File:** `docs/ARCHITECTURE-AUDIT.md:695` (§14.1 manual lane), `docs/ARCHITECTURE-AUDIT.md:722` (§14.2 step 3), `docs/ARCHITECTURE-AUDIT.md:574` (§13.1 idempotency row)
+### WR-02: `kill_timeout` 20000 is pinned as "≥ max job duration" but the audit's own worst-case check job is ~40 s
 
-**Issue:** Only the scheduler claim (§14.3) advances `next_check_at`; the manual lane (API enqueue) never does, and nothing in §15.1 or §16 says otherwise. So a manual "check now" at 10:04:50 followed by the scheduled claim at 10:05 executes **two** checks in one interval window, both counted (Tier 2 additive counters) — a deterministic double-sample the current system only exhibits incidentally (when `lastChecked` is still batch-buffered). Additionally, the idempotency-key scheme `check:{monitorId}:{epoch}` is defined only for scheduler claims; the manual lane's jobId is never specified (reusing the current `next_check_at` epoch would silently dedupe a user's second manual check within one epoch window, contradicting the 1-per-30 s limit that should *allow* it).
+**File:** `docs/DEPLOY-RUNBOOK.md:128` (§5 kill_timeout row), cf. `docs/ARCHITECTURE-AUDIT.md:823` (§15.1 step 3: renewal spans "Tier 1 persistence (§16.1, which may legitimately take up to the 30 s `statement_timeout`)"), `docs/ARCHITECTURE-AUDIT.md:855` (§15.3 lock-TTL row, same statement), `docs/ARCHITECTURE-AUDIT.md:1363` (§25.2 statement_timeout 30000)
 
-**Fix:** Specify: (a) whether a manual check advances `next_check_at` (recommended: yes — the check happened, the next due slot should move, matching the user-visible semantics); (b) the manual-lane jobId format, e.g. `check:{monitorId}:manual:{epochMs-of-enqueue}` with its own `removeOnComplete` horizon.
+**Issue:** §5 sets `kill_timeout` to 20000 with "Must be ≥ max job duration." The fix-cycle WR-08 amendment (renewal-through-persist) explicitly acknowledges a legitimate check-job lifetime of 10 s fetch + up to 30 s Tier 1 persistence ≈ 40 s — a figure that post-dates and invalidates the 20 s constant without anyone re-deriving it. On every deploy that drains a slow-persisting check job, PM2 SIGKILLs mid-Tier-1-transaction. The transaction rolls back (no corruption), but with `maxStalledCount: 1` a job stalled twice — e.g., killed on two consecutive deploys — moves to the failed set permanently: a DOWN/RECOVERED transition silently dead-lettered. The same drift applies to the BullMQ `lockDuration` 30000 vs the 40 s worst case (BullMQ auto-renews while the process lives, so this is masked — but the runbook's own stated rule is violated by its pinned value).
 
-### WR-03: Runbook interim-topology Migrate step cannot execute for Phase 2 releases; interim schema authority (`prisma db push`) is absent from the runbook
+**Fix:** Either raise `kill_timeout` to ≥ 45000 (and say the budget is 10 s fetch + 30 s persist + margin), or bound the check-job persist path (`SET LOCAL statement_timeout` below the §16.1 transaction, e.g. 10 s) and keep 20 s — pick one and make §5, §15.1 step 3, and §15.3 state the same number.
 
-**File:** `docs/DEPLOY-RUNBOOK.md:54-57` (§3 step 3), cf. `docs/DEPLOY-RUNBOOK.md:42` (§3 header "Phases 2–3"), `docs/DEPLOY-RUNBOOK.md:132-138` (§8), `docs/ARCHITECTURE-AUDIT.md:1237` (§24 step 3)
+### WR-03: Mirrored SSRF denylist still omits `::/128` and `100.64.0.0/10`
 
-**Issue:** §3 is scoped "Interim topology (Phases 2–3)" and its step 3 mandates `pnpm drizzle-kit migrate` with the note "If no migrations are pending, the command is a no-op that exits 0." But drizzle-kit, the migration runner, and versioned migrations only come into existence at the Phase 3 baseline (audit §24 step 3; runbook §8 "after the Phase 3 baseline"). A Phase 2 release following the runbook verbatim — the runbook's explicit operating contract ("written to be followed mid-deploy, without reading any other document first") — hits a command/deployment step that does not exist. Conversely, until the baseline PR deletes it, `prisma db push` is still the live schema step in CI (deploy.yml:74) and appears nowhere in the runbook's interim sequence.
+**File:** `docs/ARCHITECTURE-AUDIT.md:826` (§15.1 step 4 sub-step 2), `docs/ARCHITECTURE-AUDIT.md:865` (§15.4), `docs/DEPLOY-RUNBOOK.md:176` (§10)
 
-**Fix:** Scope the step: "Phase 2 releases: no migrate step (or 'run the existing schema step — `prisma db push` — until the Phase 3 baseline PR removes it)'. From Phase 3: `pnpm drizzle-kit migrate` (no-op when nothing is pending)." Adjust the §2 topology table's Migrate row accordingly.
+**Issue:** The 11-CIDR list adds `0.0.0.0/8` with the rationale "many stacks connect it to localhost" — but omits the IPv6 unspecified address `::/128`, which has exactly that property on the same stacks (`http://[::]/` reaches localhost on Linux). It also omits `100.64.0.0/10` (CGNAT — Tailscale and overlay networks live here; the host layer would otherwise permit 80/443 to that space). Because the list is pinned as "one list in three places," each addition is a coordinated three-file change — the cheap moment to extend it is now, before Phase 4 freezes it. The engine's resolve-then-validate design correctly neutralizes integer/decimal IP encodings and DNS-rebinding, so these two ranges are the remaining classes the list itself does not cover.
 
-### WR-04: PM2 `wait_ready: true` requires `process.send('ready')` — the runbook pairs it only with the HTTP `readyz` endpoint, which PM2 does not watch
+**Fix:** Add `::/128` and `100.64.0.0/10` to all three mirrors (audit §15.1 sub-step 2, audit §15.4, runbook §10) in one change, and add `TC-SSRF-UNSPECIFIED-V6-01` (AAAA `::` → denied) alongside TC-SSRF-MAPPED-V6-01.
 
-**File:** `docs/DEPLOY-RUNBOOK.md:107` (§5 wait_ready row), cf. `docs/DEPLOY-RUNBOOK.md:73` (§4 health surfaces)
+### WR-04: Outbox event-type selection for a PENDING→DOWN first check is unspecified — alert-content compatibility is at risk
 
-**Issue:** PM2's `wait_ready` mechanism waits for the child process to emit the ready signal via `process.send('ready')` — not for an HTTP endpoint. The runbook defines only the `:9090/healthz|readyz` HTTP surfaces and says `wait_ready` "pairs with the `readyz` gate." As written, an implementer who wires only the HTTP server never sends the signal; PM2 force-restarts the worker after `listen_timeout` (30 s), producing a crash loop on every boot — in the process that gates every Phase 4+ release.
+**File:** `docs/ARCHITECTURE-AUDIT.md:945-949` (§16.1 step 4), `docs/ARCHITECTURE-AUDIT.md:349` (§11 event types), cf. `docs/ARCHITECTURE-AUDIT.md:1055-1061` (§16.4), `docs/ARCHITECTURE-AUDIT.md:133` (§3 current alert behavior)
 
-**Fix:** Add to §4/§5: "The worker must call `process.send('ready')` after its Redis + DB pings pass (i.e., when `readyz` would return success). The HTTP `readyz` endpoint remains the operator/CI gate; `process.send('ready')` is the PM2 gate."
+**Issue:** §11 declares exactly three event types; §16.1 step 4 inserts `$eventType` without a dispatch table. TC-FIRST-CHECK-DEDUP-01 pins only the PENDING→**UP** case ("a PENDING→UP first check opens no incident"). For a monitor whose very first check is DOWN (the 1-strike DOWN invariant applies from check one), the doc never says whether the transaction emits `monitor.first_check`, `incident.down`, or both. Current behavior (§3): PENDING→DOWN sends one message — "ALERT: Website Down" — and no "MONITORING STARTED". If the implementation emits both rows, users get two Telegram messages where today they get one (alert-content incompatibility); if it emits only `incident.down`, then "MONITORING STARTED" semantics for later-recovering monitors need an explicit statement (today a first-UP-after-never-being-up still gets MONITORING STARTED). Telegram alert content is a named behavior-compat invariant; this dispatch cell is missing.
 
-### WR-05: The runbook has no first-worker-cutover path — `pm2 restart` on a nonexistent app, and the M3 overlap-window verification step is missing
+**Fix:** Add the dispatch table to §16.1 step 4: PENDING→UP ⇒ `monitor.first_check` only; PENDING→DOWN ⇒ `incident.down` only (matching today's single "ALERT: Website Down" message, no start message); UP→DOWN ⇒ `incident.down`; DOWN→UP ⇒ `incident.recovered`. Mirror in §16.4 and add the PENDING→DOWN case to the §23 test battery.
 
-**File:** `docs/DEPLOY-RUNBOOK.md:87-90` (§4 step 4), cf. `docs/ARCHITECTURE-AUDIT.md:1091` (M3), `docs/ARCHITECTURE-AUDIT.md:1238` (§24 step 4)
+### WR-05: New-engine classification never restates the UP ⇔ 200–399 rule; redirect-cap-exceeded is mislabeled `ssrf_blocked`; plain-status DOWN has no `error_class` slot
 
-**Issue:** The target topology says `pm2 restart uptime-worker` and "restore the previous worker tarball" — but on the first Phase 4 release there is no previous worker, no previous worker tarball, and `pm2 restart` on an unregistered app fails (the first deploy needs `pm2 start` / `pm2 startOrReload`). That first release is also the highest-risk one (audit M3: the old `instrumentation.ts` cron must overlap-run while the worker proves continuity — "healthchecks.io + queue depth ≈ 0" — *before* the old cron is disabled), yet no runbook step expresses the overlap verification or the follow-up release that deletes the old cron path (`CRON_MODE`).
+**File:** `docs/ARCHITECTURE-AUDIT.md:828-830` (§15.1 step 4 sub-steps 4–5, step 5), cf. `docs/ARCHITECTURE-AUDIT.md:132` (§3 "UP ⇔ status 200–399"), `docs/ARCHITECTURE-AUDIT.md:390` (§11 `error_class` vocabulary)
 
-**Fix:** Add a §4a "First worker release (Phase 4 cutover)" subsection: `pm2 start` (not restart) for the new app; both old cron and new worker run during the overlap window with the M3 verification (heartbeat green, queue depth ≈ 0, pings still flowing); a subsequent release deletes `instrumentation.ts` cron + `CRON_MODE`; rollback restores web-only monitoring.
+**Issue:** Three unpinned classification details, each a behavior-compat or taxonomy hazard for a spec meant to be transcribed without interpretation:
 
-### WR-06: Password-hash "spike" vs "gate" terminology contradiction — §12.2 was amended but §20 M2 and §24 step 7 still describe the obsolete sequencing
+1. §3 records the current rule "UP ⇔ status 200–399", but §15.1's classify step never restates the UP status range for the new engine. An implementer would plausibly ship the industry-default 2xx-only-UP, silently changing semantics for every monitor whose final response is a 3xx.
+2. §15.1 sub-step 4 classifies "exceeding the [5-hop redirect] cap → DOWN with `error_class = 'ssrf_blocked'`". A legitimate site with a 6-hop chain is not an SSRF block; the current engine follows up to ~20 hops (fetch `redirect: "follow"`) and would report UP — this is both a behavior change and an error-taxonomy lie that pollutes any future `ssrf_blocked`-driven security reporting.
+3. The `error_class` vocabulary (`timeout|dns|tls|ssrf_blocked|http_5xx|network`) has no slot for a plain HTTP-status DOWN such as a 404 (4xx): `http_5xx` is wrong, `network` is wrong; whether `error_class` stays NULL for those (with `status_code` carrying the truth) is never stated.
 
-**File:** `docs/ARCHITECTURE-AUDIT.md:526-529` (§12.2), vs `docs/ARCHITECTURE-AUDIT.md:1090` (M2), `docs/ARCHITECTURE-AUDIT.md:1241` (§24 step 7)
-
-**Issue:** §12.2 explicitly reclassifies the bcrypt-compatibility work: "this is a **gate, not a spike**," with the non-negotiable ordering snapshot-canary → production-canary → route flip. But §20 M2 still says "Password-hash **spike** first (§12)" and §24 step 7 still reads "Password-hash **spike** → migrate." An implementer planning from §24 could treat the canary gate as an optional pre-investigation rather than a blocking, ordered gate — the exact failure §12.2 was amended to prevent.
-
-**Fix:** Reword M2 to "bcrypt compatibility gate (§12.2): canary login on anonymized snapshot, then production, before any route flip" and §24 step 7 to "Better Auth cutover: bcrypt compatibility **gate** (§12.2) → migrate …".
-
-### WR-07: The BullMQ priority-default claim is load-bearing and single-sourced — pin it with a live test instead of prose
-
-**File:** `docs/ARCHITECTURE-AUDIT.md:712` (§14.1 "Why every lane carries an explicit priority")
-
-**Issue:** The paragraph asserts as verified fact that "jobs without an explicit priority are processed **before** jobs that have one." The design happens to be robust to the claim being wrong (every lane carries an explicit priority, so ordering among lanes follows numeric priority either way), but the stated rationale would mislead future lane authors in the opposite direction, and the claim is not covered by any of the "verify against Phase 4 BullMQ 6 research" markers that other BullMQ-behavior claims carry (e.g., stalled-config rows).
-
-**Fix:** Either add this specific claim to the Phase 4 verification list as a mandatory live check (enqueue one prioritized + one unprioritized job, assert dequeue order), or drop the default-behavior assertion and state only the invariant that matters: "every lane MUST set an explicit priority; cross-lane ordering relies on numeric priority among explicit values only."
-
-### WR-08: Lock-TTL margin (5 s) is smaller than the Tier 1 persist budget (statement_timeout 30 s) — renewal-through-persist is not explicitly required
-
-**File:** `docs/ARCHITECTURE-AUDIT.md:846` (§15.3 Lock TTL row), cf. `docs/ARCHITECTURE-AUDIT.md:1273` (§25.2 statement_timeout 30000), `docs/ARCHITECTURE-AUDIT.md:813-814` (§15.1 steps 2–3)
-
-**Issue:** §15.3 says the 5 s margin "absorbs scheduler jitter and the persist-start window after the fetch returns," and step 3 arms renewal "every TTL/3 (5 s)" — but nothing states the renewal timer keeps running **during** the Tier 1 transaction. A slow transition transaction (legitimately up to 30 s under the worker's `statement_timeout`) outlives the 15 s TTL if renewal stopped at fetch end; the lock then expires mid-persist, a manual check takes ownership, and both executors persist (guards make it safe-but-wasteful — yet §15.2's "lock lost mid-check → abort without persisting" then applies to the *original* owner after it already committed, which the failure table does not model).
-
-**Fix:** One sentence in §15.1 step 3 or §15.3: "The renewal timer runs for the entire job lifetime, including classification and Tier 1 persistence; the lock is released only in the step-7 `finally`." Adjust the margin rationale accordingly.
+**Fix:** In §15.1 step 5: pin "UP ⇔ final HTTP status 200–399 (unchanged from current behavior)"; classify redirect-cap-exceeded as DOWN with a distinct label (e.g. `error_class = 'network'` with a note, or add `too_many_redirects` to the §11 vocabulary); state that HTTP-status-level DOWNs carry `error_class = NULL` with `status_code` populated (or add `http_error`). Add TC cases for a 3xx-final-status monitor (UP) and a 404 (DOWN, `status_code=404`).
 
 ## Info
 
-### IN-01: Per-user aggregate rate-limit key missing from the §13.1 inventory
+### IN-01: §16.2 zero-tuple edge — staging that vanishes between step 0 and step 1 yields an invalid `INSERT … VALUES ()`
 
-**File:** `docs/ARCHITECTURE-AUDIT.md:576` (§13.1 rate-limit row), cf. `docs/ARCHITECTURE-AUDIT.md:544` (§12.4)
+**File:** `docs/ARCHITECTURE-AUDIT.md:962-994` (§16.2 steps 0–1)
 
-**Issue:** §12.4 pins two limits — "1 per monitor per 30 s **and** 6 total per minute per user across monitors" — but §13.1 lists only `rl:{bucket}:{ip}` and `rl:manual:{userId}:{monitorId}`. The cross-monitor per-user counter key (e.g. `rl:manual-user:{userId}`) is absent from the key inventory that §12.4 points to.
+**Issue:** Step 0's missing-key handling covers "neither live nor staging exists *at step 0*." In the narrow window where a redelivered flush passes the guard pre-check (staging exists, no guard row) and a completing sibling then DELs the staging keys before this run's step-1 `HGETALL`/`LRANGE`, the multi-row INSERT is built from zero tuples — a SQL syntax error (`VALUES ;`) that burns all 5 attempts into the DLQ. No corruption (the guard in the sibling's transaction exits this run before the INSERT executes in the normal ordering), but the spec should pin the short-circuit explicitly given its transcribe-literally contract.
 
-**Fix:** Add the second key shape to the §13.1 rate-limiting row.
+**Fix:** One sentence in step 1: "If the staged list/hash reads empty, complete successfully without executing the INSERT (zero-tuple short-circuit) and proceed to step 2."
 
-### IN-02: Flush "buffer threshold" value is never pinned
+### IN-02: `agg:pending` is an orphan key and the flush fan-out's monitor-enumeration source is unspecified (confirms RR2-01)
 
-**File:** `docs/ARCHITECTURE-AUDIT.md:699` (§14.1 flush lane: "buffer threshold checked each pass")
+**File:** `docs/ARCHITECTURE-AUDIT.md:575` (§13.1), `docs/ARCHITECTURE-AUDIT.md:1019` (§16.2 batchId rationale)
 
-**Issue:** The flush-pass scheduler checks a buffer threshold each pass, but no §14.5/§16/§13 parameter table pins its value (or says "none — time-based only"). §16 invariant 4 bounds the buffer by the 60 s window, which suggests the threshold is redundant, leaving the reader to guess.
+**Issue:** §13.1 lists `agg:pending` (set of monitor ids with unflushed deltas) but no writer or reader is specified anywhere; conversely §16.2 says "the `flush-pass` scheduler creates one job per monitor per pass" without saying which monitors (all active? members of `agg:pending`?) or what mechanism fans one scheduler job out into per-monitor jobs. These two gaps are each other's answer: either delete `agg:pending` and enumerate active monitors (no-op completions for empty ones), or make `agg:pending` the enumeration source and specify its maintenance (SMEMBER on flush enqueue, SREM-equivalent via the snapshot rename). Must be pinned at Phase 4; recorded here as advisory consistent with RR2-01's disposition.
 
-**Fix:** Either delete "buffer threshold checked each pass" or pin the threshold in the §14.5 parameter table.
+**Fix:** Pick one enumeration design and wire §13.1's key row and §16.2's fan-out description to it.
 
-### IN-03: `batchId` generation scheme is unspecified
+### IN-03: Runbook §10 carries no firewall commands despite audit §15.4's "commands belong to the runbook" split, and does not verify reboot persistence
 
-**File:** `docs/ARCHITECTURE-AUDIT.md:937` (§16.2 guard key), cf. CR-02
+**File:** `docs/DEPLOY-RUNBOOK.md:175-178` (§10 step 1), cf. `docs/ARCHITECTURE-AUDIT.md:871` (§15.4 "no shell commands live here (D-01 scope split: commands belong to the runbook)")
 
-**Issue:** The exactly-once guarantee keys on `flush:{batchId}`, but nothing specifies how batchIds are generated (uuid? scheduler-tick + monitorId?). After the CR-02 fix (staging keys named by batchId), the generation scheme becomes load-bearing for uniqueness and must be pinned.
+**Issue:** Audit §15.4 assigns the concrete commands to the runbook; runbook §10's action is descriptive ("apply and persist outbound firewall rules that …"), leaving tool choice (ufw/nftables/iptables), rule ordering (deny-before-allow), and persistence method to the mid-deploy operator — for a section the runbook says is followed "without reading any other document first." The action demands "make the rules survive a reboot" but the verification never tests it.
 
-**Fix:** Pin it, e.g. "batchId = `{schedulerTickEpochMs}:{monitorId}` (or uuid v4); unique per flush-job creation."
+**Fix:** Add the concrete command sequence for the chosen tool (or a named provisioning script in the repo), and add a verification item confirming persistence (e.g., rules present after a reboot, or `iptables-persistent`/`nft -f` service check).
 
-### IN-04: §16.1 conflates "another executor made the transition" with "monitor deactivated" — and writes an evidence ping for an inactive monitor
+### IN-04: "The dedicated smoke-test monitor" has no creation or ownership step anywhere
 
-**File:** `docs/ARCHITECTURE-AUDIT.md:884-895` (§16.1 step 2 and its comment)
+**File:** `docs/DEPLOY-RUNBOOK.md:99` (§4 step 6), `docs/DEPLOY-RUNBOOK.md:140` (§6)
 
-**Issue:** The conditional UPDATE guards on `status <> $target AND is_active`; zero rows returned is documented as "another executor already made this transition," but it is also returned when `is_active` was flipped false between claim and persist. Benign (steps 3–4 skip either way) except that step 1's evidence ping is still inserted for the now-inactive monitor — an orphaned row the retention job will clean in 30 days. Worth one clarifying sentence so implementers don't "fix" the ambiguity by branching on the wrong cause.
+**Issue:** The smoke check depends on a pre-existing dedicated monitor ("known-good target"), but no step in either document creates it, owns it, or says which user/account it belongs to (relevant once feedback/admin gating and ownership checks exist). First Phase 4 operator discovers the dependency at step 6.
 
-**Fix:** Add to the step-2 comment: "0 rows also occurs when `is_active` was cleared after the claim — same skip path; the step-1 evidence ping for a deactivated monitor is accepted."
+**Fix:** One line in §4 step 6 (or a §6 preamble): the smoke monitor is created once at Phase 4 provisioning (owner, URL, interval), and how it is excluded from user-facing aggregates if desired.
 
-### IN-05: "Steady-state total ≤ 31 connections" counts a one-shot deploy-time process
+### IN-05: ARCHITECTURE-REVIEW.md gate-artifact state — §4 header and §9 checkboxes read as open under a READY verdict
 
-**File:** `docs/ARCHITECTURE-AUDIT.md:1264` (§25.1), `docs/DEPLOY-RUNBOOK.md:19` (§1)
+**File:** `docs/ARCHITECTURE-REVIEW.md:84` (§4 "BLOCKING ISSUES — must be resolved…"), `docs/ARCHITECTURE-REVIEW.md:307-331` (§9 checklist, all boxes unchecked)
 
-**Issue:** Web 10 + worker 20 = 30 steady-state; the migration runner (1) exists only during deploys. The number is conservative in the safe direction, but calling 31 the "steady-state total" is imprecise in the one section whose purpose is precision.
+**Issue:** The verdict is READY and the Re-review section records 25/25 traced, but §9 renders 25 unchecked `- [ ]` boxes and §4's header still demands resolution — preserved-record intent (D-16) is clear in prose, but any reader or tooling consuming checkbox/header state concludes the gate failed. Gate documents should be self-consistent under mechanical reading.
 
-**Fix:** "Steady-state total ≤ 30 (web + worker); ≤ 31 during deploys while the single migration runner is connected."
+**Fix:** Keep the original text verbatim per D-16 but annotate: a resolution banner atop §4 ("all issues below are resolved — see Re-review section") and a note at §9 ("all 25 items verified closed at cycle 2; boxes left unchecked to preserve the 2026-09-08 record") — or tick the boxes with a dated marker.
+
+### IN-06: §12 Better Auth mapping omits trusted-origins/CSRF and auth-endpoint rate-limit decisions
+
+**File:** `docs/ARCHITECTURE-AUDIT.md:434-460` (§12), cf. `docs/ARCHITECTURE-AUDIT.md:457` (env renames only)
+
+**Issue:** §12 pins hashing, sessions, table mapping, and the admin plugin, but never mentions `trustedOrigins` (cookie-based auth makes origin checking the CSRF boundary), Better Auth's built-in rate-limit configuration (the current register route's 5/IP/hour limiter must have a stated successor), or secret-size/generation guidance for `BETTER_AUTH_SECRET`. Better Auth's defaults are safe, and Phase 7 research exists — but the repo carries `better-auth-security-best-practices` as a project skill, and the design-gate standard applied elsewhere in these documents would state the defaults are being relied upon.
+
+**Fix:** Add to §12: pin `trustedOrigins` (production origin only), state whether Better Auth default rate limits are accepted or tuned for register/login/forgot, and reference the security skill checklist for Phase 7.
+
+### IN-07: §16.3 relay holds the DB transaction open across up to 100 external enqueues — interplay with `idle_in_transaction_session_timeout` unstated
+
+**File:** `docs/ARCHITECTURE-AUDIT.md:1029-1049` (§16.3), cf. `docs/ARCHITECTURE-AUDIT.md:1364` (§25.2 `idle_in_transaction_session_timeout` 30000)
+
+**Issue:** The relay selects up to 100 rows `FOR UPDATE SKIP LOCKED`, then enqueues one BullMQ job per row (network I/O) before COMMIT — the standard queue-table pattern, but the worker pool also pins `idle_in_transaction_session_timeout: 30000`. A relay pass whose enqueue phase stalls >30 s between statements is killed mid-transaction after some jobs were enqueued; rows stay unsent and re-select next pass, producing duplicate alert jobs (collapsed by §16.4 dedup, which is written only after a confirmed send — so containment holds). Behavior is at-least-once and documented, but the timeout interplay and the expectation (each relay pass should stay well under 30 s; a kill is recoverable, not an incident) deserve one sentence so a Phase 5 operator seeing relay-kill logs doesn't misdiagnose.
+
+**Fix:** Add to §16.3: "Each relay pass must complete its enqueue phase well inside the worker's 30 s `idle_in_transaction_session_timeout`; a pass killed mid-flight is recoverable — enqueued-but-unmarked rows are re-selected and their duplicate alert jobs collapsed by §16.4 dedup."
 
 ---
 
-_Reviewed: 2026-09-08T21:14:48Z_
+_Reviewed: 2026-09-09T17:17:11Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_

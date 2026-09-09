@@ -35,7 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Every review §9 pre-implementation checklist item traces to a design decision, and the verdict is re-recorded as READY (dated, reviewer identified) before any implementation code merges
   3. An operator can read the runbook addendum and know the exact production ordering (build → backup → migrate → worker restart → web restart → smoke check), the rollback action at each step, and the per-process connection budget — before any code exists
 
-**Plans**: 9/9 plans executed
+**Plans**: 9/9 plans complete
 
 Plans:
 **Wave 1**

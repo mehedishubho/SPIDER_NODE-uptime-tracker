@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 01
 current_phase_name: design-gate-review-verdict-ready
-status: executing
-stopped_at: Completed 01-07-PLAN.md (WR-03/WR-04/WR-05 + IN-05 runbook half closed as DEPLOY-RUNBOOK amendments)
-last_updated: "2026-09-09T15:39:20.092Z"
+status: verifying
+stopped_at: Completed 01-09-PLAN.md (cycle-2 clean pass ratified — verdict flipped to READY; Phase 01 complete 9/9)
+last_updated: "2026-09-09T17:06:20.446Z"
 last_activity: 2026-09-09
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 8
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 9
-  completed_plans: 8
-  percent: 0
+  completed_plans: 9
+  percent: 13
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-08)
 
 Phase: 01 (design-gate-review-verdict-ready) — EXECUTING
 Plan: 9 of 9
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-09 — Phase 01 execution started
 
 Progress: [███████░░░] 67%
@@ -63,6 +63,7 @@ Progress: [███████░░░] 67%
 | Phase 01 P06 | 8m (490s) | 3 tasks | 2 files |
 | Phase 01 P07 | 213s (~4m) | 3 tasks | 1 files |
 | Phase 01 P08 | 602s (~10m) | 3 tasks | 2 files |
+| Phase 01 P09 | 7m (Task 3 continuation; Tasks 1-2 prior session + checkpoint) | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,8 @@ Recent decisions affecting current work:
 - [Phase 01]: 01-08: manual checks advance next_check_at one interval at enqueue via the §14.3-shaped atomic UPDATE; manual jobId check:{monitorId}:manual:{epochMs-of-enqueue} is unique per enqueue — admission is the D-13 limiter's job, never the jobId's (WR-02)
 - [Phase 01]: 01-08: rate-limit atomicity pinned as one Lua script doing INCR + EXPIRE-with-NX on first increment — separate calls strand a TTL-less counter and permanently limit a user (IN-01/OBS-04)
 - [Phase 01]: 01-08: steady-state Postgres total restated ≤ 30 (web 10 + worker 20), ≤ 31 only during deploys; web process budgets 2 Redis connections (queue producer + limiter/cache) separate from the worker's 2 (IN-05/OBS-05)
+- [Phase ?]: [Phase 01]: 01-09: cycle-2 re-review clean pass (zero blocking findings) human-ratified — verdict flipped to READY per D-16; RR2-01/02/03 recorded as advisory Phase 4/5 design-debt notes, not verdict-gating
+- [Phase ?]: [Phase 01]: 01-09: Phase-1-only Mode:mvp marker deleted from ROADMAP per 01-VERIFICATION round-2 disposition — documentation-gate phase has no vertical-slice deliverables; Phases 2-8 keep theirs
 
 ### Pending Todos
 
@@ -122,6 +125,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-09T15:39:20.087Z
-Stopped at: Completed 01-07-PLAN.md (WR-03/WR-04/WR-05 + IN-05 runbook half closed as DEPLOY-RUNBOOK amendments)
+Last session: 2026-09-09T17:05:50.845Z
+Stopped at: Completed 01-09-PLAN.md (cycle-2 clean pass ratified — verdict flipped to READY; Phase 01 complete 9/9)
 Resume file: None

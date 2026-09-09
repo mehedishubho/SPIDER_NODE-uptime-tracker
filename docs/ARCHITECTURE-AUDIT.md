@@ -576,7 +576,7 @@ Redis is **infrastructure only** — never a source of truth (rule 2). Its compl
 | Check-job idempotency (jobId) | `check:{monitorId}:{epoch}` — the BullMQ job id **is** the idempotency key (§14.2 step 3) | retained while the completed job exists (`removeOnComplete` age 3600 s) | Duplicate adds with an existing jobId are ignored by BullMQ; at-least-once redelivery is absorbed by the §16 writers (write guards + conditional UPDATE) |
 | Cache: dashboard summaries, status pages | `cache:status:{userId}`, `cache:dashboard:{userId}` | 15–60 s | Cache-miss rebuilds from Postgres |
 | Rate limiting (replaces in-memory Map) | `rl:{bucket}:{ip}` and `rl:manual:{userId}:{monitorId}` (`INCR` + `EXPIRE`) | window | Counter loss only loosens limits, never corrupts data |
-| Alert dedup | `alert:{incidentId}:{direction}` (`SET NX EX 86400`, written only after a confirmed send) | 24 h | Duplicate alert worst case, no data impact (§16.4) |
+| Alert dedup | `alert:{incidentId}:down` and `alert:{incidentId}:recovered` (incident events — non-NULL `incident_id` required) + `alert:{monitorId}:first_check` (monitor-scoped — the event has no incident; CR-03) (`SET NX EX 86400`, written only after a confirmed send) | 24 h | Duplicate alert worst case, no data impact (§16.4) |
 
 ### 13.2 Redis outage = monitoring pause, by design (R-1 / RES-03)
 
@@ -855,7 +855,7 @@ The `check` job's id **is** the §14 idempotency key (`check:{monitorId}:{epoch}
 ## 16. Proposed Batching / Aggregation Architecture
 
 *Amended 2026-09-09 (resolves J-2, D-1, D-2, D-4, D-5, D-6; §9 items 2, 8, 9, 12)*
-*Amended 2026-09-09, fix cycle (resolves CR-01, CR-02, IN-03; §16.2 exclusive-snapshot flush + evidence-row INSERT)*
+*Amended 2026-09-09, fix cycle (resolves CR-01, CR-02, CR-03, IN-03, IN-04, OBS-01; §16.2 exclusive-snapshot flush + evidence-row INSERT, §16.4 dedup vocabulary)*
 
 Replaces `db-batcher.ts` (deleted). Split by criticality into two tiers, each specified as literal SQL a Phase 4 implementer transcribes without interpretation:
 
@@ -1025,17 +1025,25 @@ COMMIT;                            -- one transaction per relay pass (batched)
 ```
 
 - `sent_at` is set **exactly once** per row; `attempts` counts relay passes that picked the row (crash safety — an enqueue that failed mid-pass leaves `sent_at NULL` and the row is re-selected next pass).
+- **Relay validation (event_type / incident_id consistency, CR-03):** the relay treats `event_type` and `incident_id` nullability as a consistency contract when enqueueing alert jobs — `monitor.first_check` rows carry NULL `incident_id` by design; `incident.down` / `incident.recovered` rows carrying NULL `incident_id` are the §16.4 contract violation and dead-letter at the alerts processor (`UnrecoverableError`), never silently skipped.
 - The relay is a BullMQ-scheduled job on the worker; `FOR UPDATE SKIP LOCKED` keeps multiple relay instances safe without coordination.
 
-### 16.4 Incident-keyed alert dedup (D-4 / DAT-06)
+### 16.4 Alert dedup vocabulary — one key per declared event type (D-4 / DAT-06)
 
-Deduplication is keyed to the **incident event**, not the monitor state — a state-keyed scheme cannot distinguish incidents that recur. The outbox (§16.3) is the durable event source; Redis dedup is a best-effort collapse of at-least-once duplicates on top (rule 2).
+*Amended 2026-09-09, fix cycle (resolves CR-03)*
 
-- **Key format:** `alert:{incidentId}:{direction}` where `direction ∈ {down, recovered}`.
-- **Write discipline:** `SET alert:{incidentId}:{direction} 1 NX EX 86400` — written **only after a confirmed send** (Telegram API 2xx). TTL 24 h bounds key growth; a recurring incident gets a new `incidentId` anyway.
-- **Check-before-retry:** every attempt (BullMQ retry or a redelivered outbox event) checks `EXISTS alert:{incidentId}:{direction}` first; if held, the processor skips the send and completes the job successfully.
+Deduplication is keyed to the **alert event**, not the monitor state — a state-keyed scheme cannot distinguish incidents that recur. The outbox (§16.3) is the durable event source; Redis dedup is a best-effort collapse of at-least-once duplicates on top (rule 2). §11 declares exactly three outbox event types, and every one of them has a dedup key (CR-03):
+
+- **Key formats — one per declared event type:**
+  - `incident.down` → `alert:{incidentId}:down`
+  - `incident.recovered` → `alert:{incidentId}:recovered`
+  - `monitor.first_check` → `alert:{monitorId}:first_check` (monitor-scoped, not incident-scoped — the event has no incident)
+- **Contract rule (non-NULL `incident_id`):** `incident.down` and `incident.recovered` outbox rows **REQUIRE a non-NULL `incident_id`**. A violating row is a contract violation detected by the alerts processor, which throws `UnrecoverableError` so it dead-letters immediately (the same §13.5 pattern as an invalid chat target) instead of silently suppressing alerts — interpolating a NULL incidentId would mint a shared `alert:null:*` key that collides across every monitor and suppresses other monitors' alerts for 24 h (CR-03's cross-monitor failure mode).
+- **Write discipline:** `SET <dedup-key> 1 NX EX 86400` — written **only after a confirmed send** (Telegram API 2xx). TTL 24 h bounds key growth; a recurring incident gets a new `incidentId` anyway.
+- **Check-before-retry:** every attempt (BullMQ retry or a redelivered outbox event) checks `EXISTS <dedup-key>` first; if held, the processor skips the send and completes the job successfully.
 - **Attempt bound:** ≤ 3 BullMQ attempts, then the job dead-letters (7-day retention, D-14).
 - **Residual duplicates** (send succeeded, response lost, and the key write also lost) are accepted, documented at-least-once behavior — preferable to silence.
+- **Dead-lettered flush jobs are inspect-only (OBS-01 ops note):** a flush job that exhausts its attempts leaves its snapshot in the `agg:flushing:{batchId}` / `pings:flushing:{batchId}` staging keys — operators never replay it; the `write_guards` guard makes a manual retry a safe no-op if the batch ever applied, and unapplied staged deltas are Tier 2 loss-tolerable (invariant 3). Detection is DLQ / outbox-age observability (§13.5); the failure-mode disposition is §16.6's dead-lettered-flush row.
 
 ### 16.5 Uptime semantics decision (D-6 / Q-1)
 
@@ -1194,7 +1202,7 @@ Target changes:
 ## 23. Testing Requirements
 
 *Amended 2026-09-09 (resolves D-1, D-4, J-2; §9 items 2, 8, 12; §10 criterion 3)*
-*Amended 2026-09-09, fix cycle (resolves CR-01, CR-02, IN-02, IN-04, OBS-01; TC-FLUSH-GUARD-01 / TC-MONOTONIC-01 rewritten to staging-key semantics)*
+*Amended 2026-09-09, fix cycle (resolves CR-01, CR-02, CR-03, IN-02, IN-04, OBS-01; TC-FLUSH-GUARD-01 / TC-MONOTONIC-01 staging-key rewrites + new TC-FIRST-CHECK-DEDUP-01)*
 
 Today there are **no tests** (no unit/integration/E2E framework, no CI gates; only ad-hoc root scripts `test-email.js`, `test-prisma*.js`, `test-webhook.js`). The migration must introduce a safety net *before* the risky steps:
 
@@ -1225,6 +1233,11 @@ Today there are **no tests** (no unit/integration/E2E framework, no CI gates; on
 - Given: incident `inc-7` whose Telegram DOWN alert was sent at 10:05:05Z; Redis key `alert:inc-7:down` is held (TTL 86400); the outbox row is already `sent_at=10:05:04Z`; BullMQ redelivers the alert job
 - When: the alerts processor handles the redelivered event
 - Then: **Redis** — zero additional `SET alert:inc-7:down` operations (the `EXISTS` check short-circuits; the key's TTL is untouched). **Telegram** — zero additional `sendMessage` calls. **DB** — the outbox row's `sent_at` stays at its single set value (marked sent exactly once; no re-marking). **Queue** — the redelivered alert job **completes successfully** (not failed); its attempts counter increments toward the ≤ 3 bound without any re-send.
+
+**TC-FIRST-CHECK-DEDUP-01 — monitor-scoped first_check dedup never collides across monitors**
+- Given: monitor 42's `monitor.first_check` outbox row (`incident_id` NULL by design — a PENDING→UP first check opens no incident) whose "MONITORING STARTED" alert was already sent at 09:14:05Z; Redis key `alert:42:first_check` is held (TTL 86400); BullMQ redelivers 42's alert job; in the same relay pass at 09:14:20Z, monitor 43's fresh `monitor.first_check` outbox row (never sent) is selected
+- When: the alerts processor handles both events (42 redelivered, 43 fresh)
+- Then: **Redis** — no additional `SET alert:42:first_check` (the `EXISTS` check short-circuits; TTL untouched) and one `SET alert:43:first_check 1 NX EX 86400` after 43's confirmed send. **Telegram** — monitor 42 sends **nothing**; monitor 43's start alert **SENDS** — the monitor-scoped key means no cross-monitor collision (a NULL-incident `alert:null:*` key shape would have suppressed 43's alert for 24 h — CR-03's failure mode). **DB** — both outbox rows keep `sent_at` set exactly once. **Queue** — both alert jobs **complete successfully** (42's via the dedup skip path).
 
 **TC-FLUSH-GUARD-01 — redelivered flush changes counters and ping rows by zero; live keys untouched**
 - Given: flush batch `flush:1770890760000:42` (batchId `1770890760000:42`, flush pass created 2026-02-12T10:06:00Z) for monitor 42 was already applied at 10:06:00Z (a `write_guards` row with `key='flush:1770890760000:42'` exists; `monitors.total_checks=101`; the batch's 4 evidence ping rows are already in `pings`); the flush job crashed after COMMIT but before deleting its staging keys (`agg:flushing:1770890760000:42` / `pings:flushing:1770890760000:42` still hold the applied snapshot), and BullMQ redelivers. Post-snapshot deltas have since accrued in the live keys: `agg:results:42` holds `count=2` and `pings:pending:42` holds 2 evidence rows, waiting for the next pass

@@ -560,6 +560,7 @@ The webhook is authenticated with Telegram's `secret_token` mechanism:
 ## 13. Proposed Redis Architecture
 
 *Amended 2026-09-09 (resolves J-5, J-6, R-1, D-4, D-7; §9 items 5, 7, 13)*
+*Amended 2026-09-09, fix cycle (resolves CR-01, CR-02, IN-02, IN-04, OBS-01; §13.1 aggregation rows now describe live buffers + staging keys)*
 
 Redis is **infrastructure only** — never a source of truth (rule 2). Its complete role inventory: routine-UP result aggregation, rate limiting, alert dedup keys, and BullMQ job orchestration (queues, locks, Job Schedulers). PostgreSQL is always the source of truth and **no correctness path depends on Redis** — every piece of state below is recoverable from Postgres or disposable by design.
 
@@ -570,7 +571,8 @@ Redis is **infrastructure only** — never a source of truth (rule 2). Its compl
 | BullMQ queues + Job Schedulers | `bull:{queues}` (managed by BullMQ) | — | Schedulers re-upserted at worker boot (§13.6); pending jobs drained from Redis; unacked checks re-created by the next tick's claim (§14.2) |
 | Per-monitor check lock | `lock:check:{monitorId}` (`SET NX PX`, value `{workerId}:{jobId}`, owner-only Lua release) | 15 s = 10 s timeout + 5 s margin, renewed every TTL/3 (J-3; lifecycle in §15.1) | Expiry auto-releases; renewal failure aborts the check without persisting; a stale lock never delays the next check beyond its TTL — the lock is a performance guard, correctness rests on J-1/J-2/D-1 |
 | Leader lock for the scheduler loop | `lock:scheduler` (single `SET NX`, renewed; no Redlock — excluded by the out-of-scope table) | ~30 s, renewed | Any worker can take over; defense-in-depth only (§14.2 step 1) |
-| Routine-result aggregation buffer | `agg:results:{monitorId}` (hash: count, failedCount, sumResponseTime, lastResponseTime, lastStatus, lastCheckedAt) + `agg:pending` set | flushed ≤ 60 s; TTL as safety | **Loss-tolerable data only**; the monitor row itself always carries the last immediate (Tier 1) status |
+| Routine-result aggregation (live buffers) | `agg:results:{monitorId}` (hash: count, failedCount, sumResponseTime, lastResponseTime, lastStatus, lastCheckedAt — counter deltas per routine check, `HINCRBY`/`HSET`) + `pings:pending:{monitorId}` (list: one per-check evidence row per routine check, `RPUSH` — drained by the §16.2 multi-row `INSERT INTO pings`) + `agg:pending` (set of monitor ids with unflushed deltas) | flushed ≤ 60 s; TTL as safety | **Loss-tolerable data only**; the monitor row itself always carries the last immediate (Tier 1) status; live keys are never deleted by a flush job — only moved to staging by the owning flush's snapshot (§16.2) |
+| Flush staging keys (exclusive snapshot) | `agg:flushing:{batchId}` (hash) / `pings:flushing:{batchId}` (list) — created by the owning flush job's job-start `RENAMENX` (§16.2); `batchId = {epochMs-of-flush-pass}:{monitorId}` (IN-03) | none — deleted by the owning flush job after COMMIT (dead-lettered flush jobs retain their staging keys; see §16.6) | **Loss-tolerable data only**; the `write_guards` guard (`flush:{batchId}`) makes a manual retry of a dead-lettered flush a safe no-op if the batch ever applied; unapplied staged deltas are Tier 2 loss-tolerable (invariant 3) — detection via DLQ/outbox-age observability (§13.5, OBS-01) |
 | Check-job idempotency (jobId) | `check:{monitorId}:{epoch}` — the BullMQ job id **is** the idempotency key (§14.2 step 3) | retained while the completed job exists (`removeOnComplete` age 3600 s) | Duplicate adds with an existing jobId are ignored by BullMQ; at-least-once redelivery is absorbed by the §16 writers (write guards + conditional UPDATE) |
 | Cache: dashboard summaries, status pages | `cache:status:{userId}`, `cache:dashboard:{userId}` | 15–60 s | Cache-miss rebuilds from Postgres |
 | Rate limiting (replaces in-memory Map) | `rl:{bucket}:{ip}` and `rl:manual:{userId}:{monitorId}` (`INCR` + `EXPIRE`) | window | Counter loss only loosens limits, never corrupts data |
@@ -684,6 +686,7 @@ Looped batched deletes bound row locks, bloat, and replication lag on Neon (D-7)
 ## 14. Proposed BullMQ architecture
 
 *Amended 2026-09-09 (resolves J-1, J-5, J-6; §9 items 1, 5, 6)*
+*Amended 2026-09-09, fix cycle (resolves CR-01, CR-02, IN-02, IN-04, OBS-01; absent-jobs paragraph + flush-lane cell aligned to the §16.2 staging-key flush)*
 
 All recurring work is produced by **BullMQ 6 Job Schedulers**: every scheduler is created or updated idempotently at worker boot via `upsertJobScheduler(schedulerId, { every | pattern }, { name, data, opts })` — the v6 primitive that replaced the legacy recurring-job option (removed in v6). No other recurring-job mechanism exists in this design. Single Redis, prefix `bull`.
 
@@ -696,7 +699,7 @@ All recurring work is produced by **BullMQ 6 Job Schedulers**: every scheduler i
 | `monitor-checks` — `check { monitorId }` (non-UP lane) | scheduler tick step 3 (§14.2) | check pool (§15) | shared 10 | **1** (J-6) | none — bounded by claim LIMIT 500 / tick | shared | shared | shared |
 | `monitor-checks` — `check { monitorId }` (routine lane) | scheduler tick steps 3–4 (§14.2) | check pool (§15) | shared 10 | **10** (J-6; droppable under the backlog gate) | none — volume bounded by claim LIMIT 500 / tick | shared | shared | shared |
 | `db-writes` — `relay-pass` | Job Scheduler `outbox-relay` (every 5 s) | writer pool | 5 | **1** — DOWN-alert delivery depends on it (D-2) | none — bounded by relay batch 100 (§16.3) | `{ age: 3600, count: 5000 }` | `{ age: 604800 }` | defaults (verify against Phase 4 BullMQ 6 research) |
-| `db-writes` — `flush-monitor-aggregate { monitorId, batchId }` | Job Scheduler `flush-pass` (every 30 s; buffer threshold checked each pass) | writer pool | shared 5 | **10** — routine Tier 2 persistence; guarded and loss-tolerable (§16.2) | none — bounded by the buffer window | shared | shared | shared |
+| `db-writes` — `flush-monitor-aggregate { monitorId, batchId }` | Job Scheduler `flush-pass` (every 30 s — purely time-based; no buffer threshold exists: §16 invariant 4 bounds the buffer by the 60 s window) | writer pool | shared 5 | **10** — routine Tier 2 persistence (counter deltas + per-check evidence rows); guarded and loss-tolerable (§16.2) | none — bounded by the buffer window | shared | shared | shared |
 | `alerts` — `send-alert { incidentId, eventType, channels[] }` | outbox relay (§16.3) — never the check handler directly (D-2) | notifier pool | 5 — separate from checks so slow Telegram/SMTP never stalls check lanes | **1** — transition-adjacent, never droppable | none at queue level; ≤ 3 attempts (D-4), channel-level throttling in the processor | `{ age: 3600, count: 1000 }` | `{ age: 604800 }` (D-14, best-effort) | defaults (verify against Phase 4 BullMQ 6 research) |
 | `maintenance` — `cleanup`, `ping-rollup` | Job Schedulers (`cleanup` daily off-peak; `ping-rollup` optional hourly) + admin API trigger | maintenance worker | 1 — batched retention deletes never parallelize (D-7) | **5** | none — scheduled off-peak | `{ age: 86400 }` | `{ age: 604800 }` | defaults (verify against Phase 4 BullMQ 6 research) |
 | `email-transactional` — `send-email { to, template, params }` | API routes (register, forgot-password); Better Auth hooks (Phase 7, §17) | notifier pool | 5 | **5** — user-facing, never monitoring-critical | none at queue level; provider 429/5xx map to retryable typed errors (§17) | `{ age: 86400, count: 1000 }` | `{ age: 604800 }` | defaults (verify against Phase 4 BullMQ 6 research) |
@@ -713,7 +716,7 @@ Per-lane attempts/backoff:
 
 **J-6 lane assignment and worst-case latency bound.** Manual checks (API "check now") and checks for monitors currently in a non-UP state run at priority 1; routine checks for UP monitors run at priority 10. A priority-1 job queues only behind other priority-1 jobs, so its worst-case dequeue latency is `(priority-1 depth x per-job time) / concurrency = (priority-1 depth x 10 s) / 10`. Priority-1 depth is bounded by the non-UP monitor count M plus manual admissions (≤ 6 / min / user, D-13): with M = 100 during a broad incident the worst case is ~100 s, and the J-5 backlog gate (§14.2 step 4) plus priority-10 droppability keep routine backlog from ever sitting ahead of priority-1 work. Monitors in a non-UP state get priority 1 because their next check can carry the RECOVERED transition — the case J-6 exists for (recovery alerts arriving minutes late during incidents, when backlog is largest).
 
-**Deliberately absent jobs:** `recompute-uptime` (D-6 / §16.5 — lifetime counters are authoritative; the job has no algorithm and no purpose in v1) and `record-pings-bulk` (Tier 2 persistence is the single guarded flush UPDATE of §16.2 — there is no bulk ping-row writer to schedule).
+**Deliberately absent jobs:** `recompute-uptime` (D-6 / §16.5 — lifetime counters are authoritative; the job has no algorithm and no purpose in v1). No separately scheduled bulk ping-row writer exists either — routine ping-row persistence rides the `flush-monitor-aggregate` job itself: the §16.2 multi-row `INSERT INTO pings` executes inside that job's guarded flush transaction.
 
 ### 14.2 Scheduler tick algorithm (D-07)
 
@@ -819,7 +822,7 @@ The `check` job's id **is** the §14 idempotency key (`check:{monitorId}:{epoch}
    4. **Redirect re-validation:** follow redirects manually; every hop re-runs sub-steps 1–3 on the new URL (scheme check, resolve-then-validate), up to a cap of **5 hops**. A hop to a private address, a disallowed scheme, or exceeding the cap → result DOWN with `error_class = 'ssrf_blocked'`; no request reaches the private address.
    5. **Response cap:** read at most **2 MB** of body; abort the read at the cap and record the check from the response status plus the capped body (keyword checks operate on that prefix). The whole exchange — DNS, connect, redirects, capped body read — must fit inside the 10 s timeout.
 5. **Classify (J-4 / WRK-05).** Target outcomes — **UP, DOWN, timeout, DNS failure, TLS failure** — are **successful jobs** carrying a typed result `{ status, error_class?, response_time, status_code }` with `error_class ∈ { timeout, dns, tls, ssrf_blocked, http_5xx, network }` (the §11 `pings.error_class` vocabulary). A blocked SSRF attempt is a successful job carrying result DOWN with `error_class = 'ssrf_blocked'`. **Only infrastructure failures throw** — Postgres unreachable, Redis unavailable, internal exceptions/bugs — and only those retry per the queue's attempts/backoff (§14.1). A target timeout is never retried; redelivery after a worker crash is absorbed by the idempotent writers, not by classifying target outcomes as failures.
-6. **Persist — dispatch by tier (§16 owns the SQL; §15 does not restate it):** if the classified result changes `monitors.status` (DOWN, RECOVERED, or the first check), run the **Tier 1 transition transaction synchronously inside the job** (§16.1). If the result matches the current status (routine UP, unchanged DOWN), apply the **Tier 2 buffer path** — Redis `HINCRBY`/`HSET` deltas, flushed by §16.2 within 60 s. Never route a transition through the buffer; never write `status` from Tier 2.
+6. **Persist — dispatch by tier (§16 owns the SQL; §15 does not restate it):** if the classified result changes `monitors.status` (DOWN, RECOVERED, or the first check), run the **Tier 1 transition transaction synchronously inside the job** (§16.1). If the result matches the current status (routine UP, unchanged DOWN), apply the **Tier 2 buffer path** — Redis `HINCRBY`/`HSET` counter deltas **plus one `RPUSH` evidence row onto `pings:pending:{monitorId}`** (per-check evidence is carried, not discarded — CR-01), flushed by §16.2 within 60 s. Never route a transition through the buffer; never write `status` from Tier 2.
 7. **Release the lock in a `finally`** — owner-only, via Lua compare-and-delete (`GET` equals our value → `DEL`); a lock you no longer own is never deleted.
 
 **BullMQ stall hygiene (J-3):** worker `lockDuration` 30000 ms, `stalledInterval` 30000 ms, `maxStalledCount` 1 (source defaults, pinned in §14.1 — verify against Phase 4 BullMQ 6 research); graceful shutdown via `worker.close()` on SIGINT/SIGTERM with PM2 `kill_timeout ≥ 20 s`, so deploys drain in-flight checks instead of manufacturing stalled jobs.
@@ -880,8 +883,12 @@ VALUES ($mid, $pingStatus, $rt, $errorClass, $statusCode, now());
 
 -- 2. Conditional transition + counters (D-1): only the executor that flips
 --    the status proceeds. Counters ride this statement, so a duplicate
---    delivery counts the check exactly once. Zero rows returned ⇒ another
---    executor already made this transition ⇒ skip steps 3–4 and COMMIT.
+--    delivery counts the check exactly once. Zero rows returned ⇒ skip
+--    steps 3–4 and COMMIT. Zero rows has two causes and implementers must
+--    NOT branch on which one occurred (IN-04): (a) another executor already
+--    made this transition, or (b) is_active was cleared after the claim —
+--    same skip path for steps 3–4 either way. The step-1 evidence ping for
+--    a deactivated monitor is accepted (retention cleans it in 30 days).
 UPDATE monitors
    SET status        = $target,              -- 'DOWN' | 'UP' (UP from DOWN = RECOVERED)
        last_checked  = now(),
@@ -1044,7 +1051,8 @@ Locked decision: **lifetime counters remain the displayed numbers** — `uptime_
 |---|---|---|---|
 | Duplicate job delivery runs the transition transaction twice | Step-2 conditional UPDATE returns 0 rows; or the incident INSERT hits the `ON CONFLICT` no-op | Transaction commits as a near-no-op: evidence ping recorded, no second incident, no double counter increment, no second outbox row | None needed — idempotent by construction; TC-DUP-INCIDENT-01 pins it |
 | Crash between transition commit and alert enqueue | Impossible by construction: the outbox row is committed **inside** the Tier 1 transaction (D-2) | Relay selects the unsent row on its next pass (`sent_at IS NULL`) | Relay retry; §16.4 dedup collapses any duplicate alert deliveries |
-| Flush re-applied after a crash between commit and Redis-hash delete | `write_guards` insert returns 0 rows for the same `flush:{batchId}` key | Transaction exits **before** the UPDATE — counters change by zero | Redis hash deleted on the retry's exit path; TC-FLUSH-GUARD-01 pins it |
+| Flush re-applied after a crash between commit and the staging-key delete | `write_guards` insert returns 0 rows for the same `flush:{batchId}` key (or the step-0 guard pre-check returns a row) | Transaction exits **before** the pings INSERT and the UPDATE — counters and ping rows change by zero | **Staging** keys (`agg:flushing:{batchId}`, `pings:flushing:{batchId}`) deleted on the retry's exit path; the **live** keys — holding post-snapshot deltas for the next pass — are untouched; TC-FLUSH-GUARD-01 pins it |
+| Flush job dead-letters (attempts exhausted; snapshot still in its staging keys) | DLQ / outbox-age observability (§13.5, OBS-01) | **inspect-only** — never auto-retried past the lane's attempt bound; a manual retry is a safe no-op if the batch ever applied (`write_guards` guard), and unapplied staged deltas are Tier 2 loss-tolerable data (invariant 3) | subsequent flush passes persist later deltas normally; the retained staging keys keep the dead-lettered batch inspectable until operator cleanup |
 | Outbox relay crashes mid-batch | Row locks released on crash; affected rows still have `sent_at IS NULL` | Unsent rows re-selected on the next relay pass (`FOR UPDATE SKIP LOCKED` clears after crash) | `sent_at` set once per row; §16.4 dedup collapses redelivered alert events; TC-DUP-ALERT-01 pins it |
 
 ---
@@ -1186,6 +1194,7 @@ Target changes:
 ## 23. Testing Requirements
 
 *Amended 2026-09-09 (resolves D-1, D-4, J-2; §9 items 2, 8, 12; §10 criterion 3)*
+*Amended 2026-09-09, fix cycle (resolves CR-01, CR-02, IN-02, IN-04, OBS-01; TC-FLUSH-GUARD-01 / TC-MONOTONIC-01 rewritten to staging-key semantics)*
 
 Today there are **no tests** (no unit/integration/E2E framework, no CI gates; only ad-hoc root scripts `test-email.js`, `test-prisma*.js`, `test-webhook.js`). The migration must introduce a safety net *before* the risky steps:
 
@@ -1217,15 +1226,15 @@ Today there are **no tests** (no unit/integration/E2E framework, no CI gates; on
 - When: the alerts processor handles the redelivered event
 - Then: **Redis** — zero additional `SET alert:inc-7:down` operations (the `EXISTS` check short-circuits; the key's TTL is untouched). **Telegram** — zero additional `sendMessage` calls. **DB** — the outbox row's `sent_at` stays at its single set value (marked sent exactly once; no re-marking). **Queue** — the redelivered alert job **completes successfully** (not failed); its attempts counter increments toward the ≤ 3 bound without any re-send.
 
-**TC-FLUSH-GUARD-01 — re-applied flush batch changes counters by zero**
-- Given: flush batch `flush:b-1024` for monitor 42 was already applied at 10:06:00Z (a `write_guards` row with `key='flush:b-1024'` exists; `monitors.total_checks=101`); the flush job crashed after COMMIT but before deleting the Redis hash `agg:results:42`, and BullMQ redelivers
-- When: the §16.2 guarded flush re-runs with the same batch id (`flush:b-1024`) and the same deltas (`$dTotal=4`, `$dFailed=0`, `$lastTs=10:05:58Z`, `$lastRt=210`)
-- Then: **DB** — the `write_guards` `INSERT … ON CONFLICT DO NOTHING RETURNING key` returns **0 rows**, and the transaction exits **before** the UPDATE: `monitors.total_checks` stays 101 (change by zero), `last_checked` and `response_time` unchanged; no new `write_guards` row. **Redis** — `agg:results:42` is deleted on the retry's exit path (cleanup proceeds despite the skip).
+**TC-FLUSH-GUARD-01 — redelivered flush changes counters and ping rows by zero; live keys untouched**
+- Given: flush batch `flush:1770890760000:42` (batchId `1770890760000:42`, flush pass created 2026-02-12T10:06:00Z) for monitor 42 was already applied at 10:06:00Z (a `write_guards` row with `key='flush:1770890760000:42'` exists; `monitors.total_checks=101`; the batch's 4 evidence ping rows are already in `pings`); the flush job crashed after COMMIT but before deleting its staging keys (`agg:flushing:1770890760000:42` / `pings:flushing:1770890760000:42` still hold the applied snapshot), and BullMQ redelivers. Post-snapshot deltas have since accrued in the live keys: `agg:results:42` holds `count=2` and `pings:pending:42` holds 2 evidence rows, waiting for the next pass
+- When: the redelivered §16.2 flush re-runs with the same batchId in its job data and the staged snapshot's values (`$dTotal=4`, `$dFailed=0`, `$lastTs=10:05:58Z`, `$lastRt=210`)
+- Then: **DB** — the step-0 guard pre-check returns the existing row (equivalently, the `write_guards` `INSERT … ON CONFLICT DO NOTHING RETURNING key` returns **0 rows**), and the transaction exits **before** the pings INSERT and the UPDATE: `monitors.total_checks` stays 101 (change by zero), `last_checked` and `response_time` unchanged, `pings` gains **no** rows; no new `write_guards` row. **Redis** — the **staging** keys `agg:flushing:1770890760000:42` and `pings:flushing:1770890760000:42` are deleted on the retry's exit path (cleanup proceeds despite the skip); the **live** keys `agg:results:42` (`count=2`) and `pings:pending:42` (2 rows) are **explicitly NOT deleted** — they hold the next pass's data.
 
 **TC-MONOTONIC-01 — late-arriving buffered result cannot regress display fields**
 - Given: monitor 42 with `last_checked=T1=10:06:00Z`, `response_time=250`, `total_checks=100`, `failed_checks=5`; a buffered routine result with timestamp `T0=10:04:30Z` (older than T1) and response 900 ms flushes in a batch with deltas `$dTotal=1`, `$dFailed=0`, `$lastTs=T0`, `$lastRt=900`
 - When: the §16.2 guarded flush applies the batch
-- Then: **DB** — `last_checked` stays `T1` (`GREATEST(T1, T0)=T1`); `response_time` stays 250 (`CASE WHEN T0 > T1` is false → ELSE keeps the current value; the older sample does not overwrite); `total_checks=101` and `failed_checks=5` (the buffered deltas still apply additively); `status` is untouched (Tier 2 never writes status). **Redis** — the batch hash is deleted only after the flush transaction commits.
+- Then: **DB** — `last_checked` stays `T1` (`GREATEST(T1, T0)=T1`); `response_time` stays 250 (`CASE WHEN T0 > T1` is false → ELSE keeps the current value; the older sample does not overwrite); `total_checks=101` and `failed_checks=5` (the buffered deltas still apply additively); `status` is untouched (Tier 2 never writes status). **Redis** — the batch's **staging** keys (`agg:flushing:{batchId}`, `pings:flushing:{batchId}`) are deleted only after the flush transaction commits; the **live** keys are untouched by this flush.
 
 **SSRF and classification cases (given/when/then, per review §10 criterion 3).** *Amended 2026-09-09 (resolves S-1, J-4; §9 items 4, 18; §10 criterion 3)* — the check-job mechanics under test are §15.1 steps 4–6; each Then names its expected DB rows (`pings.error_class` values), queue state (completed vs retried), and network effect.
 

@@ -6,6 +6,7 @@
 > **Status:** design-stage runbook — no corresponding code exists yet. Steps marked worker/`readyz` apply from Phase 4 onward (see topology table). Each step is verified live from Phase 2 onward and corrected here when reality disagrees.
 > **Companion document:** [ARCHITECTURE-AUDIT.md](./ARCHITECTURE-AUDIT.md) — all design rationale lives there, not here (D-01/D-03). This document contains ordering, verification, and rollback only.
 > **Amended 2026-09-09 (fix cycle):** §1/§2/§3/§4/§5 amended and §4a added — the Migrate step is phase-conditional (WR-03), the PM2 ready handshake names the process signal (WR-04), the first worker release has its own path (WR-05), and the steady-state budget is stated as ≤ 30 (IN-05 runbook half). §10 added later in the same fix cycle — worker-host egress control, closing RR-01's operator half (S-1 layer 1, mirroring audit §15.4).
+> **Amended 2026-09-11 (Phase 2, plan 02-04):** deployment is fully manual from Phase 2 on — the GitHub-hosted deploy workflow was deleted (D-01), so §3 is rewritten as typed-by-hand steps with `pnpm verify` as the pre-deploy gate (D-02), the build happens on the dev machine and ships as a tarball (D-03), post-deploy verification is typed checks (D-04), Phase 2 runs no schema command (D-05), the generated Prisma client ships in the tarball so the VPS never builds or generates (D-14), and §3a adds the one-time VPS Node 24 + pnpm switch for the operator to run at their next real deploy (D-26). Every workflow-era instruction is gone from this document.
 
 ---
 
@@ -15,7 +16,7 @@
 |---|---|---|
 | **web** (PM2 `uptime-tracker`, port 3007) | **10** | **POOLED** (provider pooler endpoint) |
 | **worker** (PM2 `uptime-worker`, from Phase 4) | **20** | **DIRECT** |
-| **migration runner** (deploy pipeline, one-shot) | **1** | **DIRECT** |
+| **migration runner** (operator-run, one-shot) | **1** | **DIRECT** |
 
 Operational summary — **web 10 / worker 20 / migrations 1**; steady-state total ≤ 30 connections (web 10 + worker 20), rising to ≤ 31 only during deploys while the single one-shot migration runner is connected. Full spec (pool options, timeouts, pooled-vs-direct rationale, Neon limits): audit [§25](./ARCHITECTURE-AUDIT.md).
 
@@ -31,7 +32,7 @@ Two orderings exist this milestone. Pick by phase, then follow the numbered step
 |---|---|---|
 | **1** | Build (web from one SHA) | Build (web **and** worker from one SHA) |
 | **2** | Backup (`pg_dump`) + rehearsal | Backup (`pg_dump`) + rehearsal |
-| **3** | Migrate — Phase 2: no migrate step (CI `prisma db push` is still the live schema mechanism); Phase 3+: single runner (`drizzle-kit migrate`) | Migrate (single runner) |
+| **3** | Migrate — Phase 2: run **no schema command** (the deleted deploy workflow took `prisma db push` with it, D-01/D-05); Phase 3+: single runner (`drizzle-kit migrate`) | Migrate (single runner) |
 | **4** | — | **Restart worker → wait for `readyz`** |
 | **5** | Restart web | Restart web |
 | **6** | Smoke check | Smoke check (synthetic check → ping row) |
@@ -44,26 +45,52 @@ In every release the migration runs **before** any process restart, and in the t
 
 `uptime-tracker` (web) is the only PM2 app. No worker exists yet; skip every worker/`readyz` step.
 
-1. **Build.**
-   - *Action:* from the release commit, run the CI pipeline: `pnpm install --frozen-lockfile` → lint → typecheck → test → `pnpm build`. Package the artifact (`.next` output) tagged with the commit SHA.
-   - *Verification:* every gate exits 0; the artifact exists and carries the SHA.
+> **Deployment is fully manual from Phase 2 on (D-03).** No CI, no deploy scripts, no artifact tooling — the operator types every step below, on the dev machine and over SSH. Nothing is assumed beyond `pnpm` on the dev machine, `ssh`/`scp` to reach the VPS, and `pm2` on the VPS. The dev machine builds; the VPS extracts, installs, and reloads. The VPS never builds Next 16 itself (the `--max_old_space_size=2048` flag in the build script exists precisely because small servers run out of memory) and never runs `prisma generate` — the generated client ships inside the tarball (D-14).
+
+> **The pre-deploy gate is `pnpm verify` (D-02).** One typed command runs the whole chain on the dev machine before anything ships: it brings up the throwaway test stack (`docker compose -f docker-compose.test.yml up -d --wait` — containerized Postgres + Redis), then `pnpm lint` → `pnpm typecheck` → `pnpm test` → `pnpm build` → `pnpm test:e2e`. Budget: **≤ 5 minutes warm (D-20)** — if the chain ever grows past that, the budget is defended (cut scope or parallelize), because a 20-minute gate gets skipped. **The gate is only as good as the operator discipline of actually running it before every release (D-02): no CI exists to enforce it (D-01).** A release shipped without a green verify is an unverified release.
+
+1. **Gate, then build (dev machine).**
+   - *Action:* from the release commit, run `pnpm verify` and require green. Then build and pack the release tarball from the repo root (Git Bash or any POSIX-flavored shell on the dev machine):
+
+     ```
+     pnpm verify
+     pnpm build
+     tar --exclude=node_modules --exclude=.git --exclude='.env*' \
+         --exclude=test-results --exclude=playwright-report \
+         -czf /tmp/uptime-tracker-<SHA>.tar.gz .
+     ```
+
+     The tarball deliberately includes the two gitignored build outputs — `.next/` (the Next build) and `src/generated/prisma/` (the generated client, D-14) — plus everything the VPS needs to install and start: `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, the Next config, `public/`, and `src/`. It never contains `.env` or any `.env.*` file; the VPS keeps its own.
+   - *Verification:* `pnpm verify` exited 0 (all five stages green); the tarball exists, is non-empty, and its name carries the release SHA; `tar -tzf /tmp/uptime-tracker-<SHA>.tar.gz | grep -c 'src/generated/prisma'` is non-zero (the client really is inside).
    - *Rollback:* abort the release — nothing has touched production yet.
 2. **Backup.**
    - *Action:* on the VPS, take a full database backup: `pg_dump "$DATABASE_URL" -F c -f /var/backups/uptime/pre-release-<SHA>.dump`. Before any cutover-adjacent release (schema or auth changes), rehearse the release first against an anonymized local copy of that snapshot (restore → run migration → run smoke check locally).
    - *Verification:* `pg_dump` exits 0; the dump file is non-empty; the rehearsal completed with the smoke check passing.
    - *Rollback:* abort the release — production data is unchanged. (No rollback action is ever taken against the dump itself; it is retained as the restore point of last resort.)
 3. **Migrate (phase-conditional — check which phase you are releasing).**
-   - *Action:* **Phase 2 releases: run no migrate command in this step.** No migration runner exists yet — schema changes still flow through the existing CI schema step (`prisma db push` in the deploy pipeline, as deployed today), which the Phase 3 baseline PR removes (audit §24 step 3); do not run it ad hoc from this runbook. **Phase 3 onward: run the single migration runner from the deploy pipeline — one runner, once:** `pnpm drizzle-kit migrate`. Never run migrations at process boot; never run two runners concurrently (concurrent boot = concurrent DDL is forbidden, M-1). If no migrations are pending, the command is a no-op that exits 0.
-   - *Verification:* Phase 2 — the CI schema step (`prisma db push`) exited 0 in the build pipeline; nothing else to check here. Phase 3+ — command exits 0; the migrations journal shows the release's entries; the empty-diff check (`drizzle-kit` diff against the live database) reports no drift (M-3).
+   - *Action:* **Phase 2 releases: run no schema command at all (D-05).** The deploy workflow that used to run `prisma db push` on every release was deleted in Phase 2 (D-01) — its push-with-`--accept-data-loss` hazard left the deploy path with it, and no automated schema mechanism exists anymore. Production's schema stays exactly as the last workflow-driven deploy left it until Phase 3 transcribes it into versioned SQL; do not run any schema command ad hoc from this runbook. **Phase 3 onward: run the single migration runner — one runner, once:** `pnpm drizzle-kit migrate`. Never run migrations at process boot; never run two runners concurrently (concurrent boot = concurrent DDL is forbidden, M-1). If no migrations are pending, the command is a no-op that exits 0.
+   - *Verification:* Phase 2 — nothing to check: no schema command ran anywhere, by design (D-05). Phase 3+ — command exits 0; the migrations journal shows the release's entries; the empty-diff check (`drizzle-kit` diff against the live database) reports no drift (M-3).
    - *Rollback:* do not run down-migrations inside the verification window. Migrations are forward-only, additive-first (§7): restore the previous release tarball and restart — the previous code runs against the expanded schema.
-4. **Restart web.**
-   - *Action:* deploy the new tarball to `/var/www/uptime-tracker`, then `pm2 restart uptime-tracker`.
+
+   > *Note (D-01):* deleting the workflow also orphaned any repo secrets it referenced (deploy keys, host entries). They are inert — nothing reads them anymore. Prune them in the repository's secret settings at leisure; nothing in this runbook depends on them.
+4. **Ship, install, reload web.**
+   - *Action:* copy the tarball to the VPS, extract it over the app directory, install the runtime dependency tree from the shipped lockfile, then reload:
+
+     ```
+     scp /tmp/uptime-tracker-<SHA>.tar.gz <user>@<vps-host>:/tmp/
+     ssh <user>@<vps-host>
+     tar -xzf /tmp/uptime-tracker-<SHA>.tar.gz -C /var/www/uptime-tracker
+     cd /var/www/uptime-tracker && pnpm install --frozen-lockfile --prod
+     pm2 restart uptime-tracker
+     ```
+
+     `--prod` keeps the VPS to the runtime tree — the toolchain (typescript, vitest, playwright, eslint, the prisma CLI) never installs there; it is not needed because the client ships pre-generated (D-14). **First release after the toolchain switch:** §3a replaces this step — PM2 re-reads `ecosystem.config.js` only on `pm2 startOrReload` (see §3a step 4).
    - *Verification:* `pm2 ls` shows the app `online`; `curl -fsS http://127.0.0.1:3007/login` returns HTTP 200.
-   - *Rollback:* restore the previous release tarball and `pm2 restart uptime-tracker` again; re-verify the 200.
-5. **Smoke check (interim form — web serving).**
-   - *Action:* `curl -fsS http://127.0.0.1:3007/login` and confirm the page renders; confirm the healthchecks.io heartbeat for the app has resumed (no `/fail` ping fired during the restart window).
-   - *Verification:* HTTP 200 within 30 s of the restart; heartbeat green.
-   - *Rollback:* if the smoke check fails, restore the previous release tarball, restart, and repeat this check. If it still fails, stop and escalate — do not attempt schema changes under pressure.
+   - *Rollback:* restore the previous release tarball (`tar -xzf` over `/var/www/uptime-tracker`, `pnpm install --frozen-lockfile --prod`, `pm2 restart uptime-tracker`); re-verify the 200.
+5. **Typed post-deploy checks (D-04 — all hand-executed; no smoke script exists).**
+   - *Action:* run all three, by hand: (a) `curl -fsS https://<app-url>/login` (or the local form `curl -fsS http://127.0.0.1:3007/login` over SSH) and confirm the login page renders — HTTP 200; (b) `pm2 status` and confirm `uptime-tracker` is `online` — not `errored`, not restart-looping; (c) `pm2 logs uptime-tracker --lines 50` and glance for startup errors (unhandled rejections, missing env vars, database connection failures). Also confirm the healthchecks.io heartbeat for the app has resumed (no `/fail` ping fired during the restart window).
+   - *Verification:* all checks green within 30 s of the reload; heartbeat green. **No `readyz` endpoint exists in this topology** — it arrives with Phase 4's worker; these typed checks are the entire post-deploy verification until then (D-04).
+   - *Rollback:* if any check fails, restore the previous release tarball, restart, and repeat the checks. If they still fail, stop and escalate — do not attempt schema changes under pressure.
 
 ---
 
@@ -73,10 +100,10 @@ In every release the migration runs **before** any process restart, and in the t
 
 Health surfaces (worker, port 9090): `GET :9090/healthz` = process alive only. `GET :9090/readyz` = process alive **and** Redis ping passes **and** database ping passes. Only `readyz` passing means the worker can take traffic.
 
-Two distinct readiness signals exist, and PM2 watches only the first: the worker must emit the **PM2 ready signal** — a `process.send('ready')` call — once its Redis and DB pings pass, i.e. exactly when `readyz` would return success. The HTTP `readyz` endpoint remains the operator/CI gate; the process ready signal is the PM2 gate (§5 `wait_ready`). An implementer who wires only the HTTP server never signals PM2: with `wait_ready` set, PM2 force-restarts the worker after `listen_timeout` on every boot — a crash loop in the process that gates every Phase 4+ release.
+Two distinct readiness signals exist, and PM2 watches only the first: the worker must emit the **PM2 ready signal** — a `process.send('ready')` call — once its Redis and DB pings pass, i.e. exactly when `readyz` would return success. The HTTP `readyz` endpoint remains the operator's gate; the process ready signal is the PM2 gate (§5 `wait_ready`). An implementer who wires only the HTTP server never signals PM2: with `wait_ready` set, PM2 force-restarts the worker after `listen_timeout` on every boot — a crash loop in the process that gates every Phase 4+ release.
 
 1. **Build.**
-   - *Action:* from the release commit, run the CI pipeline (lint → typecheck → test → `pnpm build`) producing **both** artifacts from one SHA: `.next` (web) and `worker/dist/index.js` (worker). Tag both with the commit SHA.
+   - *Action:* from the release commit, run the same §3 step 1 gate and build on the dev machine (`pnpm verify` green, then `pnpm build`), producing **both** artifacts from one SHA: `.next` (web) and `worker/dist/index.js` (worker). Tag both with the commit SHA.
    - *Verification:* every gate exits 0; both artifacts exist and carry the same SHA.
    - *Rollback:* abort the release — nothing has touched production yet.
 2. **Backup.**
@@ -84,7 +111,7 @@ Two distinct readiness signals exist, and PM2 watches only the first: the worker
    - *Verification:* `pg_dump` exits 0; the dump file is non-empty; the rehearsal completed with `readyz` and the smoke check passing.
    - *Rollback:* abort the release — production data is unchanged.
 3. **Migrate.**
-   - *Action:* run the single migration runner from the deploy pipeline: `pnpm drizzle-kit migrate` — never at web or worker boot, never concurrently (M-1). No pending migrations ⇒ no-op exiting 0.
+   - *Action:* run the single migration runner (same phase-conditional contract as §3 step 3): `pnpm drizzle-kit migrate` — never at web or worker boot, never concurrently (M-1). No pending migrations ⇒ no-op exiting 0.
    - *Verification:* command exits 0; journal shows the release's entries; the empty-diff check reports no drift (M-3).
    - *Rollback:* no down-migrations inside the verification window — restore the previous tarball pair and restart both apps (additive-only schema, §7).
 4. **Restart worker, then wait for `readyz`.**
@@ -137,7 +164,7 @@ The first release that introduces `uptime-worker` is not a restart: the app does
 
 ## 6. Smoke check definition (normative)
 
-The target-topology smoke check is: **enqueue one synthetic check against a known-good target and assert the ping row appears in the database.** It proves the full path — web enqueue → Redis/BullMQ → worker check → Postgres persist — in one action. Interim releases (Phases 2–3) have no worker; their smoke check is the web-serving check in §3 step 5. A release is not good until its topology's smoke check passes.
+The target-topology smoke check is: **enqueue one synthetic check against a known-good target and assert the ping row appears in the database.** It proves the full path — web enqueue → Redis/BullMQ → worker check → Postgres persist — in one action. Interim releases (Phases 2–3) have no worker; their post-deploy check is the typed check set in §3 step 5 (curl, `pm2 status`, log glance — D-04). A release is not good until its topology's check passes.
 
 ---
 
@@ -153,10 +180,10 @@ The target-topology smoke check is: **enqueue one synthetic check against a know
 
 ## 8. Migration discipline (M-1 / M-3)
 
-- **Exactly one migration runner** — the deploy pipeline step (§3 step 3 / §4 step 3). Running migrations at web or worker boot is forbidden: concurrent boot = concurrent DDL.
-- **Versioned SQL files are the only schema authority** after the Phase 3 baseline; `prisma db push` is deleted from CI in the same PR that lands the baseline. Before that baseline (Phase 2 releases), the legacy CI schema step (`prisma db push`) is the acknowledged interim schema mechanism — already on its dated removal path — and Phase 2 releases carry no migrate step at all (§3 step 3).
+- **Exactly one migration runner** — the operator-run step (§3 step 3 / §4 step 3). Running migrations at web or worker boot is forbidden: concurrent boot = concurrent DDL.
+- **Versioned SQL files are the only schema authority** after the Phase 3 baseline. The last automated schema mechanism — `prisma db push` inside the deleted deploy workflow — left the deploy path in Phase 2 (D-01); from the Phase 3 baseline PR on, no `db push` exists anywhere, `drizzle-kit`'s journal is authoritative, and Phase 2 releases carry no migrate step at all (§3 step 3, D-05).
 - **Baseline from live DDL:** the Phase 3 baseline is authored from `pg_dump --schema-only` of production (not `schema.prisma`), and `drizzle-kit` diff against the live database must be empty — or an explicitly reviewed, intentional delta list — before any application cutover.
-- **Empty-diff CI gate:** the diff check runs in CI on every release so schema drift cannot silently return.
+- **Empty-diff check:** with no CI (D-01), the drift check is an operator-run typed step from Phase 3 on — run the `drizzle-kit` diff against the live database as part of the release's verification (§3 step 3 / §4 step 3) so schema drift cannot silently return. Its enforcement is operator discipline, same as the verify gate (D-02).
 
 ---
 

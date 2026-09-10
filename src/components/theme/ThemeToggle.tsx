@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import { ComputerIcon, Moon02Icon, Sun03Icon } from "hugeicons-react";
 import {
@@ -33,13 +33,24 @@ const ICONS: Record<SelectedTheme, typeof Sun03Icon> = {
   system: ComputerIcon,
 };
 
-export function ThemeToggle() {
-  const [mounted, setMounted] = useState(false);
-  const { theme, setTheme } = useTheme();
+const emptySubscribe = () => () => {};
 
-  // Hydration guard (Pitfall 8): useTheme() is undefined on the server, so
-  // pre-mount we render a layout-stable placeholder of the same size.
-  useEffect(() => setMounted(true), []);
+// Hydration guard (Pitfall 8): false during SSR and the hydration render,
+// true afterwards — useTheme() is undefined on the server, so pre-mount we
+// render a layout-stable placeholder of the same size. Expressed via
+// useSyncExternalStore because the repo lint forbids synchronous setState
+// inside effects.
+function useMounted() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+}
+
+export function ThemeToggle() {
+  const mounted = useMounted();
+  const { theme, setTheme } = useTheme();
 
   if (!mounted) {
     return <span className="inline-block size-9" aria-hidden="true" />;

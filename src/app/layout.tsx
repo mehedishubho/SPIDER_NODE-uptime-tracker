@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Toaster } from "sonner";
 import { Suspense } from "react";
 import ReduxProvider from "@/redux/Provider";
 import AuthProvider from "@/providers/AuthProvider";
 import Loading from "@/components/Others/Loader/Loading";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { ThemedToaster } from "@/components/theme/ThemedToaster";
 import {
   inter,
   spaceGrotesk,
@@ -21,18 +22,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${spaceGrotesk.variable} antialiased bg-[#121212] text-slate-100 min-h-screen`}
+        className={`${inter.variable} ${spaceGrotesk.variable} antialiased bg-background text-foreground min-h-screen`}
       >
-        <Suspense fallback={<Loading />}>
-          <AuthProvider>
-            <ReduxProvider>
-              {children}
-              <Toaster richColors position="top-right" theme="dark" />
-            </ReduxProvider>
-          </AuthProvider>
-        </Suspense>
+        <ThemeProvider>
+          <Suspense fallback={<Loading />}>
+            <AuthProvider>
+              <ReduxProvider>
+                {children}
+                <ThemedToaster />
+              </ReduxProvider>
+            </AuthProvider>
+          </Suspense>
+        </ThemeProvider>
       </body>
     </html>
   );

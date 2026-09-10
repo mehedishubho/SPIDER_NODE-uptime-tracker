@@ -2,6 +2,7 @@
 
 import { SidebarTrigger } from "../ui/sidebar";
 import { NavUser } from "./NavUser";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 const AppHeader = () => {
   return (
@@ -13,6 +14,7 @@ const AppHeader = () => {
 
       {/* Right Side */}
       <div className="flex items-center gap-3">
+        <ThemeToggle />
         <NavUser />
       </div>
     </header>

@@ -26,7 +26,7 @@ export default defineConfig({
     environment: "node",
     globalSetup: ["./tests/setup/global-setup.ts"],
     // vitest owns .test.ts; Playwright owns .spec.ts
-    testMatch: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.ts"],
     // Explicit worker env (same value) so the prisma singleton never sees an
     // unrelated ambient value even if a worker's env differs.
     env: {

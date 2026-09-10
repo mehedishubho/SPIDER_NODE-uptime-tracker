@@ -14,7 +14,7 @@ A brownfield modernization of a live production uptime-monitoring SaaS. The arc 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Design Gate — Review Verdict READY** - All 8 review addenda incorporated, §9 checklist resolved, verdict flipped NOT READY → READY before any code — **complete 2026-09-09: cycle-2 re-review clean pass (zero blocking findings) human-ratified, verdict flipped to READY per D-16; RR2-01/02/03 recorded as advisory Phase 4/5 design-debt (01-09)**
-- [x] **Phase 2: Foundations & Theme Infrastructure** - pnpm, CI gates, characterization tests on real Postgres/Redis; theme tokens land with zero behavior change (completed 2026-09-10)
+- [ ] **Phase 2: Foundations & Theme Infrastructure** - pnpm, CI gates, characterization tests on real Postgres/Redis; theme tokens land with zero behavior change — *verification 2026-09-11: gaps found (2 criticals re-confirmed, see 02-VERIFICATION.md); closure pending*
 - [ ] **Phase 3: Redis & Drizzle Schema Ownership** - Redis with no correctness dependence; live-DDL Drizzle baseline plus worker schema addenda, rehearsed on a prod snapshot
 - [ ] **Phase 4: Monitoring Worker — Build & Dark Launch** - Dedicated worker owns all monitoring on idempotent, resilient BullMQ machinery; dark-launched while cron still serves users
 - [ ] **Phase 5: Worker Cutover & Operational Hardening** - Gated overlap cutover deletes the cron; heartbeat moves, observability, env transition, rehearsed rollback
@@ -246,7 +246,7 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Design Gate — Review Verdict READY | 9/9 | Complete — cycle-2 clean pass ratified 2026-09-09, verdict flipped to READY (RR2-01/02/03 advisory Phase 4/5 design-debt) | 2026-09-09 |
-| 2. Foundations & Theme Infrastructure | 0/9 | Planned — 9 plans across 8 waves | - |
+| 2. Foundations & Theme Infrastructure | 9/9 | Verification gaps open (2026-09-11) — CR-01/CR-02 re-confirmed in 02-VERIFICATION.md; closure via `/gsd-plan-phase 02 --gaps` | - |
 | 3. Redis & Drizzle Schema Ownership | 0/TBD | Not started | - |
 | 4. Monitoring Worker — Build & Dark Launch | 0/TBD | Not started | - |
 | 5. Worker Cutover & Operational Hardening | 0/TBD | Not started | - |

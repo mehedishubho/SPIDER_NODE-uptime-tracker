@@ -67,9 +67,9 @@ export function Incidents() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen bg-[#121212] flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-[#EF4444]" />
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
           <span className="text-xs text-slate-400 font-mono">Loading Incidents...</span>
         </div>
       </div>
@@ -93,14 +93,14 @@ export function Incidents() {
   };
 
   return (
-    <div className="min-h-screen bg-[#121212] text-slate-100 p-4 sm:p-6">
+    <div className="min-h-screen bg-background text-foreground p-4 sm:p-6">
       <div className="max-w-5xl mx-auto space-y-6">
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-              <ServerCrash className="w-6 h-6 text-[#EF4444]" />
+              <ServerCrash className="w-6 h-6 text-primary" />
               Incident Log
             </h1>
             <p className="text-xs text-slate-400 mt-1 font-mono">
@@ -113,7 +113,7 @@ export function Incidents() {
             className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer self-start sm:self-auto"
             title="Refresh"
           >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin text-[#EF4444]" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin text-primary" : ""}`} />
           </button>
         </div>
 
@@ -142,9 +142,9 @@ export function Incidents() {
           <div className="glass-panel p-5 rounded-2xl border border-slate-800">
             <div className="flex items-center justify-between text-slate-400 mb-2">
               <span className="text-xs font-mono">RESOLVED</span>
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <ShieldCheck className="w-4 h-4 text-status-up" />
             </div>
-            <div className="text-3xl font-extrabold font-mono text-emerald-400">
+            <div className="text-3xl font-extrabold font-mono text-status-up">
               {resolvedIncidents.length}
             </div>
             <p className="text-[11px] text-slate-500 mt-1">Successfully recovered</p>
@@ -165,7 +165,7 @@ export function Incidents() {
         {/* Incidents List */}
         {incidents.length === 0 ? (
           <div className="glass-panel rounded-2xl border border-slate-800 p-16 text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
+            <div className="w-16 h-16 rounded-full bg-status-up/10 border border-status-up/30 text-status-up flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-8 h-8" />
             </div>
             <h3 className="text-lg font-bold text-slate-200">All Clear!</h3>
@@ -174,7 +174,7 @@ export function Incidents() {
             </p>
             <Link
               href="/dashboard"
-              className="inline-flex items-center gap-2 mt-2 px-4 py-2 rounded-xl bg-[#EF4444] hover:bg-red-400 text-white text-xs font-bold transition-all"
+              className="inline-flex items-center gap-2 mt-2 px-4 py-2 rounded-xl bg-primary hover:bg-red-400 text-white text-xs font-bold transition-all"
             >
               <Activity className="w-3.5 h-3.5" />
               View Monitors
@@ -199,7 +199,7 @@ export function Incidents() {
                           className={`mt-0.5 w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
                             isOngoing
                               ? "bg-rose-500/10 text-rose-400"
-                              : "bg-emerald-500/10 text-emerald-400"
+                              : "bg-status-up/10 text-status-up"
                           }`}
                         >
                           {isOngoing ? (
@@ -213,7 +213,7 @@ export function Incidents() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <Link
                               href={`/dashboard/monitor/${incident.monitor.id}`}
-                              className="text-sm font-bold text-slate-200 hover:text-[#EF4444] transition-colors truncate"
+                              className="text-sm font-bold text-slate-200 hover:text-primary transition-colors truncate"
                             >
                               {incident.monitor.name}
                             </Link>
@@ -255,7 +255,7 @@ export function Incidents() {
                         className={`px-2.5 py-1 rounded border text-[10px] font-bold tracking-wider flex-shrink-0 ${
                           isOngoing
                             ? "bg-rose-500/10 border-rose-500/30 text-rose-400 animate-pulse"
-                            : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                            : "bg-status-up/10 border-status-up/30 text-status-up"
                         }`}
                       >
                         {isOngoing ? "ACTIVE" : "RESOLVED"}

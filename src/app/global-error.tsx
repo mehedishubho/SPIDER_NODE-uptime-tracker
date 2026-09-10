@@ -11,9 +11,9 @@ export default function GlobalError({
 }) {
   return (
     <html>
-      <body className="bg-[#121212]">
+      <body className="bg-background">
         <div className="min-h-screen flex flex-col items-center justify-center p-4">
-          <div className="max-w-md w-full bg-[#0F172A] border border-red-500/20 rounded-2xl p-8 text-center space-y-6">
+          <div className="max-w-md w-full bg-foreground-invert border border-red-500/20 rounded-2xl p-8 text-center space-y-6">
             <div className="flex justify-center">
               <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center">
                 <AlertCircle className="w-8 h-8 text-red-500" />

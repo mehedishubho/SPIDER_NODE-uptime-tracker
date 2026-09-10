@@ -17,8 +17,8 @@ export default function LivePreviewMockup() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-status-up/10 border border-status-up/30 text-status-up text-xs font-mono font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-status-up animate-pulse" />
               All Systems Operational (99.98%)
             </span>
           </div>
@@ -32,11 +32,11 @@ export default function LivePreviewMockup() {
           </div>
           <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
             <div className="text-xs text-slate-400 mb-1">Avg Response Time</div>
-            <div className="text-2xl font-bold font-mono text-[#EF4444]">24ms</div>
+            <div className="text-2xl font-bold font-mono text-primary">24ms</div>
           </div>
           <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
             <div className="text-xs text-slate-400 mb-1">Incidents (30d)</div>
-            <div className="text-2xl font-bold font-mono text-emerald-400">0 Reported</div>
+            <div className="text-2xl font-bold font-mono text-status-up">0 Reported</div>
           </div>
         </div>
 
@@ -50,14 +50,14 @@ export default function LivePreviewMockup() {
           <div className="divide-y divide-slate-800/60 font-mono text-xs">
             <div className="px-4 py-3 grid grid-cols-12 items-center hover:bg-slate-800/30">
               <div className="col-span-5 flex items-center gap-3">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span className="w-2 h-2 rounded-full bg-status-up animate-ping" />
                 <div>
                   <div className="text-slate-200 font-semibold">Production API Gateway</div>
                   <div className="text-slate-500 text-[11px]">https://api.myapp.com/v1/health</div>
                 </div>
               </div>
               <div className="col-span-3 text-center">
-                <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-semibold border border-emerald-500/20">
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-status-up/10 text-status-up text-[10px] font-semibold border border-status-up/20">
                   OPERATIONAL
                 </span>
               </div>
@@ -66,14 +66,14 @@ export default function LivePreviewMockup() {
 
             <div className="px-4 py-3 grid grid-cols-12 items-center hover:bg-slate-800/30">
               <div className="col-span-5 flex items-center gap-3">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                <span className="w-2 h-2 rounded-full bg-status-up" />
                 <div>
                   <div className="text-slate-200 font-semibold">Auth Service Cluster</div>
                   <div className="text-slate-500 text-[11px]">https://auth.myapp.com/ping</div>
                 </div>
               </div>
               <div className="col-span-3 text-center">
-                <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-semibold border border-emerald-500/20">
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-status-up/10 text-status-up text-[10px] font-semibold border border-status-up/20">
                   OPERATIONAL
                 </span>
               </div>

@@ -59,7 +59,7 @@ function ResetPasswordContent() {
 
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-[#121212]">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
         <div className="max-w-md w-full glass-panel border border-slate-800 rounded-2xl p-8 text-center space-y-4">
           <h2 className="text-xl font-bold text-white">Invalid Reset Link</h2>
           <p className="text-slate-400 text-sm">
@@ -67,7 +67,7 @@ function ResetPasswordContent() {
           </p>
           <Link
             href="/forgot-password"
-            className="inline-block px-6 py-2.5 rounded-xl bg-[#EF4444] text-white font-medium text-sm transition-all mt-4"
+            className="inline-block px-6 py-2.5 rounded-xl bg-primary text-white font-medium text-sm transition-all mt-4"
           >
             Request New Link
           </Link>
@@ -77,7 +77,7 @@ function ResetPasswordContent() {
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-[#121212] text-slate-100 relative overflow-hidden">
+    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-background text-foreground relative overflow-hidden">
       <div className="w-full max-w-md z-10 my-8">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-slate-100">Set New Password</h1>
@@ -101,7 +101,7 @@ function ResetPasswordContent() {
                   placeholder="At least 6 characters"
                   required
                   minLength={6}
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-900/80 border border-slate-800 focus:border-[#EF4444]/60 focus:ring-1 focus:ring-[#EF4444]/60 text-slate-100 placeholder-slate-500 text-sm outline-none transition-all"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-900/80 border border-slate-800 focus:border-primary/60 focus:ring-1 focus:ring-primary/60 text-slate-100 placeholder-slate-500 text-sm outline-none transition-all"
                 />
                 <button
                   type="button"
@@ -130,7 +130,7 @@ function ResetPasswordContent() {
                   placeholder="Repeat new password"
                   required
                   minLength={6}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900/80 border border-slate-800 focus:border-[#EF4444]/60 focus:ring-1 focus:ring-[#EF4444]/60 text-slate-100 placeholder-slate-500 text-sm outline-none transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900/80 border border-slate-800 focus:border-primary/60 focus:ring-1 focus:ring-primary/60 text-slate-100 placeholder-slate-500 text-sm outline-none transition-all"
                 />
               </div>
             </div>
@@ -138,7 +138,7 @@ function ResetPasswordContent() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-2 py-3 rounded-xl bg-[#EF4444] hover:bg-red-500 text-white font-semibold text-sm transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              className="w-full mt-2 py-3 rounded-xl bg-primary hover:bg-red-500 text-white font-semibold text-sm transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               {isLoading ? (
                 <>
@@ -168,7 +168,7 @@ function ResetPasswordContent() {
 
 export function ResetPasswordForm() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-2 border-[#EF4444] border-t-transparent rounded-full animate-spin"></div></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div></div>}>
       <ResetPasswordContent />
     </Suspense>
   );

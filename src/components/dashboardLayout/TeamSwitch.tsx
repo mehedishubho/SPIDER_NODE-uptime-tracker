@@ -57,10 +57,11 @@ export function TeamSwitcher({
       showCancelButton: true,
       confirmButtonText: "Log Out",
       cancelButtonText: "Cancel",
-      confirmButtonColor: "#EF4444", // Red for the new theme
-      cancelButtonColor: "#6B7280",
-      background: "#FFFFFF",
-      color: "#111827",
+      // THM-03: dialog tokens are same-value in both modes — dark rendering unchanged
+      confirmButtonColor: "var(--primary)", // Red for the new theme
+      cancelButtonColor: "var(--dialog-muted)",
+      background: "var(--dialog-surface)",
+      color: "var(--dialog-foreground)",
     });
 
     if (result.isConfirmed) {
@@ -78,12 +79,12 @@ export function TeamSwitcher({
       <SidebarMenu>
         <SidebarMenuItem>
           <Link href={"/"} className="flex items-center gap-3 px-2 py-3">
-            {/* <div className="flex aspect-square size-10 items-center justify-center rounded-lg bg-black text-[#EF4444] shadow-sm">
+            {/* <div className="flex aspect-square size-10 items-center justify-center rounded-lg bg-black text-primary shadow-sm">
               <Activity className="size-6" />
             </div> */}
             <Image src={logo} alt="Logo" width={50} height={50} className="w-12 h-12 object-contain" />
             <span className="text-xl font-bold tracking-tight text-white font-mono">
-              Spider<span className="text-[#EF4444]">Node</span>
+              Spider<span className="text-primary">Node</span>
             </span>
           </Link>
         </SidebarMenuItem>
@@ -97,10 +98,10 @@ export function TeamSwitcher({
             <AvatarFallback>{displayFallback}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold text-[#111827]">
+            <p className="truncate text-xs font-semibold text-dialog-foreground">
               {displayName}
             </p>
-            <p className="truncate text-[11px] text-[#8A8D91]">
+            <p className="truncate text-[11px] text-muted-meta">
               {displayEmail}
             </p>
           </div>
@@ -109,7 +110,7 @@ export function TeamSwitcher({
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={handleLogoutClick}
-              className="h-auto justify-start gap-2 rounded-lg bg-transparent px-2 py-2 text-sm font-semibold text-[#DE251F] hover:bg-[#DE251F]/10 hover:text-[#DE251F]"
+              className="h-auto justify-start gap-2 rounded-lg bg-transparent px-2 py-2 text-sm font-semibold text-danger-strong hover:bg-danger-strong/10 hover:text-danger-strong"
             >
               <LogOut className="w-4 h-4" />
               <span>Log out</span>

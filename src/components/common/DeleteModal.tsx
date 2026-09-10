@@ -56,24 +56,24 @@
 //           <Pencil />
 //         </DialogTrigger>
 //       ) : (
-//         <DialogTrigger className="bg-[#A141FE]/20 hover:bg-[#A141FE]/30 text-[#A141FE] px-3 py-1 rounded-md">
+//         <DialogTrigger className="bg-highlight-purple/20 hover:bg-highlight-purple/30 text-highlight-purple px-3 py-1 rounded-md">
 //           {message}
 //         </DialogTrigger>
 //       )}
 
-//       <DialogContent className="max-w-[450px] !rounded-3xl bg-[#0f172a] border border-[#A141FE]/40 text-white [&>button]:hidden">
+//       <DialogContent className="max-w-[450px] !rounded-3xl bg-foreground-invert border border-highlight-purple/40 text-white [&>button]:hidden">
 //         <DialogHeader>
 //           <DialogTitle>
 //             <div className="flex flex-col items-center gap-6 text-center">
 //               {/* Icon */}
-//               <div className="w-16 h-16 flex items-center justify-center rounded-full bg-[#A141FE]/20">
-//                 <HelpCircle className="w-8 h-8 text-[#A141FE]" />
+//               <div className="w-16 h-16 flex items-center justify-center rounded-full bg-highlight-purple/20">
+//                 <HelpCircle className="w-8 h-8 text-highlight-purple" />
 //               </div>
 
 //               {/* Title */}
 //               <h3 className="text-xl font-semibold">
 //                 Are you sure you want to proceed with{" "}
-//                 <span className="text-[#A141FE]">{message}</span>?
+//                 <span className="text-highlight-purple">{message}</span>?
 //               </h3>
 
 //               {/* Actions */}
@@ -86,7 +86,7 @@
 //                 </button>
 //                 <button
 //                   onClick={handleDelete}
-//                   className="bg-[#A141FE] hover:bg-[#8b2de8] text-white py-2 px-6 rounded-lg transition-colors"
+//                   className="bg-highlight-purple hover:bg-highlight-purple/80 text-white py-2 px-6 rounded-lg transition-colors"
 //                 >
 //                   Confirm
 //                 </button>

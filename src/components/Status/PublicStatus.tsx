@@ -57,7 +57,7 @@ export function PublicStatus() {
     return (
       <div className="min-h-[80vh] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-[#EF4444]" />
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
           <span className="text-xs text-slate-400 font-mono">Loading status...</span>
         </div>
       </div>
@@ -87,8 +87,8 @@ export function PublicStatus() {
       <div className="border-b border-slate-800 bg-black/40 backdrop-blur-sm">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-black border border-[#EF4444]/50 flex items-center justify-center">
-              <Activity className="w-4 h-4 text-[#EF4444]" />
+            <div className="w-8 h-8 rounded-lg bg-black border border-primary/50 flex items-center justify-center">
+              <Activity className="w-4 h-4 text-primary" />
             </div>
             <span className="font-bold text-white text-sm">SpiderNode</span>
           </div>
@@ -103,19 +103,19 @@ export function PublicStatus() {
           className={`rounded-2xl border p-6 text-center ${
             anyDown
               ? "border-rose-500/40 bg-rose-500/5"
-              : "border-emerald-500/30 bg-emerald-500/5"
+              : "border-status-up/30 bg-status-up/5"
           }`}
         >
           <div
             className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
-              anyDown ? "bg-rose-500/20 text-rose-400" : "bg-emerald-500/20 text-emerald-400"
+              anyDown ? "bg-rose-500/20 text-rose-400" : "bg-status-up/20 text-status-up"
             }`}
           >
             {anyDown ? <XCircle className="w-8 h-8" /> : <CheckCircle2 className="w-8 h-8" />}
           </div>
           <h1
             className={`text-2xl font-extrabold font-mono mb-1 ${
-              anyDown ? "text-rose-400" : "text-emerald-400"
+              anyDown ? "text-rose-400" : "text-status-up"
             }`}
           >
             {anyDown
@@ -213,7 +213,7 @@ export function PublicStatus() {
                     <span
                       className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border flex-shrink-0 ${
                         isUp
-                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                          ? "bg-status-up/10 text-status-up border-status-up/30"
                           : isDown
                           ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
                           : "bg-slate-500/10 text-slate-400 border-slate-500/30"
@@ -222,7 +222,7 @@ export function PublicStatus() {
                       <span
                         className={`w-1.5 h-1.5 rounded-full ${
                           isUp
-                            ? "bg-emerald-400 animate-ping"
+                            ? "bg-status-up animate-ping"
                             : isDown
                             ? "bg-rose-500"
                             : "bg-slate-400 animate-pulse"
@@ -240,7 +240,7 @@ export function PublicStatus() {
         {/* Footer */}
         <div className="text-center text-[11px] text-slate-600 font-mono pb-4">
           Powered by{" "}
-          <span className="text-[#EF4444] font-bold">SpiderNode</span> — Real-time Uptime Monitoring
+          <span className="text-primary font-bold">SpiderNode</span> — Real-time Uptime Monitoring
         </div>
       </main>
     </div>

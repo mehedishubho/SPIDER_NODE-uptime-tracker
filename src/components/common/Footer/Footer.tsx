@@ -36,18 +36,18 @@ const socialLinks = [
 
 export const Footer = () => {
   return (
-    <footer className="border-t border-slate-800/80 bg-[#121212] text-slate-300 w-full font-sans">
+    <footer className="border-t border-slate-800/80 bg-background text-slate-300 w-full font-sans">
       <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-8 mb-12">
           {/* Logo & Info */}
           <div className="md:col-span-2 space-y-4">
             <Link href="/" className="inline-flex items-center gap-2.5 group">
-              {/* <div className="p-2 rounded-xl bg-red-500/10 border border-red-500/30 text-[#EF4444] group-hover:scale-105 transition-transform shadow-sm shadow-red-500/20">
+              {/* <div className="p-2 rounded-xl bg-red-500/10 border border-red-500/30 text-primary group-hover:scale-105 transition-transform shadow-sm shadow-red-500/20">
                 <Activity className="w-5 h-5" />
               </div> */}
               <Image src={logo} alt="Logo" width={50} height={50} className="w-12 h-12 object-contain" />
               <span className="text-xl font-bold tracking-tight text-white font-mono">
-                Spider<span className="text-[#EF4444]">Node</span>
+                Spider<span className="text-primary">Node</span>
               </span>
             </Link>
             <p className="text-xs text-slate-400 max-w-sm leading-relaxed">
@@ -55,8 +55,8 @@ export const Footer = () => {
             </p>
 
             {/* Status Pill */}
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-status-up/10 border border-status-up/20 text-status-up text-xs font-mono">
+              <span className="w-2 h-2 rounded-full bg-status-up animate-pulse" />
               <span>All Systems Operational (99.98%)</span>
             </div>
 
@@ -68,7 +68,7 @@ export const Footer = () => {
                   href={social.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-[#EF4444] hover:border-slate-700 transition-colors"
+                  className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-primary hover:border-slate-700 transition-colors"
                   title={social.name}
                 >
                   <social.icon className="w-4 h-4" />
@@ -88,7 +88,7 @@ export const Footer = () => {
                 <li key={link.name}>
                   <Link
                     href={link.href}
-                    className="text-xs text-slate-400 hover:text-[#EF4444] transition-colors"
+                    className="text-xs text-slate-400 hover:text-primary transition-colors"
                   >
                     {link.name}
                   </Link>
@@ -107,7 +107,7 @@ export const Footer = () => {
                 <li key={link.name}>
                   <Link
                     href={link.href}
-                    className="text-xs text-slate-400 hover:text-[#EF4444] transition-colors"
+                    className="text-xs text-slate-400 hover:text-primary transition-colors"
                   >
                     {link.name}
                   </Link>
@@ -126,7 +126,7 @@ export const Footer = () => {
                 <li key={link.name}>
                   <Link
                     href={link.href}
-                    className="text-xs text-slate-400 hover:text-[#EF4444] transition-colors"
+                    className="text-xs text-slate-400 hover:text-primary transition-colors"
                   >
                     {link.name}
                   </Link>
@@ -147,7 +147,7 @@ export const Footer = () => {
               href="https://rakibutsho.dev" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="text-slate-400 hover:text-[#EF4444] transition-colors"
+              className="text-slate-400 hover:text-primary transition-colors"
             >
               Md. Rakibul Islam
             </Link>

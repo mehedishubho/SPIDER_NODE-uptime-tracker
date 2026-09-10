@@ -28,7 +28,7 @@ export function NavMain({
   return (
     <SidebarGroup>
       {title && (
-        <p className="px-2 pb-2 pt-1 text-xs font-medium text-[#8A8D91]">
+        <p className="px-2 pb-2 pt-1 text-xs font-medium text-muted-meta">
           {title}
         </p>
       )}
@@ -49,7 +49,7 @@ export function NavMain({
                   onClick={item.onClick}
                   className={`flex items-center gap-4 rounded-xl px-3 py-2.5 w-full cursor-pointer text-left transition-colors ${
                     active
-                      ? "text-[#00E5FF] bg-cyan-500/10 border border-cyan-500/20 font-medium hover:bg-cyan-500/20"
+                      ? "text-accent-cyan bg-cyan-500/10 border border-cyan-500/20 font-medium hover:bg-cyan-500/20"
                       : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
                   }`}
                 >

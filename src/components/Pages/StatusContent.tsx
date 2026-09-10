@@ -12,7 +12,7 @@ export default function StatusContent() {
   ];
 
   return (
-    <div className="min-h-screen pt-24 pb-12 bg-[#121212] text-slate-300">
+    <div className="min-h-screen pt-24 pb-12 bg-background text-slate-300">
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
         
         {/* Header */}
@@ -26,13 +26,13 @@ export default function StatusContent() {
         </div>
 
         {/* Global Status Banner */}
-        <div className="glass-panel p-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 flex items-center justify-between mb-12 shadow-lg shadow-emerald-500/5">
+        <div className="glass-panel p-6 rounded-2xl border border-status-up/30 bg-status-up/5 flex items-center justify-between mb-12 shadow-lg shadow-emerald-500/5">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-              <span className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="w-10 h-10 rounded-full bg-status-up/20 flex items-center justify-center">
+              <span className="w-3 h-3 rounded-full bg-status-up animate-pulse" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-emerald-400">All Systems Operational</h2>
+              <h2 className="text-xl font-bold text-status-up">All Systems Operational</h2>
               <p className="text-sm text-slate-400">Last updated: Just now</p>
             </div>
           </div>
@@ -50,7 +50,7 @@ export default function StatusContent() {
                   <comp.icon className="w-5 h-5 text-slate-500" />
                   <span className="font-medium text-slate-200">{comp.name}</span>
                 </div>
-                <div className="text-emerald-400 text-sm font-semibold tracking-wide">
+                <div className="text-status-up text-sm font-semibold tracking-wide">
                   {comp.status}
                 </div>
               </div>

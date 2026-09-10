@@ -5,7 +5,7 @@ import { Wrench01Icon as Wrench, Clock01Icon as Clock, Settings01Icon as Constru
 
 export default function UnderConstruction() {
   return (
-    <div className="min-h-screen bg-linear-to-br from-[#0f0f0f] to-[#1e1e1e] flex items-center justify-center p-4 py-50">
+    <div className="min-h-screen bg-linear-to-br from-surface-deep to-surface-raised flex items-center justify-center p-4 py-50">
       <motion.div
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -25,7 +25,7 @@ export default function UnderConstruction() {
           }}
           className="mb-8"
         >
-          <Construction className="w-24 h-24 text-[#E6B800] mx-auto" />
+          <Construction className="w-24 h-24 text-accent-gold mx-auto" />
         </motion.div>
 
         {/* Title */}
@@ -33,7 +33,7 @@ export default function UnderConstruction() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="font-playfair text-4xl md:text-6xl font-bold text-[#f5f5f5] mb-6"
+          className="font-playfair text-4xl md:text-6xl font-bold text-foreground-bright mb-6"
         >
           Under Construction
         </motion.h1>
@@ -43,7 +43,7 @@ export default function UnderConstruction() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.4 }}
-          className="text-lg md:text-xl text-[#f5f5f5]/80 mb-8 leading-relaxed"
+          className="text-lg md:text-xl text-foreground-bright/80 mb-8 leading-relaxed"
         >
           We&lsquo;re working hard to bring you something amazing! 
           <br />
@@ -57,12 +57,12 @@ export default function UnderConstruction() {
           transition={{ duration: 0.8, delay: 0.6 }}
           className="flex justify-center items-center gap-6 mb-8"
         >
-          <div className="flex items-center gap-2 text-[#f5f5f5]/70">
-            <Wrench className="w-5 h-5 text-[#E6B800]" />
+          <div className="flex items-center gap-2 text-foreground-bright/70">
+            <Wrench className="w-5 h-5 text-accent-gold" />
             <span className="text-sm">Building</span>
           </div>
-          <div className="flex items-center gap-2 text-[#f5f5f5]/70">
-            <Clock className="w-5 h-5 text-[#E6B800]" />
+          <div className="flex items-center gap-2 text-foreground-bright/70">
+            <Clock className="w-5 h-5 text-accent-gold" />
             <span className="text-sm">Coming Soon</span>
           </div>
         </motion.div>
@@ -74,7 +74,7 @@ export default function UnderConstruction() {
           transition={{ duration: 0.8, delay: 0.8 }}
           className="mb-8"
         >
-          <div className="w-full bg-[#1e1e1e] rounded-full h-3 overflow-hidden">
+          <div className="w-full bg-surface-raised rounded-full h-3 overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: "65%" }}
@@ -83,10 +83,10 @@ export default function UnderConstruction() {
                 delay: 1,
                 ease: "easeOut"
               }}
-              className="h-full bg-linear-to-r from-[#E6B800] to-[#c9a227] rounded-full"
+              className="h-full bg-linear-to-r from-accent-gold to-accent-gold-deep rounded-full"
             />
           </div>
-          <p className="text-[#f5f5f5]/60 text-sm mt-2">65% Complete</p>
+          <p className="text-foreground-bright/60 text-sm mt-2">65% Complete</p>
         </motion.div>
 
         {/* Contact Info */}
@@ -94,14 +94,14 @@ export default function UnderConstruction() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 1 }}
-          className="bg-[#1e1e1e] border border-[#E6B800]/20 rounded-2xl p-6 max-w-md mx-auto"
+          className="bg-surface-raised border border-accent-gold/20 rounded-2xl p-6 max-w-md mx-auto"
         >
-          <p className="text-[#f5f5f5] mb-4">
+          <p className="text-foreground-bright mb-4">
             Need immediate assistance?
           </p>
           <a
             href="mailto:info@zerophotography.com"
-            className="inline-flex items-center bg-[#E6B800] hover:bg-[#c9a227] text-[#0f0f0f] px-6 py-3 rounded-full font-semibold transition-all hover:scale-105"
+            className="inline-flex items-center bg-accent-gold hover:bg-accent-gold-deep text-surface-deep px-6 py-3 rounded-full font-semibold transition-all hover:scale-105"
           >
             Contact Us
           </a>
@@ -118,7 +118,7 @@ export default function UnderConstruction() {
             repeat: Infinity,
             repeatType: "reverse"
           }}
-          className="absolute top-1/4 left-1/4 text-[#E6B800]/20"
+          className="absolute top-1/4 left-1/4 text-accent-gold/20"
         >
           <Wrench className="w-8 h-8" />
         </motion.div>
@@ -133,7 +133,7 @@ export default function UnderConstruction() {
             repeatType: "reverse",
             delay: 1
           }}
-          className="absolute bottom-1/4 right-1/4 text-[#E6B800]/20"
+          className="absolute bottom-1/4 right-1/4 text-accent-gold/20"
         >
           <Construction className="w-6 h-6" />
         </motion.div>

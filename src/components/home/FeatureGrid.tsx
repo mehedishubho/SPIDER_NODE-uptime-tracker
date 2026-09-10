@@ -5,7 +5,7 @@ import { Globe02Icon as Globe2, Shield01Icon as ShieldCheck, FlashIcon as Zap } 
 
 export default function FeatureGrid() {
   return (
-    <div className="border-t border-slate-800/80 bg-[#0F172A]/40 py-20 mt-10">
+    <div className="border-t border-slate-800/80 bg-foreground-invert/40 py-20 mt-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="text-center max-w-2xl mx-auto mb-16">
           <h2 className="text-3xl font-bold font-heading tracking-tight text-white">
@@ -18,7 +18,7 @@ export default function FeatureGrid() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="glass-panel p-6 rounded-2xl border border-slate-800 hover:border-red-500/40 transition-colors">
-            <div className="p-3 rounded-xl bg-red-500/10 text-[#EF4444] w-fit mb-4">
+            <div className="p-3 rounded-xl bg-red-500/10 text-primary w-fit mb-4">
               <Zap className="w-6 h-6" />
             </div>
             <h3 className="text-lg font-bold font-heading text-white mb-2">Sub-Minute Pings</h3>
@@ -28,7 +28,7 @@ export default function FeatureGrid() {
           </div>
 
           <div className="glass-panel p-6 rounded-2xl border border-slate-800 hover:border-red-500/40 transition-colors">
-            <div className="p-3 rounded-xl bg-red-500/10 text-[#EF4444] w-fit mb-4">
+            <div className="p-3 rounded-xl bg-red-500/10 text-primary w-fit mb-4">
               <ShieldCheck className="w-6 h-6" />
             </div>
             <h3 className="text-lg font-bold font-heading text-white mb-2">Multi-Region Validation</h3>
@@ -38,7 +38,7 @@ export default function FeatureGrid() {
           </div>
 
           <div className="glass-panel p-6 rounded-2xl border border-slate-800 hover:border-red-500/40 transition-colors">
-            <div className="p-3 rounded-xl bg-red-500/10 text-[#EF4444] w-fit mb-4">
+            <div className="p-3 rounded-xl bg-red-500/10 text-primary w-fit mb-4">
               <Globe2 className="w-6 h-6" />
             </div>
             <h3 className="text-lg font-bold font-heading text-white mb-2">Instant Alerting</h3>

@@ -3,7 +3,7 @@ import React from 'react';
 
 export default function PrivacyPolicyContent() {
   return (
-    <div className="min-h-screen pt-24 pb-12 bg-[#121212] text-slate-300">
+    <div className="min-h-screen pt-24 pb-12 bg-background text-slate-300">
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
         
         <div className="mb-12">

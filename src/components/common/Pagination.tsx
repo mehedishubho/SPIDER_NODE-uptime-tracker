@@ -18,7 +18,7 @@ const Pagination = ({
   return (
     <div className="flex justify-center items-center mt-8 mb-4 gap-6 text-white">
       <button
-        className="bg-[#A141FE] text-white px-2 py-1"
+        className="bg-highlight-purple text-white px-2 py-1"
         disabled={currentPage === 1}
         onClick={() => onPageChange(currentPage - 1)}
       >
@@ -28,8 +28,8 @@ const Pagination = ({
       {pageNumbers?.map((num) => (
         <button
           key={num}
-          className={`px-2 py-1 border border-[#A141FE] ${
-            currentPage === num ? "bg-[#A141FE] text-white" : ""
+          className={`px-2 py-1 border border-highlight-purple ${
+            currentPage === num ? "bg-highlight-purple text-white" : ""
           }`}
           onClick={() => onPageChange(num)}
         >
@@ -38,7 +38,7 @@ const Pagination = ({
       ))}
 
       <button
-        className="bg-[#A141FE] px-2 py-1 text-white"
+        className="bg-highlight-purple px-2 py-1 text-white"
         disabled={currentPage === totalPage}
         onClick={() => onPageChange(currentPage + 1)}
       >

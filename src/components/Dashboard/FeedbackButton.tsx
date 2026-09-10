@@ -59,7 +59,7 @@ export default function FeedbackButton() {
 
       {isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#0f172a] border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-foreground-invert border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between p-5 border-b border-slate-800/60 bg-slate-900/50">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <MessageAdd01Icon className="w-5 h-5 text-emerald-400" />

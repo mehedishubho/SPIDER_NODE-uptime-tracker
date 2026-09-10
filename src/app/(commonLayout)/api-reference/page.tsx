@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function ApiReferencePage() {
   return (
-    <div className="min-h-screen pt-24 pb-12 bg-[#121212] text-slate-300">
+    <div className="min-h-screen pt-24 pb-12 bg-background text-slate-300">
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
         
         <div className="mb-12">
@@ -46,7 +46,7 @@ export default function ApiReferencePage() {
               </p>
               
               <h4 className="text-white font-semibold mb-2 text-sm uppercase tracking-wider">Example Response</h4>
-              <div className="bg-[#0f172a] rounded-xl p-5 border border-slate-700/50">
+              <div className="bg-foreground-invert rounded-xl p-5 border border-slate-700/50">
                 <pre className="text-xs font-mono text-slate-300 overflow-x-auto">
 {`{
   "data": [
@@ -77,7 +77,7 @@ export default function ApiReferencePage() {
               </p>
               
               <h4 className="text-white font-semibold mb-2 text-sm uppercase tracking-wider">Request Body</h4>
-              <div className="bg-[#0f172a] rounded-xl p-5 border border-slate-700/50">
+              <div className="bg-foreground-invert rounded-xl p-5 border border-slate-700/50">
                 <pre className="text-xs font-mono text-slate-300 overflow-x-auto">
 {`{
   "name": "Background Worker",

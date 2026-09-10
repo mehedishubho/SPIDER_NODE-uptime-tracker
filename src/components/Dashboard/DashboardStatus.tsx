@@ -68,8 +68,8 @@ export function DashboardStatus() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen bg-[#121212] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#EF4444]" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -79,13 +79,13 @@ export function DashboardStatus() {
   const anyDown = monitors.some((m) => m.status === "DOWN");
 
   return (
-    <div className="min-h-screen bg-[#121212] text-slate-100 p-4 sm:p-6">
+    <div className="min-h-screen bg-background text-foreground p-4 sm:p-6">
       <div className="max-w-3xl mx-auto space-y-6">
 
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-            <Globe className="w-6 h-6 text-[#EF4444]" />
+            <Globe className="w-6 h-6 text-primary" />
             Your Status Page
           </h1>
           <p className="text-xs text-slate-400 mt-1 font-mono">
@@ -94,8 +94,8 @@ export function DashboardStatus() {
         </div>
 
         {/* Public URL Share Card */}
-        <div className="glass-panel rounded-2xl border border-[#EF4444]/30 p-4 sm:p-5 bg-[#EF4444]/5">
-          <p className="text-xs font-semibold text-[#EF4444] uppercase tracking-wider mb-3">
+        <div className="glass-panel rounded-2xl border border-primary/30 p-4 sm:p-5 bg-primary/5">
+          <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-3">
             Your Public Status URL
           </p>
           <div className="flex items-center gap-2">
@@ -104,7 +104,7 @@ export function DashboardStatus() {
             </code>
             <button
               onClick={copyLink}
-              className="p-2.5 rounded-xl bg-[#EF4444] hover:bg-red-500 text-white transition-colors cursor-pointer flex-shrink-0"
+              className="p-2.5 rounded-xl bg-primary hover:bg-red-500 text-white transition-colors cursor-pointer flex-shrink-0"
               title="Copy link"
             >
               <Copy className="w-4 h-4" />
@@ -131,12 +131,12 @@ export function DashboardStatus() {
           className={`glass-panel rounded-2xl border p-5 flex items-center gap-4 ${
             anyDown
               ? "border-rose-500/40 bg-rose-500/5"
-              : "border-emerald-500/30 bg-emerald-500/5"
+              : "border-status-up/30 bg-status-up/5"
           }`}
         >
           <div
             className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-              anyDown ? "bg-rose-500/20 text-rose-400" : "bg-emerald-500/20 text-emerald-400"
+              anyDown ? "bg-rose-500/20 text-rose-400" : "bg-status-up/20 text-status-up"
             }`}
           >
             {anyDown ? <XCircle className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
@@ -144,7 +144,7 @@ export function DashboardStatus() {
           <div>
             <p
               className={`text-lg font-extrabold font-mono ${
-                anyDown ? "text-rose-400" : "text-emerald-400"
+                anyDown ? "text-rose-400" : "text-status-up"
               }`}
             >
               {anyDown ? "PARTIAL OUTAGE" : allUp ? "ALL SYSTEMS OPERATIONAL" : "MONITORING..."}
@@ -213,7 +213,7 @@ export function DashboardStatus() {
                     <span
                       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border flex-shrink-0 ${
                         isUp
-                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                          ? "bg-status-up/10 text-status-up border-status-up/30"
                           : isDown
                           ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
                           : "bg-slate-500/10 text-slate-400 border-slate-500/30"
@@ -222,7 +222,7 @@ export function DashboardStatus() {
                       <span
                         className={`w-1.5 h-1.5 rounded-full ${
                           isUp
-                            ? "bg-emerald-400 animate-ping"
+                            ? "bg-status-up animate-ping"
                             : isDown
                             ? "bg-rose-500"
                             : "bg-slate-400 animate-pulse"

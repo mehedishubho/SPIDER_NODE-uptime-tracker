@@ -74,8 +74,8 @@ export default function TelegramSettings() {
         setPolling(true);
         toast.info("Waiting for Telegram connection...");
       }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to initiate Telegram connection");
+    } catch (error) {
+      toast.error((error as Error).message || "Failed to initiate Telegram connection");
     } finally {
       setConnecting(false);
     }
@@ -90,8 +90,8 @@ export default function TelegramSettings() {
       if (!res.ok) throw new Error(data.error || "Failed to send test alert");
       
       toast.success(data.message || "Test notification sent to your Telegram!");
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error((error as Error).message);
     } finally {
       setTesting(false);
     }
@@ -112,8 +112,8 @@ export default function TelegramSettings() {
       
       setChatId(null);
       toast.success("Telegram disconnected successfully");
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error((error as Error).message);
     } finally {
       setDisconnecting(false);
     }

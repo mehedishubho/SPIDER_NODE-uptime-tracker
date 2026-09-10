@@ -16,7 +16,7 @@ export function VerifyEmailSent() {
         <div className="space-y-2">
           <h2 className="text-2xl font-bold text-white tracking-tight">Check your email</h2>
           <p className="text-slate-400 text-sm">
-            We've sent a verification link to your email address. Please click the link to verify your account.
+            We&apos;ve sent a verification link to your email address. Please click the link to verify your account.
           </p>
         </div>
 

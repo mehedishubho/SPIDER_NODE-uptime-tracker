@@ -84,9 +84,9 @@ export default function ProfileComponent() {
         } else {
           throw new Error(data.error || "Profile data missing");
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error(err);
-        setError(err.message || "An unexpected error occurred");
+        setError((err as Error).message || "An unexpected error occurred");
         toast.error("Could not fetch profile information");
       } finally {
         setLoading(false);
@@ -115,7 +115,7 @@ export default function ProfileComponent() {
     try {
       setIsUpdating(true);
 
-      const payload: any = {};
+      const payload: Partial<Record<"name" | "telegramChatId" | "timezone" | "currentPassword" | "newPassword" | "image", string>> = {};
       if (editForm.name !== profile?.name) payload.name = editForm.name;
       if (editForm.telegramChatId !== profile?.telegramChatId)
         payload.telegramChatId = editForm.telegramChatId;
@@ -155,8 +155,8 @@ export default function ProfileComponent() {
         image: "",
       }));
       fetchProfile();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error((err as Error).message);
     } finally {
       setIsUpdating(false);
     }
@@ -174,8 +174,8 @@ export default function ProfileComponent() {
       }
       toast.success("Account deleted successfully");
       await signOut({ callbackUrl: "/register" });
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error((err as Error).message);
       setIsDeleting(false);
       setShowDeleteModal(false);
     }

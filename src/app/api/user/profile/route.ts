@@ -90,7 +90,7 @@ export async function PATCH(req: Request) {
 
         }
 
-        const updateData: Record<string, any> = {};
+        const updateData: { name?: string; telegramChatId?: string; timezone?: string; image?: string; password?: string } = {};
         if (name !== undefined) updateData.name = name.trim();
         if (telegramChatId !== undefined) updateData.telegramChatId = telegramChatId.trim();
         if (timezone !== undefined) updateData.timezone = timezone.trim();

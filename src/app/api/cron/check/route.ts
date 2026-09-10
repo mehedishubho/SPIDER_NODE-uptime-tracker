@@ -39,10 +39,10 @@ export async function GET(req: Request) {
       { message, result },
       { status: 200 },
     );
-  } catch (err: any) {
+  } catch (err) {
     console.log("Error fetching and checking URLs:", err);
     return NextResponse.json(
-      { message: "Internal Server Error", error: err.message, stack: err.stack },
+      { message: "Internal Server Error", error: (err as Error).message, stack: (err as Error).stack },
       { status: 500 },
     );
   }

@@ -30,7 +30,7 @@ export default function TermsContent() {
               You agree not to use the Service in any way that is unlawful, or harms SpiderNode, its service providers, suppliers or any other user. You must not:
             </p>
             <ul className="list-disc list-inside space-y-2 text-slate-400">
-              <li>Use the Service in any manner that could disable, overburden, damage, or impair the Site or interfere with any other party's use of the Service.</li>
+              <li>Use the Service in any manner that could disable, overburden, damage, or impair the Site or interfere with any other party&apos;s use of the Service.</li>
               <li>Attempt to gain unauthorized access to any part of the Service, other accounts, computer systems or networks connected to the Service.</li>
               <li>Use any robot, spider or other automatic device, process or means to access the Service for any purpose, including monitoring or copying any of the material on the Service.</li>
             </ul>

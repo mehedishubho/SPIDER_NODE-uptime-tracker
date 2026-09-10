@@ -1,7 +1,14 @@
 import { prisma } from "@/lib/prisma";
 
 // In-memory queues
-let pendingPings: any[] = [];
+interface PendingPing {
+  monitorId: number;
+  status: string;
+  responseTime: number;
+  createdAt: Date;
+}
+
+let pendingPings: PendingPing[] = [];
 
 interface MonitorUpdate {
   totalChecks: number;

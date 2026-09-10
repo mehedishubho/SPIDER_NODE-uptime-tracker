@@ -33,10 +33,10 @@ export async function GET(req: Request) {
       result,
       { status: 200 },
     );
-  } catch (err: any) {
+  } catch (err) {
     console.error("Error running log cleanup:", err);
     return NextResponse.json(
-      { message: "Internal Server Error", error: err.message, stack: err.stack },
+      { message: "Internal Server Error", error: (err as Error).message, stack: (err as Error).stack },
       { status: 500 },
     );
   }

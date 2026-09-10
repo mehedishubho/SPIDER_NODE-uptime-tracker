@@ -62,7 +62,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
             return
         }
 
-        let body: any = {};
+        let body: { name?: string; url?: string; interval?: string; isActive?: boolean } = {};
         try {
             body = await req.json();
         } catch (e) {
@@ -80,7 +80,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
             return NextResponse.json({ error: "Monitor not found" }, { status: 404 })
         }
 
-        const updateData: Record<string, any> = {};
+        const updateData: { name?: string; url?: string; interval?: number; isActive?: boolean } = {};
 
         if (name !== undefined) updateData.name = name.trim();
         if (url !== undefined) {

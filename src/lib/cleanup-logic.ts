@@ -36,12 +36,12 @@ export async function runCleanup() {
       deletedPings: deletedPings.count,
       deletedIncidents: deletedIncidents.count,
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error("[Cleanup Job] Failed to run cleanup:", error);
     return {
       success: false,
       message: "Failed to run cleanup",
-      error: error.message,
+      error: (error as Error).message,
     };
   }
 }

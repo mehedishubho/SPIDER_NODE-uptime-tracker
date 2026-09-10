@@ -27,7 +27,7 @@ export default function DocsPage() {
             </p>
             <ol className="list-decimal list-inside space-y-3 text-slate-300 font-mono text-sm bg-slate-900/50 p-6 rounded-xl border border-slate-800">
               <li>Sign up for a free account.</li>
-              <li>Navigate to the Dashboard and click <strong>"Add Monitor"</strong>.</li>
+              <li>Navigate to the Dashboard and click <strong>&quot;Add Monitor&quot;</strong>.</li>
               <li>Select the monitor type (HTTP, TCP, or DNS).</li>
               <li>Enter your URL and desired check interval.</li>
               <li>Save. Your endpoint is now being monitored globally!</li>

@@ -82,14 +82,14 @@ export async function runCronChecks(force = false, specificMonitorId?: number) {
         if (statusCode >= 200 && statusCode < 400) {
           isUp = true;
         }
-      } catch (error: any) {
+      } catch (error) {
         // Timeout or Network Failure means site is DOWN
         const endTime = performance.now();
         responseTime = Math.round(endTime - startTime);
         isUp = false;
         // Log the real reason so we can debug false-downs
         console.error(
-          `[CronCheck] FAILED for ${monitor.url} — ${error?.message ?? String(error)}`,
+          `[CronCheck] FAILED for ${monitor.url} — ${(error as Error)?.message ?? String(error)}`,
         );
       }
 
@@ -153,7 +153,14 @@ export async function runCronChecks(force = false, specificMonitorId?: number) {
           Math.min(100, ((totalChecks - failedChecks) / totalChecks) * 100),
         );
 
-        const updateData: any = {
+        const updateData: {
+          status: string;
+          lastChecked: Date;
+          responseTime: number;
+          totalChecks: number;
+          failedChecks: number;
+          uptimePercent: number;
+        } = {
           status: newStatus,
           lastChecked: new Date(),
           responseTime,

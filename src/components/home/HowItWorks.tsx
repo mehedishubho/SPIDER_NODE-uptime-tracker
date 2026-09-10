@@ -43,7 +43,7 @@ export default function HowItWorks() {
             From Zero to Monitored in <span className="text-[#EF4444]">60 Seconds</span>
           </h2>
           <p className="text-slate-400 mt-4 text-base">
-            No complex SDKs or messy configurations. Just point us at your infrastructure and we'll handle the rest.
+            No complex SDKs or messy configurations. Just point us at your infrastructure and we&apos;ll handle the rest.
           </p>
         </div>
 

@@ -433,3 +433,325 @@ describe("runCronChecks — core transition characterization (audit §23.1, FND-
     30_000
   );
 });
+
+describe("runCronChecks — extended paths: force, specific id, timeout, redirect, stats, clamps, cleanup", () => {
+  it(
+    "9. force=true skips the interval filter but never the isActive WHERE — an undue ACTIVE monitor gets checked",
+    async () => {
+      const userId = await seedUser();
+      const undue = await seedMonitor(userId, {
+        name: "undue-but-forced",
+        lastChecked: new Date(Date.now() - 30_000), // NOT due (5-min interval)
+      });
+      await seedMonitor(userId, {
+        name: "inactive-never-checked",
+        isActive: false,
+        lastChecked: TEN_MINUTES_AGO(), // overdue AND inactive
+      });
+
+      const fetchSpy = vi.fn(async () => okResponse(200));
+      vi.stubGlobal("fetch", fetchSpy);
+
+      const ret = await runCronChecks(true);
+
+      expect(ret.message).toBe("Successfully checked all monitors");
+      expect(ret.result).toHaveLength(1); // only the undue ACTIVE monitor
+      expect(ret.result[0]).toMatchObject({ status: "fulfilled", value: undue.id });
+      expect(fetchSpy).toHaveBeenCalledTimes(1); // the INACTIVE one is never probed
+
+      await flushBatcher();
+      const pings = await prisma.ping.findMany();
+      expect(pings).toHaveLength(1);
+      expect(pings[0].monitorId).toBe(undue.id);
+    },
+    30_000
+  );
+
+  it(
+    "9b. force=true with ONLY inactive monitors → early return 'No active monitors found' (and nothing checked)",
+    async () => {
+      const userId = await seedUser();
+      await seedMonitor(userId, { isActive: false });
+
+      const ret = await runCronChecks(true);
+
+      expect(ret).toEqual({ message: "No active monitors found", result: [] });
+      expect(await prisma.ping.count()).toBe(0);
+      expect(alertSpy).not.toHaveBeenCalled();
+    },
+    30_000
+  );
+
+  it(
+    "10. specificMonitorId checks ONLY that monitor even when others are due",
+    async () => {
+      const userId = await seedUser();
+      await seedMonitor(userId, { name: "alpha-due" }); // due, but not selected
+      const beta = await seedMonitor(userId, { name: "beta-selected" }); // also due
+
+      const fetchSpy = vi.fn(async () => okResponse(200));
+      vi.stubGlobal("fetch", fetchSpy);
+
+      const ret = await runCronChecks(false, beta.id);
+
+      expect(ret.result).toHaveLength(1);
+      expect(ret.result[0]).toMatchObject({ status: "fulfilled", value: beta.id });
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      await flushBatcher();
+      const pings = await prisma.ping.findMany();
+      expect(pings).toHaveLength(1);
+      expect(pings[0].monitorId).toBe(beta.id); // alpha was due but not selected
+    },
+    30_000
+  );
+
+  it(
+    "10b. specificMonitorId ANDs with isActive — an inactive target id selects nothing",
+    async () => {
+      const userId = await seedUser();
+      const m = await seedMonitor(userId, { isActive: false });
+
+      const ret = await runCronChecks(false, m.id);
+
+      expect(ret).toEqual({ message: "No active monitors found", result: [] });
+      expect(await prisma.ping.count()).toBe(0);
+    },
+    30_000
+  );
+
+  it(
+    "11. timeout / network-failure classification: a rejecting fetch → DOWN with the timeout markers (which DIFFER between incident and Telegram)",
+    async () => {
+      const userId = await seedUser();
+      await seedMonitor(userId, { totalChecks: 10, failedChecks: 0 });
+
+      // A fetch rejection is today's timeout/network-failure path: statusCode
+      // stays 0 and both human-readable markers kick in — with DIFFERENT
+      // wording in the incident description vs the Telegram message.
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          throw new Error("connect ETIMEDOUT (simulated)");
+        })
+      );
+
+      await runCronChecks();
+
+      const after = await prisma.monitor.findFirstOrThrow();
+      expect(after.status).toBe("DOWN");
+      expect(after.failedChecks).toBe(1);
+
+      const incident = await prisma.incident.findFirstOrThrow();
+      expect(incident.status).toBe("ONGOING");
+      // Exact marker from cron-logic.ts: statusCode || "Timeout"
+      expect(incident.description).toBe("Monitor went down. Status code: Timeout");
+
+      expect(alertSpy).toHaveBeenCalledTimes(1);
+      // The Telegram template uses a DIFFERENT marker string — pinned as-is
+      expect(alertSpy).toHaveBeenCalledWith(
+        CHAT_ID,
+        expect.stringContaining("No Response / Timeout")
+      );
+    },
+    30_000
+  );
+
+  it(
+    "12. redirect following: the FINAL hop's status classifies the check; the outbound request shape is pinned",
+    async () => {
+      const userId = await seedUser();
+      const m = await seedMonitor(userId, {
+        status: "PENDING",
+        lastChecked: null,
+        url: "https://origin.test.example.com/redirect-me",
+      });
+
+      // The stub emulates the real fetch contract for redirect: "follow"
+      // (undici follows Location internally and surfaces the final response).
+      // cron-logic never sees the 301 — it classifies the final 200.
+      const fetchSpy = vi.fn(
+        async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+          expect(init?.redirect).toBe("follow"); // cron-logic asks fetch to follow
+          let url = String(input);
+          for (let hop = 0; hop < 4; hop++) {
+            if (url.includes("/redirect-me")) {
+              url = "https://final-hop.test.example.com/landed"; // the Location
+              continue;
+            }
+            return okResponse(200);
+          }
+          throw new Error("redirect loop");
+        }
+      );
+      vi.stubGlobal("fetch", fetchSpy);
+
+      await runCronChecks();
+
+      const after = await prisma.monitor.findFirstOrThrow();
+      expect(after.status).toBe("UP"); // final hop 200 → UP (PENDING→UP path)
+      const ping = await prisma.ping.findFirstOrThrow();
+      expect(ping.status).toBe("UP");
+      expect(alertSpy).toHaveBeenCalledWith(
+        CHAT_ID,
+        expect.stringContaining("MONITORING STARTED: Website is Online!")
+      );
+
+      // Outbound request shape, pinned (method, redirect, no-store cache,
+      // the bot User-Agent, and a real AbortController signal for the 10s cap)
+      expect(fetchSpy).toHaveBeenCalledWith(
+        m.url,
+        expect.objectContaining({
+          method: "GET",
+          redirect: "follow",
+          cache: "no-store",
+          signal: expect.any(AbortSignal),
+          headers: expect.objectContaining({
+            "User-Agent": "Mozilla/5.0 (compatible; UptimeTrackerBot/1.0)",
+          }),
+        })
+      );
+    },
+    30_000
+  );
+
+  it(
+    "13. monitor stat math through the fast path: counters increment, uptime recomputes, lastChecked advances, response time recorded",
+    async () => {
+      const userId = await seedUser();
+      const m = await seedMonitor(userId, {
+        totalChecks: 10,
+        failedChecks: 4,
+        uptimePercent: 60,
+        responseTime: 111,
+      });
+
+      vi.stubGlobal("fetch", vi.fn(async () => okResponse(200)));
+
+      await runCronChecks();
+      await flushBatcher();
+
+      const after = await prisma.monitor.findFirstOrThrow({ where: { id: m.id } });
+      expect(after.totalChecks).toBe(11); // +1 (the queued routine check)
+      expect(after.failedChecks).toBe(4); // UP routine check adds no failure
+      expect(after.uptimePercent).toBeCloseTo(((11 - 4) / 11) * 100, 6); // recomputed
+      expect(after.status).toBe("UP");
+      expect(after.responseTime).toBeGreaterThanOrEqual(0); // measured wall-clock
+      // lastChecked advanced from the seed to the queue timestamp
+      expect(after.lastChecked?.getTime()).toBeGreaterThan(
+        TEN_MINUTES_AGO().getTime()
+      );
+
+      const ping = await prisma.ping.findFirstOrThrow({ where: { monitorId: m.id } });
+      expect(ping.status).toBe("UP");
+      expect(ping.responseTime).toBe(after.responseTime); // monitor mirrors the ping
+      expect(ping.createdAt.getTime()).toBeGreaterThan(
+        TEN_MINUTES_AGO().getTime()
+      );
+    },
+    30_000
+  );
+
+  it(
+    "14. uptime clamp: corrupt counters (failed > total) recomputed through the slow path clamp to exactly 0",
+    async () => {
+      const userId = await seedUser();
+      await seedMonitor(userId, {
+        totalChecks: 5,
+        failedChecks: 10, // corrupt seed: more failures than checks
+        uptimePercent: 0,
+      });
+
+      vi.stubGlobal("fetch", vi.fn(async () => okResponse(500)));
+
+      await runCronChecks();
+
+      const after = await prisma.monitor.findFirstOrThrow();
+      expect(after.status).toBe("DOWN");
+      expect(after.totalChecks).toBe(6);
+      expect(after.failedChecks).toBe(11);
+      // Raw math: ((6 - 11) / 6) * 100 = -83.33 — Math.max(0, Math.min(100, …))
+      // clamps to exactly 0. (The 100 side is unreachable: (t-f)/t ≤ 100.)
+      expect(after.uptimePercent).toBe(0);
+    },
+    30_000
+  );
+
+  it(
+    "15. runCleanup side effect: >30-day pings and >90-day RESOLVED incidents are purged; fresh/ONGOING rows remain",
+    async () => {
+      const userId = await seedUser();
+      const m = await seedMonitor(userId); // UP + due → gets checked → cleanup RUNS
+
+      const DAYS = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+      const freshPing = await prisma.ping.create({
+        data: { monitorId: m.id, status: "UP", responseTime: 10 },
+      });
+      await prisma.ping.create({
+        data: { monitorId: m.id, status: "UP", responseTime: 10, createdAt: DAYS(31) },
+      });
+      await prisma.incident.create({
+        data: {
+          monitorId: m.id,
+          status: "RESOLVED",
+          description: "ancient",
+          startedAt: DAYS(95),
+          resolvedAt: DAYS(91), // resolved >90 days ago
+        },
+      });
+      const ongoing = await prisma.incident.create({
+        data: {
+          monitorId: m.id,
+          status: "ONGOING",
+          description: "keep me",
+          startedAt: new Date(Date.now() - 5 * 60_000),
+        },
+      });
+
+      expect(await prisma.ping.count()).toBe(2); // before
+      expect(await prisma.incident.count()).toBe(2); // before
+
+      vi.stubGlobal("fetch", vi.fn(async () => okResponse(200)));
+      await runCronChecks(); // UP→UP fast path, then the built-in retention sweep
+
+      // After: old ping purged, fresh ping remains (routine ping still queued)
+      const pingIds = (await prisma.ping.findMany({ select: { id: true } })).map(
+        (p) => p.id
+      );
+      expect(pingIds).toHaveLength(1);
+      expect(pingIds).toContain(freshPing.id);
+
+      // After: >90-day RESOLVED incident purged; ONGOING never purged
+      const incidents = await prisma.incident.findMany();
+      expect(incidents).toHaveLength(1);
+      expect(incidents[0].id).toBe(ongoing.id);
+    },
+    30_000
+  );
+
+  it(
+    "15b. runCleanup does NOT run when no monitors are due — the early return skips the retention sweep",
+    async () => {
+      const userId = await seedUser();
+      const m = await seedMonitor(userId, {
+        lastChecked: new Date(Date.now() - 30_000), // active but NOT due
+      });
+      await prisma.ping.create({
+        data: {
+          monitorId: m.id,
+          status: "UP",
+          responseTime: 10,
+          createdAt: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      const ret = await runCronChecks();
+
+      expect(ret).toEqual({ message: "No monitors are due for a check right now", result: [] });
+      // The 31-day-old ping SURVIVES: cleanup only runs after a pass that
+      // actually checked something. Surprising, but that is today's behavior.
+      expect(await prisma.ping.count()).toBe(1);
+    },
+    30_000
+  );
+});

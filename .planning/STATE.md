@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 2
 current_phase_name: Foundations & Theme Infrastructure
 status: executing
-stopped_at: Phase 2 UI-SPEC approved
-last_updated: "2026-09-09T23:52:12.655Z"
+stopped_at: Completed 02-01-PLAN.md (pnpm migration, hygiene, env contract)
+last_updated: "2026-09-10T15:16:42.828Z"
 last_activity: 2026-09-09
-last_activity_desc: Phase 01 complete, transitioned to Phase 2
+last_activity_desc: Phase 2 execution started
 progress:
   total_phases: 8
   completed_phases: 1
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 18
+  completed_plans: 10
   percent: 13
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-09)
 
 **Core value:** Modernize the infrastructure without breaking existing monitoring — never lose or corrupt uptime data, silently stop checking, or lock users out irrecoverably.
-**Current focus:** Phase 02 — Foundations & Theme Infrastructure
+**Current focus:** Phase 2 — Foundations & Theme Infrastructure
 
 ## Current Position
 
-Phase: 2 — Foundations & Theme Infrastructure
-Plan: Not started
+Phase: 2 (Foundations & Theme Infrastructure) — EXECUTING
+Plan: 2 of 9
 Status: Ready to execute
-Last activity: 2026-09-09 — Phase 01 complete, transitioned to Phase 2
+Last activity: 2026-09-09 — Phase 2 execution started
 
 Progress: [████████████████████] 9/9 plans (100%)
 
@@ -64,6 +64,7 @@ Progress: [████████████████████] 9/9 pla
 | Phase 01 P07 | 213s (~4m) | 3 tasks | 1 files |
 | Phase 01 P08 | 602s (~10m) | 3 tasks | 2 files |
 | Phase 01 P09 | 7m (Task 3 continuation; Tasks 1-2 prior session + checkpoint) | 3 tasks | 5 files |
+| Phase 02 P01 | 25min | 3 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,8 @@ Recent decisions affecting current work:
 - [Phase 01]: 01-08: steady-state Postgres total restated ≤ 30 (web 10 + worker 20), ≤ 31 only during deploys; web process budgets 2 Redis connections (queue producer + limiter/cache) separate from the worker's 2 (IN-05/OBS-05)
 - [Phase ?]: [Phase 01]: 01-09: cycle-2 re-review clean pass (zero blocking findings) human-ratified — verdict flipped to READY per D-16; RR2-01/02/03 recorded as advisory Phase 4/5 design-debt notes, not verdict-gating
 - [Phase ?]: [Phase 01]: 01-09: Phase-1-only Mode:mvp marker deleted from ROADMAP per 01-VERIFICATION round-2 disposition — documentation-gate phase has no vertical-slice deliverables; Phases 2-8 keep theirs
+- [Phase 02]: 02-01: pnpm resolves via Volta shim honoring packageManager -> 10.34.5 wins in-repo (Pitfall 7); corepack enable itself unneeded (EPERM without admin)
+- [Phase 02]: 02-01: .env.example carries the 24 vars app code reads; gitignored src/generated/prisma excluded from the sweep (7 library toggles are not app config); Appendix A deltas +NODE_ENV/+NEXT_RUNTIME, NEXT_PUBLIC_APP_URL excluded (unread)
 
 ### Pending Todos
 
@@ -126,6 +129,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-09T23:08:03.672Z
-Stopped at: Phase 2 UI-SPEC approved
-Resume file: .planning/phases/02-foundations-theme-infrastructure/02-UI-SPEC.md
+Last session: 2026-09-10T15:16:42.822Z
+Stopped at: Completed 02-01-PLAN.md (pnpm migration, hygiene, env contract)
+Resume file: .planning/phases/02-foundations-theme-infrastructure/02-02-PLAN.md

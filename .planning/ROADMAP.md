@@ -85,12 +85,12 @@ Plans:
   3. A user can toggle Light/Dark/System in the header: theme applies before first paint (no flash of wrong theme, no hydration mismatch), dark mode is visually identical to today, toasts follow the resolved theme, and hardcoded hex classes now route through semantic tokens with no visual change
   4. The repo contains no ngrok binary or log, `.env.example` documents every variable the app reads, and error responses never include stack traces
 
-**Plans**: 9 plans
+**Plans**: 1/9 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — Toolchain migration & repo hygiene: pnpm exact-freeze, Node 24 pin, deploy.yml/ngrok/test-script deletions, .env.example, error-leak fix (FND-01, FND-03, FND-07)
+- [x] 02-01-PLAN.md — Toolchain migration & repo hygiene: pnpm exact-freeze, Node 24 pin, deploy.yml/ngrok/test-script deletions, .env.example, error-leak fix (FND-01, FND-03, FND-07)
 
 **Wave 2** *(blocked on 02-01)*
 

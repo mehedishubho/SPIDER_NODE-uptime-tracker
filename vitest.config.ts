@@ -33,6 +33,10 @@ export default defineConfig({
       DATABASE_URL: testDatabaseUrl,
       TEST_DATABASE_URL: testDatabaseUrl,
     },
+    // DB-backed integration files share one Postgres database and TRUNCATE
+    // whole tables in beforeEach — running files in parallel forks would make
+    // them race each other's seeds. Files run sequentially instead (02-03).
+    fileParallelism: false,
   },
   resolve: {
     // Manual alias — no extra plugin needed for this single-alias repo

@@ -4,9 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3007",
-    "build": "npx prisma generate && NODE_OPTIONS=\"--max_old_space_size=2048\" next build",
+    "build": "pnpm exec prisma generate && NODE_OPTIONS=\"--max_old_space_size=2048\" next build",
     "start": "next start -p 3007",
     "lint": "eslint"
+  },
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22 <25"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
@@ -62,10 +66,5 @@
     "typescript": "^5"
   },
   "author": "Md. Rakibul Islam (Junior Frontend Developer)",
-  "license": "MIT",
-  "allowScripts": {
-    "@prisma/engines@7.9.1": true,
-    "prisma@7.9.1": true,
-    "unrs-resolver@1.11.1": true
-  }
+  "license": "MIT"
 }

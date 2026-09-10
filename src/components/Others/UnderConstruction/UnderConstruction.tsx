@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { motion } from "motion/react";
 import { Wrench01Icon as Wrench, Clock01Icon as Clock, Settings01Icon as Construction } from "hugeicons-react";
 
 export default function UnderConstruction() {

@@ -1,0 +1,22 @@
+# pnpm configuration for this single-package repo.
+# allowBuilds is the pnpm >=10.26 form of build-script approval (survives pnpm 11;
+# onlyBuiltDependencies was removed there). These are the packages the old dead
+# package.json allowScripts field named (it listed @prisma/engines, prisma,
+# unrs-resolver) plus @prisma/client per the plan text.
+allowBuilds:
+  prisma: true
+  "@prisma/client": true
+  "@prisma/engines": true
+  unrs-resolver: true
+# Run package scripts through pnpm's cross-platform shell emulator so POSIX
+# env-prefix syntax (NODE_OPTIONS="..." next build) works on Windows/cmd too.
+shellEmulator: true
+# The Prisma client is generated OUTSIDE node_modules (src/generated/prisma) and
+# requires transitive @prisma/* packages (client-runtime-utils), which pnpm's
+# strict layout does not expose to it. Public-hoist the @prisma namespace so the
+# generated client resolves them (npm's hoisted layout did this implicitly).
+# Defaults preserved per pnpm docs; setting this key replaces the default list.
+publicHoistPattern:
+  - "*eslint*"
+  - "*prettier*"
+  - "@prisma/*"

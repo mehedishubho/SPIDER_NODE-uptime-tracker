@@ -17,7 +17,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 ### Foundations
 
 - [x] **FND-01**: Package manager migrated to pnpm (committed lockfile, npm artifacts removed, `onlyBuiltDependencies` configured)
-- [ ] **FND-02**: Typecheck enforced (`ignoreBuildErrors` off) and lint/typecheck gates green in CI
+- [x] **FND-02**: Typecheck enforced (`ignoreBuildErrors` off) and lint/typecheck gates green in CI
 - [x] **FND-03**: Node version standardized across dev/CI before tooling version pins (BullMQ 6 major pinned)
 - [x] **FND-04**: Vitest + Playwright scaffolding wired with docker-compose Postgres/Redis for local dev and CI
 - [x] **FND-05**: Characterization tests pin `runCronChecks` behavior: due-time filtering, UP/DOWN classification, transition paths (PENDING→UP, UP→DOWN, DOWN→UP), incident open/resolve, Telegram message selection
@@ -197,7 +197,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | DSGN-01 | Phase 1 | Complete |
 | DSGN-02 | Phase 1 | Complete |
 | FND-01 | Phase 2 | Complete |
-| FND-02 | Phase 2 | Pending |
+| FND-02 | Phase 2 | Complete |
 | FND-03 | Phase 2 | Complete |
 | FND-04 | Phase 2 | Complete |
 | FND-05 | Phase 2 | Complete |

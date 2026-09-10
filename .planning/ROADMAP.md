@@ -85,7 +85,7 @@ Plans:
   3. A user can toggle Light/Dark/System in the header: theme applies before first paint (no flash of wrong theme, no hydration mismatch), dark mode is visually identical to today, toasts follow the resolved theme, and hardcoded hex classes now route through semantic tokens with no visual change
   4. The repo contains no ngrok binary or log, `.env.example` documents every variable the app reads, and error responses never include stack traces
 
-**Plans**: 5/9 plans executed
+**Plans**: 6/9 plans executed
 
 Plans:
 **Wave 1**
@@ -107,7 +107,7 @@ Plans:
 
 **Wave 5** *(blocked on 02-01 + 02-03 + 02-05 — flip gated on green suite per D-19)*
 
-- [ ] 02-06-PLAN.md — Typecheck fix-all-then-flip: size pile (D-12 gate), minimal-churn fixes, ignoreBuildErrors off + stale configs deleted, canary proof (FND-02)
+- [x] 02-06-PLAN.md — Typecheck fix-all-then-flip: size pile (D-12 gate), minimal-churn fixes, ignoreBuildErrors off + stale configs deleted, canary proof (FND-02)
 
 **Wave 6** *(blocked on 02-06)*
 

@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 2
 current_phase_name: Foundations & Theme Infrastructure
 status: executing
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-09-10T17:59:21.683Z"
+stopped_at: Completed 02-04-PLAN.md
+last_updated: "2026-09-10T18:11:32.991Z"
 last_activity: 2026-09-09
 last_activity_desc: Phase 2 execution started
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 18
-  completed_plans: 12
+  completed_plans: 13
   percent: 13
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 ## Current Position
 
 Phase: 2 (Foundations & Theme Infrastructure) — EXECUTING
-Plan: 4 of 9
+Plan: 5 of 9
 Status: Ready to execute
 Last activity: 2026-09-09 — Phase 2 execution started
 
@@ -67,6 +67,7 @@ Progress: [████████████████████] 9/9 pla
 | Phase 02 P01 | 25min | 3 tasks | 17 files |
 | Phase 02 P02 | 34min | 3 tasks | 10 files |
 | Phase 02 P03 | 403s (~7min) | 3 tasks | 3 files |
+| Phase 02 P04 | 3min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -117,6 +118,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 02]: 02-03: only FND-05 marked complete — FND-06 spans this plan (batcher half) and 02-05 (API contracts); marking it early would falsely signal done
 - [Phase ?]: [Phase 02]: 02-03: vitest fileParallelism:false — DB-backed integration files share one Postgres and TRUNCATE whole tables per case; parallel forks race seeds
 - [Phase ?]: [Phase 02]: 02-03: failure-swallow + zero-synchronous-footprint fast path pinned verbatim (db-5, cron 1/2/13) as Phase 4 red/green markers; batcher writes monitor.status (not counter-neutral)
+- [Phase 02]: 02-04: runbook tarball packs repo root minus excludes (node_modules/.git/.env*/test artifacts) — gitignored .next + src/generated/prisma ride along by construction and .env can never ship (T-02-17)
+- [Phase 02]: 02-04: VPS install is pnpm install --frozen-lockfile --prod (plan said plain frozen-lockfile) — toolchain stays off the 2 GB VPS; prisma CLI unneeded since the client ships pre-generated (D-14)
+- [Phase 02]: 02-04: ecosystem.config.js npm-to-pnpm edit = edit the extracted VPS copy during the D-26 switch + identical repo commit (tarball is packed before the edit exists; Open Question 3 honored — never a standalone earlier commit)
 
 ### Pending Todos
 
@@ -138,6 +142,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-10T17:59:12.303Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-09-10T18:11:32.986Z
+Stopped at: Completed 02-04-PLAN.md
 Resume file: None

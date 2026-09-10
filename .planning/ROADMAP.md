@@ -85,7 +85,7 @@ Plans:
   3. A user can toggle Light/Dark/System in the header: theme applies before first paint (no flash of wrong theme, no hydration mismatch), dark mode is visually identical to today, toasts follow the resolved theme, and hardcoded hex classes now route through semantic tokens with no visual change
   4. The repo contains no ngrok binary or log, `.env.example` documents every variable the app reads, and error responses never include stack traces
 
-**Plans**: 3/9 plans executed
+**Plans**: 4/9 plans executed
 
 Plans:
 **Wave 1**
@@ -99,7 +99,7 @@ Plans:
 **Wave 3** *(blocked on 02-02; parallel, no file overlap)*
 
 - [x] 02-03-PLAN.md — Data-path characterization: cron-logic transitions + db-batcher flush math on real Postgres, audit §23 transcribed (FND-05, FND-06)
-- [ ] 02-04-PLAN.md — Runbook amendments: manual-deploy steps, one-time VPS Node/pnpm switch, typed post-deploy checks (DEP-04; D-01..D-05/D-14/D-26)
+- [x] 02-04-PLAN.md — Runbook amendments: manual-deploy steps, one-time VPS Node/pnpm switch, typed post-deploy checks (DEP-04; D-01..D-05/D-14/D-26)
 
 **Wave 4** *(blocked on 02-02 + 02-03 — shared docker test stack)*
 

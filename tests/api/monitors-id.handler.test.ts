@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { NextResponse } from "next/server";
 import "./_harness";
 import {
   buildRequest,
@@ -48,6 +49,16 @@ beforeEach(() => {
   cronMocks.flushBatches.mockReset();
 });
 
+/**
+ * PATCH/DELETE on this route can legitimately resolve to `undefined` (the
+ * bare `return` on non-numeric ids — pinned below). For every OTHER case the
+ * response must exist; this guard both asserts that and satisfies strict TS.
+ */
+function mustRespond(value: NextResponse | undefined): NextResponse {
+  expect(value).toBeDefined();
+  return value as NextResponse;
+}
+
 const monitorOfA = { id: 5, name: "A Monitor", url: "https://a.test", userId: "user-a" };
 
 describe("GET /api/monitors/[id]", () => {
@@ -94,10 +105,10 @@ describe("GET /api/monitors/[id]", () => {
 
 describe("PATCH /api/monitors/[id]", () => {
   it("401 without session", async () => {
-    const res = await PATCH(
+    const res = mustRespond(await PATCH(
       buildRequest({ path: "/api/monitors/5", method: "PATCH", body: { name: "x" } }),
       routeParams({ id: "5" }),
-    );
+    ));
 
     expect(res.status).toBe(401);
     await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
@@ -123,10 +134,10 @@ describe("PATCH /api/monitors/[id]", () => {
     mockSession(sessionB);
     h.prisma.monitor.findFirst.mockResolvedValue(null);
 
-    const res = await PATCH(
+    const res = mustRespond(await PATCH(
       buildRequest({ path: "/api/monitors/5", method: "PATCH", body: { name: "Hijack" } }),
       routeParams({ id: "5" }),
-    );
+    ));
 
     expect(res.status).toBe(404);
     await expect(res.json()).resolves.toEqual({ error: "Monitor not found" });
@@ -140,14 +151,14 @@ describe("PATCH /api/monitors/[id]", () => {
     mockSession(sessionA);
     h.prisma.monitor.findFirst.mockResolvedValue(monitorOfA);
 
-    const res = await PATCH(
+    const res = mustRespond(await PATCH(
       buildRequest({
         path: "/api/monitors/5",
         method: "PATCH",
         body: { url: "not-a-url" },
       }),
       routeParams({ id: "5" }),
-    );
+    ));
 
     expect(res.status).toBe(400);
     // NOTE: PATCH's message is 'Invalid URL format' — POST's is
@@ -162,14 +173,14 @@ describe("PATCH /api/monitors/[id]", () => {
     const updated = { ...monitorOfA, name: "Renamed", isActive: false };
     h.prisma.monitor.update.mockResolvedValue(updated);
 
-    const res = await PATCH(
+    const res = mustRespond(await PATCH(
       buildRequest({
         path: "/api/monitors/5",
         method: "PATCH",
         body: { name: "  Renamed  ", url: "https://a.test/new", isActive: false, interval: "15" },
       }),
       routeParams({ id: "5" }),
-    );
+    ));
 
     expect(res.status).toBe(200);
     expect(h.prisma.monitor.update).toHaveBeenCalledWith({
@@ -185,10 +196,10 @@ describe("PATCH /api/monitors/[id]", () => {
 
 describe("DELETE /api/monitors/[id]", () => {
   it("401 without session", async () => {
-    const res = await DELETE(
+    const res = mustRespond(await DELETE(
       buildRequest({ path: "/api/monitors/5", method: "DELETE" }),
       routeParams({ id: "5" }),
-    );
+    ));
 
     expect(res.status).toBe(401);
     await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
@@ -210,10 +221,10 @@ describe("DELETE /api/monitors/[id]", () => {
     mockSession(sessionB);
     h.prisma.monitor.findFirst.mockResolvedValue(null);
 
-    const res = await DELETE(
+    const res = mustRespond(await DELETE(
       buildRequest({ path: "/api/monitors/5", method: "DELETE" }),
       routeParams({ id: "5" }),
-    );
+    ));
 
     expect(res.status).toBe(404);
     await expect(res.json()).resolves.toEqual({ error: "Monitor not found" });
@@ -228,10 +239,10 @@ describe("DELETE /api/monitors/[id]", () => {
     h.prisma.monitor.findFirst.mockResolvedValue(monitorOfA);
     h.prisma.monitor.delete.mockResolvedValue(monitorOfA);
 
-    const res = await DELETE(
+    const res = mustRespond(await DELETE(
       buildRequest({ path: "/api/monitors/5", method: "DELETE" }),
       routeParams({ id: "5" }),
-    );
+    ));
 
     expect(res.status).toBe(200);
     expect(h.prisma.monitor.delete).toHaveBeenCalledWith({ where: { id: 5 } });

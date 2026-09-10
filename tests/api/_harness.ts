@@ -151,18 +151,20 @@ export function buildRequest({
   ip,
   headers = {},
 }: BuildRequestOptions): NextRequest {
-  const init: RequestInit & { headers: Record<string, string> } = {
-    method,
-    headers: { ...headers },
-  };
+  const headerRecord: Record<string, string> = { ...headers };
   if (ip !== undefined) {
-    init.headers["x-forwarded-for"] = ip;
+    headerRecord["x-forwarded-for"] = ip;
   }
   if (body !== undefined) {
-    init.body = JSON.stringify(body);
-    init.headers["content-type"] = "application/json";
+    headerRecord["content-type"] = "application/json";
   }
-  return new NextRequest(`http://localhost${path}`, init);
+  // Plain literal (not a DOM RequestInit): next/server's RequestInit is
+  // stricter about `signal` nullability than the lib.dom type.
+  return new NextRequest(`http://localhost${path}`, {
+    method,
+    headers: headerRecord,
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
 }
 
 /** Route context carrying resolved dynamic params, e.g. routeParams({ id: "5" }). */

@@ -32,11 +32,15 @@ export default defineConfig({
     {
       name: "e2e",
       testDir: "tests/e2e",
+      // Playwright's default testMatch also claims *.test.ts — which vitest
+      // owns (see vitest.config.ts). Restrict Playwright to *.spec.ts.
+      testMatch: /\.spec\.ts$/,
     },
     {
-      // Filled by plan 02-05 (HTTP-level API contract tests)
+      // HTTP-level API contract tests (02-05, D-16 hybrid split)
       name: "api",
       testDir: "tests/api",
+      testMatch: /\.spec\.ts$/,
     },
   ],
   webServer: {

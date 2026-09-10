@@ -39,17 +39,23 @@ export async function resetE2EData(): Promise<void> {
 }
 
 /**
- * Creates the smoke-test user with a bcryptjs-hashed known password.
- * emailVerified is set: src/lib/auth.ts refuses credentials login without it.
- * Returns the new user id.
+ * Creates a user with a bcryptjs-hashed known password.
+ * emailVerified is set: src/lib/auth.ts refuses credentials login without it
+ * (02-02-SUMMARY login quirk 1). Defaults reproduce the original smoke user;
+ * 02-05's HTTP-level ownership tests pass distinct emails/passwords for two
+ * users. Returns the new user id.
  */
-export async function seedE2EUser(): Promise<string> {
-  const passwordHash = await bcrypt.hash(E2E_PASSWORD, 10);
+export async function seedE2EUser(
+  email: string = E2E_EMAIL,
+  password: string = E2E_PASSWORD,
+  name: string = "E2E Smoke User",
+): Promise<string> {
+  const passwordHash = await bcrypt.hash(password, 10);
   const id = randomUUID();
   await pool.query(
     `INSERT INTO users (id, name, email, password, "emailVerified", "timezone", "createdAt", "updatedAt")
      VALUES ($1, $2, $3, $4, $5, 'UTC', NOW(), NOW())`,
-    [id, "E2E Smoke User", E2E_EMAIL, passwordHash, new Date()]
+    [id, name, email, passwordHash, new Date()]
   );
   return id;
 }
@@ -70,6 +76,24 @@ export async function seedMonitor(userId: string, name: string): Promise<number>
     ["https://example.com/spidernode-e2e-seed", name, new Date(Date.now() - 60_000), userId]
   );
   return rows[0].id as number;
+}
+
+/**
+ * Creates one ONGOING incident for a monitor (fresh timestamp — retention
+ * cleanup only touches RESOLVED incidents older than 90 days, Pitfall 2).
+ * Used by 02-05's HTTP tests to prove incidents-list ownership filtering.
+ */
+export async function seedOngoingIncident(
+  monitorId: number,
+  description: string,
+): Promise<string> {
+  const id = randomUUID();
+  await pool.query(
+    `INSERT INTO incidents (id, "monitorId", status, description, "startedAt")
+     VALUES ($1, $2, 'ONGOING', $3, NOW())`,
+    [id, monitorId, description]
+  );
+  return id;
 }
 
 /** Closes the seed pool so worker processes can exit cleanly. */

@@ -94,6 +94,30 @@ In every release the migration runs **before** any process restart, and in the t
 
 ---
 
+## 3a. One-time VPS switch to Node 24 + pnpm (run once, at the next real deploy)
+
+> **D-26 — repo-only phase.** Nothing here has been executed against the VPS; this section is typed documentation the operator runs **exactly once**, as the opening moves of their next real deploy. Every later deploy starts at §3 step 1 and skips this section entirely. The section is ordered to precede the first pnpm-based deploy so that deploy runs against an already-switched VPS.
+
+The VPS currently runs the app the way it always has: Node loaded via NVM (Ubuntu 24.04), dependencies installed by npm, and PM2 invoking `npm run start` through `ecosystem.config.js`. This switch moves it onto the repo's pinned toolchain — `.nvmrc` pins Node `24`, and the `packageManager` field pins `pnpm@10.34.5` (D-06: the pin is identical on dev machine and VPS; Node 22 remains a valid floor, 24 is the standard).
+
+1. **Node 24 as the default runtime.**
+   - *Action:* on the VPS: `nvm install 24`, then `nvm alias default 24`. This matches the repo's `.nvmrc` (`24`) and the `engines` range in `package.json` (`>=22 <25`).
+   - *Verification:* open a fresh shell — `node --version` prints a 24.x line.
+2. **pnpm 10.34.5 via corepack — with the standalone fallback.**
+   - *Action:* `corepack enable` (needs the rights to place shims on the Node bin directory). With that in place, the `packageManager: "pnpm@10.34.5"` field in the shipped `package.json` pins pnpm to exactly 10.34.5 inside `/var/www/uptime-tracker`. **Fallback if corepack is unavailable** on the installed Node build: install pnpm with its official standalone script — pnpm.io no longer documents corepack as an install method, and the standalone script is the documented path (fetch it over HTTPS from pnpm.io/installation and run it).
+   - *Verification:* **`pnpm --version` must print `10.34.5` before proceeding** (Pitfall 7). A different major (11/12) changes config vocabulary (`allowBuilds` vs the removed `onlyBuiltDependencies`) and lockfile format — if any other version prints, stop and fix the resolution (`which pnpm` shows which binary won) instead of continuing.
+3. **Replace the npm dependency tree.**
+   - *Action:* run §3 steps 1–3 first (gate, build, backup, no-migrate), ship and extract the tarball (§3 step 4, up to the `tar -xzf`), then in `/var/www/uptime-tracker`: remove the npm-installed tree — `rm -rf node_modules` — and install from the shipped lockfile: `pnpm install --frozen-lockfile --prod`. The tarball carries `pnpm-lock.yaml` and `pnpm-workspace.yaml` (the build-script approvals ride along with it).
+   - *Verification:* the install exits 0 with no unreviewed-build-script failure; `node_modules/` exists again; `pnpm list --prod --depth 0` prints the runtime tree.
+4. **Point PM2 at pnpm — edit `ecosystem.config.js` as part of this switch.**
+   - *Action:* in the repo's `ecosystem.config.js`, change the app stanza from invoking npm to invoking pnpm — `script: "pnpm"`, `args: "run start"` — leaving `cwd: "/var/www/uptime-tracker"` and the `env` block untouched. Ship the edited file with this deploy's tarball and commit it to the repo as part of this switch. (The repo deliberately kept the npm-invoking stanza until now: PM2 never re-reads the file on its own, and editing it as a standalone earlier change would only create a window where repo and VPS disagree.) Then register the change: `pm2 startOrReload ecosystem.config.js` — **PM2 re-reads `ecosystem.config.js` only on `startOrReload`; a plain `pm2 restart` keeps the old interpreter.**
+   - *Verification:* `pm2 describe uptime-tracker` shows the pnpm interpreter and the app is `online`; `curl -fsS http://127.0.0.1:3007/login` returns HTTP 200.
+5. **Close the first pnpm-based deploy with the typed checks.**
+   - *Action:* finish with §3 step 5 (curl, `pm2 status`, log glance). From the next deploy on, the §3 sequence runs start-to-finish and this section is skipped.
+   - *Verification:* all §3 step 5 checks green. The switch is done — never repeat it.
+
+---
+
 ## 4. Target topology (Phase 4+) — two PM2 apps
 
 `uptime-tracker` (web) + `uptime-worker` (worker). The worker restart and `readyz` wait are inserted **before** the web restart — the worker gates the release (D-04/P-1).

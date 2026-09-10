@@ -85,7 +85,7 @@ Plans:
   3. A user can toggle Light/Dark/System in the header: theme applies before first paint (no flash of wrong theme, no hydration mismatch), dark mode is visually identical to today, toasts follow the resolved theme, and hardcoded hex classes now route through semantic tokens with no visual change
   4. The repo contains no ngrok binary or log, `.env.example` documents every variable the app reads, and error responses never include stack traces
 
-**Plans**: 4/9 plans executed
+**Plans**: 5/9 plans executed
 
 Plans:
 **Wave 1**
@@ -103,7 +103,7 @@ Plans:
 
 **Wave 4** *(blocked on 02-02 + 02-03 — shared docker test stack)*
 
-- [ ] 02-05-PLAN.md — API contract characterization: handler-import harness + pinned defects + HTTP-level core routes via Playwright api project (FND-06)
+- [x] 02-05-PLAN.md — API contract characterization: handler-import harness + pinned defects + HTTP-level core routes via Playwright api project (FND-06)
 
 **Wave 5** *(blocked on 02-01 + 02-03 + 02-05 — flip gated on green suite per D-19)*
 

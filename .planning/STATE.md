@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 2
 current_phase_name: Foundations & Theme Infrastructure
 status: executing
-stopped_at: Completed 02-04-PLAN.md
-last_updated: "2026-09-10T18:11:32.991Z"
+stopped_at: Completed 02-05-PLAN.md
+last_updated: "2026-09-10T18:35:37.184Z"
 last_activity: 2026-09-09
 last_activity_desc: Phase 2 execution started
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 18
-  completed_plans: 13
+  completed_plans: 14
   percent: 13
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 ## Current Position
 
 Phase: 2 (Foundations & Theme Infrastructure) — EXECUTING
-Plan: 5 of 9
+Plan: 6 of 9
 Status: Ready to execute
 Last activity: 2026-09-09 — Phase 2 execution started
 
@@ -68,6 +68,7 @@ Progress: [████████████████████] 9/9 pla
 | Phase 02 P02 | 34min | 3 tasks | 10 files |
 | Phase 02 P03 | 403s (~7min) | 3 tasks | 3 files |
 | Phase 02 P04 | 3min | 3 tasks | 1 files |
+| Phase 02 P05 | 19min (1111s) | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -121,6 +122,9 @@ Recent decisions affecting current work:
 - [Phase 02]: 02-04: runbook tarball packs repo root minus excludes (node_modules/.git/.env*/test artifacts) — gitignored .next + src/generated/prisma ride along by construction and .env can never ship (T-02-17)
 - [Phase 02]: 02-04: VPS install is pnpm install --frozen-lockfile --prod (plan said plain frozen-lockfile) — toolchain stays off the 2 GB VPS; prisma CLI unneeded since the client ships pre-generated (D-14)
 - [Phase 02]: 02-04: ecosystem.config.js npm-to-pnpm edit = edit the extracted VPS copy during the D-26 switch + identical repo commit (tarball is packed before the edit exists; Open Question 3 honored — never a standalone earlier commit)
+- [Phase 02]: 02-05: handler-harness mocks as plain exported consts (vitest 4 forbids exporting vi.hoisted values) — lazy factories + harness-first import keep mock identity stable across vi.resetModules + dynamic re-imports (Pitfall 6)
+- [Phase 02]: 02-05: playwright projects pinned to testMatch .spec.ts — the default testMatch would claim vitest-owned *.handler.test.ts files once the api project filled
+- [Phase 02]: 02-05: FND-06 complete — 71 handler-import + 12 HTTP-level contracts pin the D-17 route scope verbatim; query-string CRON_SECRET (S-4), 500 stack echo, and unauthenticated telegram webhook (S-2) pinned as deliberate Phase-6 red/green markers
 
 ### Pending Todos
 
@@ -142,6 +146,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-10T18:11:32.986Z
-Stopped at: Completed 02-04-PLAN.md
+Last session: 2026-09-10T18:35:37.178Z
+Stopped at: Completed 02-05-PLAN.md
 Resume file: None

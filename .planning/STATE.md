@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 2
 current_phase_name: Foundations & Theme Infrastructure
 status: executing
-stopped_at: Completed 02-01-PLAN.md (pnpm migration, hygiene, env contract)
-last_updated: "2026-09-10T15:16:42.828Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-09-10T15:57:43.137Z"
 last_activity: 2026-09-09
 last_activity_desc: Phase 2 execution started
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 18
-  completed_plans: 10
+  completed_plans: 11
   percent: 13
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 ## Current Position
 
 Phase: 2 (Foundations & Theme Infrastructure) — EXECUTING
-Plan: 2 of 9
+Plan: 3 of 9
 Status: Ready to execute
 Last activity: 2026-09-09 — Phase 2 execution started
 
@@ -65,6 +65,7 @@ Progress: [████████████████████] 9/9 pla
 | Phase 01 P08 | 602s (~10m) | 3 tasks | 2 files |
 | Phase 01 P09 | 7m (Task 3 continuation; Tasks 1-2 prior session + checkpoint) | 3 tasks | 5 files |
 | Phase 02 P01 | 25min | 3 tasks | 17 files |
+| Phase 02 P02 | 34min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,10 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 01]: 01-09: Phase-1-only Mode:mvp marker deleted from ROADMAP per 01-VERIFICATION round-2 disposition — documentation-gate phase has no vertical-slice deliverables; Phases 2-8 keep theirs
 - [Phase 02]: 02-01: pnpm resolves via Volta shim honoring packageManager -> 10.34.5 wins in-repo (Pitfall 7); corepack enable itself unneeded (EPERM without admin)
 - [Phase 02]: 02-01: .env.example carries the 24 vars app code reads; gitignored src/generated/prisma excluded from the sweep (7 library toggles are not app config); Appendix A deltas +NODE_ENV/+NEXT_RUNTIME, NEXT_PUBLIC_APP_URL excluded (unread)
+- [Phase ?]: [Phase 02]: 02-02: test stack ports moved 5433/6380 -> 5453/6390 — planned ports held by LIVE sibling stacks (devsroom_personal_tracker_db / devsroom-license-manager-redis); ours moved, theirs untouched
+- [Phase ?]: [Phase 02]: 02-02: .env.test honored override-first when present but cannot be committed from env-denied checkouts — runner configs carry the localhost-docker default constant as canonical fallback
+- [Phase ?]: [Phase 02]: 02-02: global-setup runs plain prisma db push — Prisma 7 removed --skip-generate and --force-reset trips its AI-agent consent gate (honored, not evaded); drift now fails closed on the throwaway container
+- [Phase ?]: [Phase 02]: 02-02: E2E seeds go through raw pg SQL (PROJECT.md-sanctioned) with TEST_DATABASE_URL-only resolution — never ambient DATABASE_URL
 
 ### Pending Todos
 
@@ -129,6 +134,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-10T15:16:42.822Z
-Stopped at: Completed 02-01-PLAN.md (pnpm migration, hygiene, env contract)
-Resume file: .planning/phases/02-foundations-theme-infrastructure/02-02-PLAN.md
+Last session: 2026-09-10T15:57:43.132Z
+Stopped at: Completed 02-02-PLAN.md
+Resume file: None

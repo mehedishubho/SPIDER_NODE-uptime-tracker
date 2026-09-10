@@ -85,7 +85,7 @@ Plans:
   3. A user can toggle Light/Dark/System in the header: theme applies before first paint (no flash of wrong theme, no hydration mismatch), dark mode is visually identical to today, toasts follow the resolved theme, and hardcoded hex classes now route through semantic tokens with no visual change
   4. The repo contains no ngrok binary or log, `.env.example` documents every variable the app reads, and error responses never include stack traces
 
-**Plans**: 1/9 plans executed
+**Plans**: 2/9 plans executed
 
 Plans:
 **Wave 1**
@@ -94,7 +94,7 @@ Plans:
 
 **Wave 2** *(blocked on 02-01)*
 
-- [ ] 02-02-PLAN.md — Test scaffold: docker Postgres/Redis stack, Vitest + Playwright configs, localhost DB guard, ONE smoke E2E, pnpm verify chain (FND-04, DEP-04)
+- [x] 02-02-PLAN.md — Test scaffold: docker Postgres/Redis stack, Vitest + Playwright configs, localhost DB guard, ONE smoke E2E, pnpm verify chain (FND-04, DEP-04)
 
 **Wave 3** *(blocked on 02-02; parallel, no file overlap)*
 

@@ -19,7 +19,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [x] **FND-01**: Package manager migrated to pnpm (committed lockfile, npm artifacts removed, `onlyBuiltDependencies` configured)
 - [ ] **FND-02**: Typecheck enforced (`ignoreBuildErrors` off) and lint/typecheck gates green in CI
 - [x] **FND-03**: Node version standardized across dev/CI before tooling version pins (BullMQ 6 major pinned)
-- [ ] **FND-04**: Vitest + Playwright scaffolding wired with docker-compose Postgres/Redis for local dev and CI
+- [x] **FND-04**: Vitest + Playwright scaffolding wired with docker-compose Postgres/Redis for local dev and CI
 - [ ] **FND-05**: Characterization tests pin `runCronChecks` behavior: due-time filtering, UP/DOWN classification, transition paths (PENDING→UP, UP→DOWN, DOWN→UP), incident open/resolve, Telegram message selection
 - [ ] **FND-06**: Characterization tests pin db-batcher enqueue/flush math and per-route API contracts (auth required, ownership scoping, status codes)
 - [x] **FND-07**: Repo hygiene: ngrok binary/log removed, `.env.example` documenting the full variable set, error responses never include stack traces
@@ -148,7 +148,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [ ] **DEP-01**: Two PM2 apps (web + worker) built and versioned from one SHA; `kill_timeout` ≥ max job duration; crash-loop visibility configured
 - [ ] **DEP-02**: Deploy ordering: build → backup (`pg_dump`) → migrate (single runner) → restart worker (waits `readyz`) → restart web → smoke-check (synthetic check → ping row appears)
 - [ ] **DEP-03**: Rollback story: previous tarball retained; expand/contract discipline (additive-only migrations during verification windows; drops deferred to a following release)
-- [ ] **DEP-04**: CI gates on PRs: lint → typecheck → unit/integration → build; deploy only from `main` after green
+- [x] **DEP-04**: CI gates on PRs: lint → typecheck → unit/integration → build; deploy only from `main` after green
 - [ ] **DEP-05**: Environment transition complete: `REDIS_URL`, `EMAIL_PROVIDER`, `BETTER_AUTH_*` added; `NEXTAUTH_*`, `CRON_MODE` retired; `.env.example` kept current
 
 ## v2 Requirements
@@ -199,14 +199,14 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | FND-01 | Phase 2 | Complete |
 | FND-02 | Phase 2 | Pending |
 | FND-03 | Phase 2 | Complete |
-| FND-04 | Phase 2 | Pending |
+| FND-04 | Phase 2 | Complete |
 | FND-05 | Phase 2 | Pending |
 | FND-06 | Phase 2 | Pending |
 | FND-07 | Phase 2 | Complete |
 | THM-01 | Phase 2 | Pending |
 | THM-02 | Phase 2 | Pending |
 | THM-03 | Phase 2 | Pending |
-| DEP-04 | Phase 2 | Pending |
+| DEP-04 | Phase 2 | Complete |
 | RDS-01 | Phase 3 | Pending |
 | RDS-02 | Phase 3 | Pending |
 | RDS-03 | Phase 3 | Pending |

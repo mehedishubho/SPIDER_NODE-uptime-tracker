@@ -6,14 +6,14 @@ current_phase: 2
 current_phase_name: Foundations & Theme Infrastructure
 status: executing
 stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-09-10T15:57:43.137Z"
+last_updated: "2026-09-10T17:59:21.683Z"
 last_activity: 2026-09-09
 last_activity_desc: Phase 2 execution started
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 18
-  completed_plans: 11
+  completed_plans: 12
   percent: 13
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 ## Current Position
 
 Phase: 2 (Foundations & Theme Infrastructure) — EXECUTING
-Plan: 3 of 9
+Plan: 4 of 9
 Status: Ready to execute
 Last activity: 2026-09-09 — Phase 2 execution started
 
@@ -66,6 +66,7 @@ Progress: [████████████████████] 9/9 pla
 | Phase 01 P09 | 7m (Task 3 continuation; Tasks 1-2 prior session + checkpoint) | 3 tasks | 5 files |
 | Phase 02 P01 | 25min | 3 tasks | 17 files |
 | Phase 02 P02 | 34min | 3 tasks | 10 files |
+| Phase 02 P03 | 403s (~7min) | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -113,6 +114,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 02]: 02-02: .env.test honored override-first when present but cannot be committed from env-denied checkouts — runner configs carry the localhost-docker default constant as canonical fallback
 - [Phase ?]: [Phase 02]: 02-02: global-setup runs plain prisma db push — Prisma 7 removed --skip-generate and --force-reset trips its AI-agent consent gate (honored, not evaded); drift now fails closed on the throwaway container
 - [Phase ?]: [Phase 02]: 02-02: E2E seeds go through raw pg SQL (PROJECT.md-sanctioned) with TEST_DATABASE_URL-only resolution — never ambient DATABASE_URL
+- [Phase ?]: [Phase 02]: 02-03: only FND-05 marked complete — FND-06 spans this plan (batcher half) and 02-05 (API contracts); marking it early would falsely signal done
+- [Phase ?]: [Phase 02]: 02-03: vitest fileParallelism:false — DB-backed integration files share one Postgres and TRUNCATE whole tables per case; parallel forks race seeds
+- [Phase ?]: [Phase 02]: 02-03: failure-swallow + zero-synchronous-footprint fast path pinned verbatim (db-5, cron 1/2/13) as Phase 4 red/green markers; batcher writes monitor.status (not counter-neutral)
 
 ### Pending Todos
 
@@ -134,6 +138,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-10T15:57:43.132Z
+Last session: 2026-09-10T17:59:12.303Z
 Stopped at: Completed 02-02-PLAN.md
 Resume file: None

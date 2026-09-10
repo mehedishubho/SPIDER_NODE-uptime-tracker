@@ -20,7 +20,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [ ] **FND-02**: Typecheck enforced (`ignoreBuildErrors` off) and lint/typecheck gates green in CI
 - [x] **FND-03**: Node version standardized across dev/CI before tooling version pins (BullMQ 6 major pinned)
 - [x] **FND-04**: Vitest + Playwright scaffolding wired with docker-compose Postgres/Redis for local dev and CI
-- [ ] **FND-05**: Characterization tests pin `runCronChecks` behavior: due-time filtering, UP/DOWN classification, transition paths (PENDING→UP, UP→DOWN, DOWN→UP), incident open/resolve, Telegram message selection
+- [x] **FND-05**: Characterization tests pin `runCronChecks` behavior: due-time filtering, UP/DOWN classification, transition paths (PENDING→UP, UP→DOWN, DOWN→UP), incident open/resolve, Telegram message selection
 - [ ] **FND-06**: Characterization tests pin db-batcher enqueue/flush math and per-route API contracts (auth required, ownership scoping, status codes)
 - [x] **FND-07**: Repo hygiene: ngrok binary/log removed, `.env.example` documenting the full variable set, error responses never include stack traces
 
@@ -200,7 +200,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | FND-02 | Phase 2 | Pending |
 | FND-03 | Phase 2 | Complete |
 | FND-04 | Phase 2 | Complete |
-| FND-05 | Phase 2 | Pending |
+| FND-05 | Phase 2 | Complete |
 | FND-06 | Phase 2 | Pending |
 | FND-07 | Phase 2 | Complete |
 | THM-01 | Phase 2 | Pending |

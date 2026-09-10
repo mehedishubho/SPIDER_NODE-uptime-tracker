@@ -14,7 +14,7 @@ A brownfield modernization of a live production uptime-monitoring SaaS. The arc 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Design Gate — Review Verdict READY** - All 8 review addenda incorporated, §9 checklist resolved, verdict flipped NOT READY → READY before any code — **complete 2026-09-09: cycle-2 re-review clean pass (zero blocking findings) human-ratified, verdict flipped to READY per D-16; RR2-01/02/03 recorded as advisory Phase 4/5 design-debt (01-09)**
-- [ ] **Phase 2: Foundations & Theme Infrastructure** - pnpm, CI gates, characterization tests on real Postgres/Redis; theme tokens land with zero behavior change
+- [x] **Phase 2: Foundations & Theme Infrastructure** - pnpm, CI gates, characterization tests on real Postgres/Redis; theme tokens land with zero behavior change (completed 2026-09-10)
 - [ ] **Phase 3: Redis & Drizzle Schema Ownership** - Redis with no correctness dependence; live-DDL Drizzle baseline plus worker schema addenda, rehearsed on a prod snapshot
 - [ ] **Phase 4: Monitoring Worker — Build & Dark Launch** - Dedicated worker owns all monitoring on idempotent, resilient BullMQ machinery; dark-launched while cron still serves users
 - [ ] **Phase 5: Worker Cutover & Operational Hardening** - Gated overlap cutover deletes the cron; heartbeat moves, observability, env transition, rehearsed rollback
@@ -85,7 +85,7 @@ Plans:
   3. A user can toggle Light/Dark/System in the header: theme applies before first paint (no flash of wrong theme, no hydration mismatch), dark mode is visually identical to today, toasts follow the resolved theme, and hardcoded hex classes now route through semantic tokens with no visual change
   4. The repo contains no ngrok binary or log, `.env.example` documents every variable the app reads, and error responses never include stack traces
 
-**Plans**: 7/9 plans executed
+**Plans**: 9/9 plans complete
 
 Plans:
 **Wave 1**
@@ -115,11 +115,11 @@ Plans:
 
 **Wave 7** *(blocked on 02-07)*
 
-- [ ] 02-08-PLAN.md — Hex→token mechanical migration, same dark values, status-token adoption, hex gate (THM-03)
+- [x] 02-08-PLAN.md — Hex→token mechanical migration, same dark values, status-token adoption, hex gate (THM-03)
 
 **Wave 8** *(final — blocked on 02-03 + 02-05 + 02-08)*
 
-- [ ] 02-09-PLAN.md — D-21 mutation spot-check: three deliberate behavior breaks proven red then reverted; final full pnpm verify (FND-05, FND-06)
+- [x] 02-09-PLAN.md — D-21 mutation spot-check: three deliberate behavior breaks proven red then reverted; final full pnpm verify (FND-05, FND-06)
 
 **UI hint**: yes
 

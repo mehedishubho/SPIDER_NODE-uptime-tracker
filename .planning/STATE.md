@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 2
 current_phase_name: Foundations & Theme Infrastructure
-status: executing
-stopped_at: Completed 02-07-PLAN.md
-last_updated: "2026-09-10T20:42:05.907Z"
+status: verifying
+stopped_at: Completed 02-09-PLAN.md
+last_updated: "2026-09-10T20:52:27.407Z"
 last_activity: 2026-09-09
 last_activity_desc: Phase 2 execution started
 progress:
   total_phases: 8
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 18
-  completed_plans: 16
-  percent: 13
+  completed_plans: 18
+  percent: 25
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 
 Phase: 2 (Foundations & Theme Infrastructure) — EXECUTING
 Plan: 9 of 9
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-09 — Phase 2 execution started
 
 Progress: [████████████████████] 9/9 plans (100%)
@@ -72,6 +72,7 @@ Progress: [████████████████████] 9/9 pla
 | Phase 02 P06 | 86min | 3 tasks | 25 files |
 | Phase 02 P07 | 16min (928s) | 3 tasks | 12 files |
 | Phase 02 P08 | 796s (~13min) | 2 tasks | 39 files |
+| Phase 02 P09 | ~6min (387s) | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -134,6 +135,8 @@ Recent decisions affecting current work:
 - [Phase 02]: 02-08: 11 extra same-value tokens added beyond the UI-SPEC pair (accent-cyan, muted-meta, danger-strong, surface-deep/raised, accent-gold/-deep, foreground-bright, dialog-*) — the zero-hex gate forbids orphans and byte-identity forbids nearest-token fits; all 13 identical in :root/.dark, Phase 8 UI-03 reviews
 - [Phase 02]: 02-08: DOWN branches that use rose-* stay rose (D-25) — rose-400 != #ef4444 so a status-down swap would change dark values; emerald UP branches migrated to status-up, mixed ternaries flagged for Phase 8
 - [Phase 02]: 02-08: sweetalert2 config colors became var(--primary)/var(--dialog-*) references — dialog trio tokens keep the Swal popup white-in-both-modes exactly as today
+- [Phase ?]: [Phase 02]: 02-09: mutation 1 realized as true 2-consecutive-failure gate (DOWN only when monitor.status already DOWN) - the failedChecks>=2 example leaves the seeded failedChecks=2 UP-to-DOWN case green; consecutive form turns BOTH plan-named cases red
+- [Phase ?]: [Phase 02]: 02-09: HTTP-layer mutation proof requires rebuild-between (playwright api project runs the built artifact) - mutate, build, RED e2e, revert, rebuild, GREEN; per-task evidence as --allow-empty commits since mutations are never committed (T-02-19)
 
 ### Pending Todos
 
@@ -155,6 +158,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-10T20:41:32.169Z
-Stopped at: Completed 02-07-PLAN.md
+Last session: 2026-09-10T20:52:27.402Z
+Stopped at: Completed 02-09-PLAN.md
 Resume file: None

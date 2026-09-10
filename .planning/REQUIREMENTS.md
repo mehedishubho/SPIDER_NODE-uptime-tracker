@@ -26,8 +26,8 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 
 ### Theme Infrastructure
 
-- [ ] **THM-01**: Light/dark theme infrastructure (`next-themes`, class strategy): real light `:root` palette, current dark values preserved as `.dark`, inline pre-paint script with no FOUC or hydration mismatch
-- [ ] **THM-02**: Theme toggle (Light/Dark/System) in app header/nav; resolved theme passed to Sonner Toaster
+- [x] **THM-01**: Light/dark theme infrastructure (`next-themes`, class strategy): real light `:root` palette, current dark values preserved as `.dark`, inline pre-paint script with no FOUC or hydration mismatch
+- [x] **THM-02**: Theme toggle (Light/Dark/System) in app header/nav; resolved theme passed to Sonner Toaster
 - [ ] **THM-03**: Hardcoded hex classes migrated to semantic tokens (mechanical hygiene; no visual change)
 
 ### Redis Infrastructure
@@ -203,8 +203,8 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | FND-05 | Phase 2 | Complete |
 | FND-06 | Phase 2 | Complete |
 | FND-07 | Phase 2 | Complete |
-| THM-01 | Phase 2 | Pending |
-| THM-02 | Phase 2 | Pending |
+| THM-01 | Phase 2 | Complete |
+| THM-02 | Phase 2 | Complete |
 | THM-03 | Phase 2 | Pending |
 | DEP-04 | Phase 2 | Complete |
 | RDS-01 | Phase 3 | Pending |

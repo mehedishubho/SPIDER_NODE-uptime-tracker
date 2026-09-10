@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 2
 current_phase_name: Foundations & Theme Infrastructure
 status: executing
-stopped_at: Completed 02-05-PLAN.md
-last_updated: "2026-09-10T20:04:23.688Z"
+stopped_at: Completed 02-07-PLAN.md
+last_updated: "2026-09-10T20:24:39.333Z"
 last_activity: 2026-09-09
 last_activity_desc: Phase 2 execution started
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 18
-  completed_plans: 15
+  completed_plans: 16
   percent: 13
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 ## Current Position
 
 Phase: 2 (Foundations & Theme Infrastructure) — EXECUTING
-Plan: 7 of 9
+Plan: 8 of 9
 Status: Ready to execute
 Last activity: 2026-09-09 — Phase 2 execution started
 
@@ -70,6 +70,7 @@ Progress: [████████████████████] 9/9 pla
 | Phase 02 P04 | 3min | 3 tasks | 1 files |
 | Phase 02 P05 | 19min (1111s) | 3 tasks | 11 files |
 | Phase 02 P06 | 86min | 3 tasks | 25 files |
+| Phase 02 P07 | 16min (928s) | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -126,6 +127,9 @@ Recent decisions affecting current work:
 - [Phase 02]: 02-05: handler-harness mocks as plain exported consts (vitest 4 forbids exporting vi.hoisted values) — lazy factories + harness-first import keep mock identity stable across vi.resetModules + dynamic re-imports (Pitfall 6)
 - [Phase 02]: 02-05: playwright projects pinned to testMatch .spec.ts — the default testMatch would claim vitest-owned *.handler.test.ts files once the api project filled
 - [Phase 02]: 02-05: FND-06 complete — 71 handler-import + 12 HTTP-level contracts pin the D-17 route scope verbatim; query-string CRON_SECRET (S-4), 500 stack echo, and unauthenticated telegram webhook (S-2) pinned as deliberate Phase-6 red/green markers
+- [Phase 02]: 02-07: hugeicons-react@0.4.0 predates the UI-SPEC icon names - Sun03Icon/ComputerIcon are the 0.4.x exports for the sunlight/monitor glyphs (Moon02Icon named); zero new UI deps preserved
+- [Phase 02]: 02-07: mounted guard expressed as useSyncExternalStore(no-op subscribe, ()=>true, ()=>false) - repo react-hooks lint forbids synchronous setState in effects; identical isHydrated semantics
+- [Phase 02]: 02-07: dark byte-identity gate run as comm -23 subset check (empty = no pre-change token changed/removed); literal diff shows exactly the two sanctioned status-token additions
 
 ### Pending Todos
 
@@ -147,6 +151,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-10T20:04:23.681Z
-Stopped at: Completed 02-05-PLAN.md
+Last session: 2026-09-10T20:24:39.328Z
+Stopped at: Completed 02-07-PLAN.md
 Resume file: None

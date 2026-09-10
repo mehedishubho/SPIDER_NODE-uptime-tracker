@@ -85,7 +85,7 @@ Plans:
   3. A user can toggle Light/Dark/System in the header: theme applies before first paint (no flash of wrong theme, no hydration mismatch), dark mode is visually identical to today, toasts follow the resolved theme, and hardcoded hex classes now route through semantic tokens with no visual change
   4. The repo contains no ngrok binary or log, `.env.example` documents every variable the app reads, and error responses never include stack traces
 
-**Plans**: 6/9 plans executed
+**Plans**: 7/9 plans executed
 
 Plans:
 **Wave 1**
@@ -111,7 +111,7 @@ Plans:
 
 **Wave 6** *(blocked on 02-06)*
 
-- [ ] 02-07-PLAN.md — Theme infrastructure vertical slice: RED e2e first, next-themes + toggle + toaster, palette split with frozen .dark (THM-01, THM-02)
+- [x] 02-07-PLAN.md — Theme infrastructure vertical slice: RED e2e first, next-themes + toggle + toaster, palette split with frozen .dark (THM-01, THM-02)
 
 **Wave 7** *(blocked on 02-07)*
 

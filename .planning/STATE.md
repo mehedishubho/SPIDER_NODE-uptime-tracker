@@ -6,7 +6,7 @@ current_phase: 2
 current_phase_name: Foundations & Theme Infrastructure
 status: executing
 stopped_at: Completed 02-07-PLAN.md
-last_updated: "2026-09-10T20:24:39.333Z"
+last_updated: "2026-09-10T20:42:05.907Z"
 last_activity: 2026-09-09
 last_activity_desc: Phase 2 execution started
 progress:
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 ## Current Position
 
 Phase: 2 (Foundations & Theme Infrastructure) — EXECUTING
-Plan: 8 of 9
+Plan: 9 of 9
 Status: Ready to execute
 Last activity: 2026-09-09 — Phase 2 execution started
 
@@ -71,6 +71,7 @@ Progress: [████████████████████] 9/9 pla
 | Phase 02 P05 | 19min (1111s) | 3 tasks | 11 files |
 | Phase 02 P06 | 86min | 3 tasks | 25 files |
 | Phase 02 P07 | 16min (928s) | 3 tasks | 12 files |
+| Phase 02 P08 | 796s (~13min) | 2 tasks | 39 files |
 
 ## Accumulated Context
 
@@ -130,6 +131,9 @@ Recent decisions affecting current work:
 - [Phase 02]: 02-07: hugeicons-react@0.4.0 predates the UI-SPEC icon names - Sun03Icon/ComputerIcon are the 0.4.x exports for the sunlight/monitor glyphs (Moon02Icon named); zero new UI deps preserved
 - [Phase 02]: 02-07: mounted guard expressed as useSyncExternalStore(no-op subscribe, ()=>true, ()=>false) - repo react-hooks lint forbids synchronous setState in effects; identical isHydrated semantics
 - [Phase 02]: 02-07: dark byte-identity gate run as comm -23 subset check (empty = no pre-change token changed/removed); literal diff shows exactly the two sanctioned status-token additions
+- [Phase 02]: 02-08: 11 extra same-value tokens added beyond the UI-SPEC pair (accent-cyan, muted-meta, danger-strong, surface-deep/raised, accent-gold/-deep, foreground-bright, dialog-*) — the zero-hex gate forbids orphans and byte-identity forbids nearest-token fits; all 13 identical in :root/.dark, Phase 8 UI-03 reviews
+- [Phase 02]: 02-08: DOWN branches that use rose-* stay rose (D-25) — rose-400 != #ef4444 so a status-down swap would change dark values; emerald UP branches migrated to status-up, mixed ternaries flagged for Phase 8
+- [Phase 02]: 02-08: sweetalert2 config colors became var(--primary)/var(--dialog-*) references — dialog trio tokens keep the Swal popup white-in-both-modes exactly as today
 
 ### Pending Todos
 
@@ -151,6 +155,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-10T20:24:39.328Z
+Last session: 2026-09-10T20:41:32.169Z
 Stopped at: Completed 02-07-PLAN.md
 Resume file: None

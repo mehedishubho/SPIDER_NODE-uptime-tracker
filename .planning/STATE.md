@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 2
 current_phase_name: Foundations & Theme Infrastructure
-status: verifying
-stopped_at: Phase 2 verification — gaps found (02-VERIFICATION.md); closure pending
-last_updated: "2026-09-11T03:30:00.000Z"
-last_activity: 2026-09-09
-last_activity_desc: Phase 2 execution started
+status: executing
+stopped_at: Phase 2 gap closure executed (02-10, gates + pnpm verify green); re-verification pending
+last_updated: "2026-09-11T17:55:00.000Z"
+last_activity: 2026-09-11
+last_activity_desc: Phase 2 gap closure (02-10) executed
 progress:
   total_phases: 8
   completed_phases: 1
-  total_plans: 18
-  completed_plans: 18
+  total_plans: 19
+  completed_plans: 19
   percent: 13
 ---
 
@@ -28,18 +28,18 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 
 ## Current Position
 
-Phase: 2 (Foundations & Theme Infrastructure) — VERIFYING
-Plan: 9 of 9
-Status: Verification gaps found (2026-09-11) — CR-01 (33 emerald-500 utility swaps → status-up) and CR-02 (global-error.tsx bg flip) fail THM-03 zero-visual-change; closure via /gsd-plan-phase 02 --gaps, then re-verify
-Last activity: 2026-09-11 — Phase 2 goal verification (gaps_found)
+Phase: 2 (Foundations & Theme Infrastructure) — EXECUTED, RE-VERIFICATION PENDING
+Plan: 10 of 10 (all executed; 02-10 gap closure done 2026-09-11)
+Status: Phase 2 fully executed — THM-03 gaps closed (02-10), awaiting /gsd-verify re-run (gaps_found → verified)
+Last activity: 2026-09-11 — Phase 2 gap closure (02-10) executed
 
-Progress: [████████████████████] 9/9 plans (100%)
+Progress: [████████████████████] 10/10 plans (100%)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 9
+- Total plans completed: 19
 - Average duration: —
 - Total execution time: —
 
@@ -73,6 +73,7 @@ Progress: [████████████████████] 9/9 pla
 | Phase 02 P07 | 16min (928s) | 3 tasks | 12 files |
 | Phase 02 P08 | 796s (~13min) | 2 tasks | 39 files |
 | Phase 02 P09 | ~6min (387s) | 3 tasks | 1 files |
+| Phase 02 P10 | 21min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -137,6 +138,7 @@ Recent decisions affecting current work:
 - [Phase 02]: 02-08: sweetalert2 config colors became var(--primary)/var(--dialog-*) references — dialog trio tokens keep the Swal popup white-in-both-modes exactly as today
 - [Phase ?]: [Phase 02]: 02-09: mutation 1 realized as true 2-consecutive-failure gate (DOWN only when monitor.status already DOWN) - the failedChecks>=2 example leaves the seeded failedChecks=2 UP-to-DOWN case green; consecutive form turns BOTH plan-named cases red
 - [Phase ?]: [Phase 02]: 02-09: HTTP-layer mutation proof requires rebuild-between (playwright api project runs the built artifact) - mutate, build, RED e2e, revert, rebuild, GREEN; per-task evidence as --allow-empty commits since mutations are never committed (T-02-19)
+- [Phase 02]: 02-10: hex gate exclusion extended by exactly one name (global-error.tsx frozen bg-[#121212] literal — .dark never applies on that surface) and the command form switched to filename-fragment exclusions: Windows rg emits backslash paths, so 02-08 full-path patterns (-e src/lib/mail.ts) silently fail to exclude
 
 ### Pending Todos
 
@@ -158,6 +160,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-10T20:52:27.402Z
+Last session: 2026-09-11T17:40:56.117Z
 Stopped at: Completed 02-09-PLAN.md
 Resume file: None

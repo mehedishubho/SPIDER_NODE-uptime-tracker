@@ -128,7 +128,7 @@ export function MonitorDetails() {
                     !monitor.isActive
                       ? "bg-slate-500/10 text-slate-400 border-slate-500/30"
                       : monitor.status === "UP"
-                      ? "bg-status-up/10 text-status-up border-status-up/30"
+                      ? "bg-emerald-500/10 text-status-up border-emerald-500/30"
                       : monitor.status === "DOWN"
                       ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
                       : "bg-amber-500/10 text-amber-400 border-amber-500/30"
@@ -276,7 +276,7 @@ export function MonitorDetails() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-4">
                         <div className={`mt-0.5 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          isOngoing ? "bg-rose-500/10 text-rose-500" : "bg-status-up/10 text-status-up"
+                          isOngoing ? "bg-rose-500/10 text-rose-500" : "bg-emerald-500/10 text-status-up"
                         }`}>
                           {isOngoing ? <XCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
                         </div>
@@ -305,7 +305,7 @@ export function MonitorDetails() {
                       <span className={`px-2.5 py-1 rounded border text-[10px] font-bold tracking-wider ${
                         isOngoing 
                           ? "bg-rose-500/10 border-rose-500/30 text-rose-400 animate-pulse"
-                          : "bg-status-up/10 border-status-up/30 text-status-up"
+                          : "bg-emerald-500/10 border-emerald-500/30 text-status-up"
                       }`}>
                         {isOngoing ? "ACTIVE" : "RESOLVED"}
                       </span>

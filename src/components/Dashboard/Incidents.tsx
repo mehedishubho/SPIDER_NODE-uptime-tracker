@@ -165,7 +165,7 @@ export function Incidents() {
         {/* Incidents List */}
         {incidents.length === 0 ? (
           <div className="glass-panel rounded-2xl border border-slate-800 p-16 text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-status-up/10 border border-status-up/30 text-status-up flex items-center justify-center mx-auto">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-status-up flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-8 h-8" />
             </div>
             <h3 className="text-lg font-bold text-slate-200">All Clear!</h3>
@@ -199,7 +199,7 @@ export function Incidents() {
                           className={`mt-0.5 w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
                             isOngoing
                               ? "bg-rose-500/10 text-rose-400"
-                              : "bg-status-up/10 text-status-up"
+                              : "bg-emerald-500/10 text-status-up"
                           }`}
                         >
                           {isOngoing ? (
@@ -255,7 +255,7 @@ export function Incidents() {
                         className={`px-2.5 py-1 rounded border text-[10px] font-bold tracking-wider flex-shrink-0 ${
                           isOngoing
                             ? "bg-rose-500/10 border-rose-500/30 text-rose-400 animate-pulse"
-                            : "bg-status-up/10 border-status-up/30 text-status-up"
+                            : "bg-emerald-500/10 border-emerald-500/30 text-status-up"
                         }`}
                       >
                         {isOngoing ? "ACTIVE" : "RESOLVED"}

@@ -17,7 +17,7 @@ export default function LivePreviewMockup() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-status-up/10 border border-status-up/30 text-status-up text-xs font-mono font-medium">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-status-up text-xs font-mono font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-status-up animate-pulse" />
               All Systems Operational (99.98%)
             </span>
@@ -57,7 +57,7 @@ export default function LivePreviewMockup() {
                 </div>
               </div>
               <div className="col-span-3 text-center">
-                <span className="inline-block px-2.5 py-0.5 rounded-full bg-status-up/10 text-status-up text-[10px] font-semibold border border-status-up/20">
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-status-up text-[10px] font-semibold border border-emerald-500/20">
                   OPERATIONAL
                 </span>
               </div>
@@ -73,7 +73,7 @@ export default function LivePreviewMockup() {
                 </div>
               </div>
               <div className="col-span-3 text-center">
-                <span className="inline-block px-2.5 py-0.5 rounded-full bg-status-up/10 text-status-up text-[10px] font-semibold border border-status-up/20">
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-status-up text-[10px] font-semibold border border-emerald-500/20">
                   OPERATIONAL
                 </span>
               </div>

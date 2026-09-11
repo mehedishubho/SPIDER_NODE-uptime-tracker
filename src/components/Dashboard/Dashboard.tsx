@@ -487,7 +487,7 @@ export function Dashboard() {
                     if (monitor.isActive) {
                       if (monitor.status === "UP") {
                         statusColor =
-                          "bg-status-up/10 text-status-up border-status-up/30";
+                          "bg-emerald-500/10 text-status-up border-emerald-500/30";
                         dotColor = "bg-status-up animate-status-pulse";
                         label = "ONLINE";
                       } else if (monitor.status === "DOWN") {

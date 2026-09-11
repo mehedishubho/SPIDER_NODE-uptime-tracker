@@ -131,12 +131,12 @@ export function DashboardStatus() {
           className={`glass-panel rounded-2xl border p-5 flex items-center gap-4 ${
             anyDown
               ? "border-rose-500/40 bg-rose-500/5"
-              : "border-status-up/30 bg-status-up/5"
+              : "border-emerald-500/30 bg-emerald-500/5"
           }`}
         >
           <div
             className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-              anyDown ? "bg-rose-500/20 text-rose-400" : "bg-status-up/20 text-status-up"
+              anyDown ? "bg-rose-500/20 text-rose-400" : "bg-emerald-500/20 text-status-up"
             }`}
           >
             {anyDown ? <XCircle className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
@@ -213,7 +213,7 @@ export function DashboardStatus() {
                     <span
                       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border flex-shrink-0 ${
                         isUp
-                          ? "bg-status-up/10 text-status-up border-status-up/30"
+                          ? "bg-emerald-500/10 text-status-up border-emerald-500/30"
                           : isDown
                           ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
                           : "bg-slate-500/10 text-slate-400 border-slate-500/30"

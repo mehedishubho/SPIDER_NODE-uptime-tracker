@@ -103,12 +103,12 @@ export function PublicStatus() {
           className={`rounded-2xl border p-6 text-center ${
             anyDown
               ? "border-rose-500/40 bg-rose-500/5"
-              : "border-status-up/30 bg-status-up/5"
+              : "border-emerald-500/30 bg-emerald-500/5"
           }`}
         >
           <div
             className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
-              anyDown ? "bg-rose-500/20 text-rose-400" : "bg-status-up/20 text-status-up"
+              anyDown ? "bg-rose-500/20 text-rose-400" : "bg-emerald-500/20 text-status-up"
             }`}
           >
             {anyDown ? <XCircle className="w-8 h-8" /> : <CheckCircle2 className="w-8 h-8" />}
@@ -213,7 +213,7 @@ export function PublicStatus() {
                     <span
                       className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border flex-shrink-0 ${
                         isUp
-                          ? "bg-status-up/10 text-status-up border-status-up/30"
+                          ? "bg-emerald-500/10 text-status-up border-emerald-500/30"
                           : isDown
                           ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
                           : "bg-slate-500/10 text-slate-400 border-slate-500/30"

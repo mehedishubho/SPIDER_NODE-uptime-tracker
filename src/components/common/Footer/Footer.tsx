@@ -55,7 +55,7 @@ export const Footer = () => {
             </p>
 
             {/* Status Pill */}
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-status-up/10 border border-status-up/20 text-status-up text-xs font-mono">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-status-up text-xs font-mono">
               <span className="w-2 h-2 rounded-full bg-status-up animate-pulse" />
               <span>All Systems Operational (99.98%)</span>
             </div>

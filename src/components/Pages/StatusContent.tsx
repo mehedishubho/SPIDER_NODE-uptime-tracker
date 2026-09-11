@@ -26,9 +26,9 @@ export default function StatusContent() {
         </div>
 
         {/* Global Status Banner */}
-        <div className="glass-panel p-6 rounded-2xl border border-status-up/30 bg-status-up/5 flex items-center justify-between mb-12 shadow-lg shadow-emerald-500/5">
+        <div className="glass-panel p-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 flex items-center justify-between mb-12 shadow-lg shadow-emerald-500/5">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-status-up/20 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
               <span className="w-3 h-3 rounded-full bg-status-up animate-pulse" />
             </div>
             <div>

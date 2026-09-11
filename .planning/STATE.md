@@ -4,11 +4,11 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 2
 current_phase_name: Foundations & Theme Infrastructure
-status: executing
-stopped_at: Phase 2 gap closure executed (02-10, gates + pnpm verify green); re-verification pending
-last_updated: "2026-09-11T17:55:00.000Z"
-last_activity: 2026-09-11
-last_activity_desc: Phase 2 gap closure (02-10) executed
+status: verifying
+stopped_at: Phase 2 UAT pending — 5 human tests in 02-UAT.md (round-2 verification: gaps closed, human_needed)
+last_updated: "2026-09-12T00:00:00.000Z"
+last_activity: 2026-09-12
+last_activity_desc: Phase 2 round-2 verification (gaps closed, human_needed)
 progress:
   total_phases: 8
   completed_phases: 1
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 
 ## Current Position
 
-Phase: 2 (Foundations & Theme Infrastructure) — EXECUTED, RE-VERIFICATION PENDING
+Phase: 2 (Foundations & Theme Infrastructure) — UAT
 Plan: 10 of 10 (all executed; 02-10 gap closure done 2026-09-11)
-Status: Phase 2 fully executed — THM-03 gaps closed (02-10), awaiting /gsd-verify re-run (gaps_found → verified)
-Last activity: 2026-09-11 — Phase 2 gap closure (02-10) executed
+Status: Round-2 verification: gaps closed, human_needed (7/11) — 5 manual tests pending in 02-UAT.md; phase closes when UAT passes and verification flips to passed
+Last activity: 2026-09-12 — Round-2 verification (human_needed)
 
 Progress: [████████████████████] 10/10 plans (100%)
 

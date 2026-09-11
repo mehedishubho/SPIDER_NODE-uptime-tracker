@@ -85,7 +85,7 @@ Plans:
   3. A user can toggle Light/Dark/System in the header: theme applies before first paint (no flash of wrong theme, no hydration mismatch), dark mode is visually identical to today, toasts follow the resolved theme, and hardcoded hex classes now route through semantic tokens with no visual change
   4. The repo contains no ngrok binary or log, `.env.example` documents every variable the app reads, and error responses never include stack traces
 
-**Plans**: 9/9 plans complete
+**Plans**: 10 plans (9 complete; 02-10 gap closure planned)
 
 Plans:
 **Wave 1**
@@ -120,6 +120,10 @@ Plans:
 **Wave 8** *(final — blocked on 02-03 + 02-05 + 02-08)*
 
 - [x] 02-09-PLAN.md — D-21 mutation spot-check: three deliberate behavior breaks proven red then reverted; final full pnpm verify (FND-05, FND-06)
+
+**Wave 9** *(gap closure — blocked on 02-08; from 02-VERIFICATION.md gaps)*
+
+- [ ] 02-10-PLAN.md — THM-03 gap closure: revert the 33 CR-01 emerald-500 utility swaps across 8 files + restore the CR-02 frozen literal in global-error.tsx; both theme gates + full pnpm verify re-run (THM-03)
 
 **UI hint**: yes
 
@@ -246,7 +250,7 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Design Gate — Review Verdict READY | 9/9 | Complete — cycle-2 clean pass ratified 2026-09-09, verdict flipped to READY (RR2-01/02/03 advisory Phase 4/5 design-debt) | 2026-09-09 |
-| 2. Foundations & Theme Infrastructure | 9/9 | Verification gaps open (2026-09-11) — CR-01/CR-02 re-confirmed in 02-VERIFICATION.md; closure via `/gsd-plan-phase 02 --gaps` | - |
+| 2. Foundations & Theme Infrastructure | 9/10 | Gap-closure plan 02-10 created (2026-09-11) for CR-01/CR-02 — execute via `/gsd-execute-phase 2 --gaps-only`, then re-verify | - |
 | 3. Redis & Drizzle Schema Ownership | 0/TBD | Not started | - |
 | 4. Monitoring Worker — Build & Dark Launch | 0/TBD | Not started | - |
 | 5. Worker Cutover & Operational Hardening | 0/TBD | Not started | - |

@@ -39,8 +39,8 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 ### Drizzle Migration
 
 - [x] **DRZ-01**: Drizzle schema authored from **live production DDL** (`pg_dump --schema-only`), not `schema.prisma`; equivalence proven by empty diff or explicitly reviewed delta
-- [ ] **DRZ-02**: Versioned drizzle-kit migrations replace `prisma db push`; single migration runner in the deploy pipeline; `--accept-data-loss` deleted
-- [ ] **DRZ-03**: Empty-diff CI gate (`drizzle-kit pull` diffed against committed schema) preventing silent schema drift
+- [x] **DRZ-02**: Versioned drizzle-kit migrations replace `prisma db push`; single migration runner in the deploy pipeline; `--accept-data-loss` deleted
+- [x] **DRZ-03**: Empty-diff CI gate (`drizzle-kit pull` diffed against committed schema) preventing silent schema drift
 - [x] **DRZ-04**: Schema addenda in the Drizzle schema: `monitors.next_check_at` + partial index `(is_active, next_check_at)`, `write_guards`, `outbox`, partial unique index `incidents(monitor_id) WHERE status='ONGOING'`, pinned ID-generation defaults, `error_class` metadata, `consecutive_failures` reserved
 - [x] **DRZ-05**: Drizzle adopted additively (new code uses Drizzle only) sharing one `pg` Pool with Prisma during transition; no dual-write
 - [x] **DRZ-06**: Migrations rehearsed against an anonymized local prod snapshot with row-count + checksum verification before production
@@ -211,8 +211,8 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | RDS-02 | Phase 3 | Complete |
 | RDS-03 | Phase 3 | Pending |
 | DRZ-01 | Phase 3 | Complete |
-| DRZ-02 | Phase 3 | Pending |
-| DRZ-03 | Phase 3 | Pending |
+| DRZ-02 | Phase 3 | Complete |
+| DRZ-03 | Phase 3 | Complete |
 | DRZ-04 | Phase 3 | Complete |
 | DRZ-05 | Phase 3 | Complete |
 | DRZ-06 | Phase 3 | Complete |

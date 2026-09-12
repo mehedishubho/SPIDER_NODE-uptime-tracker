@@ -6,14 +6,14 @@ current_phase: 03
 current_phase_name: redis-drizzle-schema-ownership
 status: executing
 stopped_at: Completed 03-06-PLAN.md
-last_updated: "2026-09-12T14:20:41.904Z"
+last_updated: "2026-09-12T18:05:09.378Z"
 last_activity: 2026-09-12
 last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 27
-  completed_plans: 25
+  completed_plans: 26
   percent: 25
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-12)
 ## Current Position
 
 Phase: 03 (redis-drizzle-schema-ownership) — EXECUTING
-Plan: 7 of 8
+Plan: 8 of 8
 Status: Ready to execute
 Last activity: 2026-09-12 — Phase 03 execution started
 
@@ -80,6 +80,7 @@ Progress: [████████████████████] 19/19 p
 | Phase 03 P04 | 857s (~14 min) | 3 tasks | 8 files |
 | Phase 03 P05 | 455s (~8 min; Task 3 continuation) | 3 tasks | 4 files |
 | Phase 03 P06 | 474s (~8 min) | 3 tasks | 1 files |
+| Phase 03 P03-07 | 218 minutes | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -164,6 +165,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 03-06: restart-survival check corrected to the 6th window request 429 — plan's '5th' was off by one vs shipped register route (limit:5/h); 03-08 must follow the runbook arithmetic
 - [Phase ?]: 03-06: RDS-03 left unchecked — documented half only; 03-08 (also carries RDS-03) executes the hardening live
 - [Phase ?]: 03-06: §3c threshold carries both ~358 MB decimal and the exact 377,487,360 bytes (360 MiB); §3 step 3/§3d note the 03-03 spidernode-dev-db deviation instead of hard-asserting Neon
+- [Phase ?]: 03-07: schema gate compares STRUCTURALLY not textually — pull's top-level order (imports, tables) is unstable run-to-run; imports as canonicalized sorted set, export blocks by name with internal lines ordered
+- [Phase ?]: 03-07: gen_random_uuid defaults kept in canonical .default(sql`...`) form; gate rewrites .default((IDENT())) symmetrically on both diff sides
+- [Phase ?]: 03-07: gate targets docker test DB only (5453), vitest-identical URL resolution + localhost guard; full verify 31s warm, gate adds ~2.4s
 
 ### Pending Todos
 
@@ -186,6 +190,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-12T14:20:24.996Z
+Last session: 2026-09-12T18:05:02.558Z
 Stopped at: Completed 03-06-PLAN.md
 Resume file: None

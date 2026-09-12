@@ -150,4 +150,6 @@ None.
 
 None — both gates are fully functional and mutation-proven.
 
-## Self-Check: PENDING
+## Self-Check: PASSED
+
+All 6 created/modified files present on disk; commits 87b2bba, 4555bdb, eccc4f0 present in git log; working tree clean for all plan-owned files (only pre-existing hygiene files — skills-lock.json, .claude/skills/*, .planning/research/.cache/*, .playwright-mcp/, docker-compose.dev.yml, .env.test — remain untouched, per the working-tree-hygiene contract).

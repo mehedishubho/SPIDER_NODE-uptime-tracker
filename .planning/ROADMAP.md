@@ -141,7 +141,7 @@ Plans:
   4. Migrations have been rehearsed against an anonymized production snapshot with row-count and checksum verification matching; the deploy pipeline runs the single migration runner, and `prisma db push --accept-data-loss` no longer exists anywhere
   5. Redis hardening is applied and documented (AOF `everysec`, `maxmemory-policy noeviction`, supervised restart, memory alert at 70%) and ioredis clients follow BullMQ 6 config — separate blocking + queue connections, `maxRetriesPerRequest: null` on the worker side, no `keyPrefix` — with the connection budget (web 10 / worker 20 / migrations 1) documented
 
-**Plans**: 6/8 plans executed
+**Plans**: 7/8 plans executed
 
 Plans:
 **Wave 1** *(parallel, no file overlap)*
@@ -164,7 +164,7 @@ Plans:
 
 **Wave 5** *(blocked on 03-05 — package.json ordering)*
 
-- [ ] 03-07-PLAN.md — Verify gates: empty-diff gate (migrate → pull → diff) + destructive-push absence scan join pnpm verify; mutation-proof + ≤5-min budget (DRZ-03, DRZ-02)
+- [x] 03-07-PLAN.md — Verify gates: empty-diff gate (migrate → pull → diff) + destructive-push absence scan join pnpm verify; mutation-proof + ≤5-min budget (DRZ-03, DRZ-02)
 
 **Wave 6** *(final — blocked on 03-05 + 03-06 + 03-07)*
 

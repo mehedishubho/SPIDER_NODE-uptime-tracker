@@ -43,6 +43,11 @@ yarn-error.log*
 # never committed
 .snapshots/
 
+# schema-gate throwaway introspection output (03-07): deleted by
+# scripts/schema-gate.mjs on every exit path; ignored so a killed run can
+# never leak generated artifacts into a commit
+/.tmp-gate/
+
 # vercel
 .vercel
 

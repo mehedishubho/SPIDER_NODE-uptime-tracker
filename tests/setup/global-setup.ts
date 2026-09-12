@@ -4,8 +4,8 @@ import { execSync } from "node:child_process";
 // Test-database safety guard (T-02-05)
 //
 // This is a LIVE production system's repo: a misdirected DATABASE_URL would
-// point `prisma db push --force-reset` (and the suite's TRUNCATE seeds) at a
-// real database and destroy data. The guard refuses to let any test machinery
+// point the migration runner (and the suite's TRUNCATE seeds) at a real
+// database and destroy data. The guard refuses to let any test machinery
 // run against a host that is not local. It is exported so
 // tests/setup/db-guard.test.ts can prove it directly.
 // ---------------------------------------------------------------------------
@@ -46,27 +46,26 @@ export default function globalSetup(): void {
   // holds no matter which process invokes the setup.
   assertLocalDatabaseUrl(process.env.DATABASE_URL ?? "");
 
-  // Interim schema authority until Phase 3 (runbook M-step contract, 01-07):
-  // apply prisma/schema.prisma to the guarded, local docker test database.
-  //
-  // No --force-reset (deviation from plan wording, see 02-02-SUMMARY):
-  // - Prisma 7 removed --skip-generate (db push never generates the client).
-  // - --force-reset trips Prisma's AI-agent dangerous-action consent gate,
-  //   breaking agent-run sessions; the target is a volume-less throwaway
-  //   container anyway — recreate it with `docker compose down && up -d --wait`.
-  // - Plain push on a fresh container creates the schema; on schema drift it
-  //   FAILS CLOSED (demands explicit --accept-data-loss) instead of silently
-  //   wiping data — the safer default even behind the localhost guard.
+  // Schema authority since Phase 3 (D-14, runbook M-step contract 01-07):
+  // the guarded, local docker test database is built by the SINGLE migration
+  // runner from the committed drizzle/ files — every test run exercises the
+  // real migrations (baseline 0000 + additive 0001+), the exact artifacts
+  // production runs at deploy (03-08). The retired push-from-Prisma-schema
+  // command is gone from all test machinery (D-09/D-14): the frozen
+  // prisma/schema.prisma no longer describes the grown database.
   try {
-    execSync("pnpm exec prisma db push", {
+    execSync("pnpm exec drizzle-kit migrate", {
       stdio: "inherit",
     });
   } catch {
-    // Command output was already inherited to the console; restate the cause.
+    // Command output was already inherited to the console; restate the causes.
     throw new Error(
-      "global-setup failed: prisma db push could not prepare the test database. " +
-        "Is the docker test stack up? (docker compose -f docker-compose.test.yml up -d --wait) " +
-        "If the schema drifted, recreate the stack: docker compose -f docker-compose.test.yml down && up -d --wait."
+      "global-setup failed: drizzle-kit migrate could not prepare the test database. " +
+        "Likely causes: the docker test stack is down " +
+        "(docker compose -f docker-compose.test.yml up -d --wait), the drizzle journal " +
+        "is corrupted (drizzle/meta/_journal.json), or a migration file is broken. " +
+        "A container still holding a pre-drizzle schema must be recreated: " +
+        "docker compose -f docker-compose.test.yml down && up -d --wait."
     );
   }
 }

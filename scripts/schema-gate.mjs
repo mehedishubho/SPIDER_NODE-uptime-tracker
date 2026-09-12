@@ -12,13 +12,16 @@
 //   b. `drizzle-kit pull --config=drizzle.gate.config.ts` → ./.tmp-gate/schema.ts
 //      (schemaFilter ["public"] — Pitfall 4: the runner's own bookkeeping
 //      schema must never pollute the pull).
-//   c. Normalized diff of the pull against the committed src/db/schema.ts.
-//      BOTH sides are normalized identically (line endings, // comments
-//      outside string literals, trailing whitespace, blank lines). The
-//      committed schema is pull-generated (03-03 discipline), so
-//      post-normalization equality is the steady state. ANY non-empty diff
-//      prints the drift and exits 1 — silent drift must fail the operator's
-//      single typed gate command before it can ship.
+//   c. Normalized STRUCTURAL diff of the pull against the committed
+//      src/db/schema.ts. BOTH sides are normalized identically (line endings,
+//      // comments outside string literals, trailing whitespace, blank lines,
+//      expression-default canonicalization), then compared STRUCTURALLY:
+//      imports as a sorted set, each `export const` block by name with its
+//      internal lines ordered (pull's TOP-LEVEL ordering is not stable
+//      run-to-run — see parseBlocks). The committed schema is pull-generated
+//      (03-03 discipline), so post-normalization structural equality is the
+//      steady state. ANY drift prints it and exits 1 — silent drift must fail
+//      the operator's single typed gate command before it can ship.
 //
 // Gate 2 — the destructive-push absence scan (T-03-18), runs only after the
 //   diff half passes: the retired destructive prisma push command form and
@@ -190,7 +193,7 @@ function normalizeSchema(text) {
 }
 
 // Classic LCS line diff (`-` committed schema only, `+` migrated database
-// only). Both files are a few hundred lines — the O(n*m) table is trivial.
+// only). Both sides are a few hundred lines — the O(n*m) table is trivial.
 function diffLines(a, b) {
   const n = a.length;
   const m = b.length;
@@ -224,24 +227,151 @@ function diffLines(a, b) {
   return ops;
 }
 
-function printDrift(ops) {
-  const differing = ops.filter((op) => op.type !== " ");
+// STRUCTURAL comparison (the research A5 / Open Question 2 spike, exercised):
+// drizzle-kit pull's TOP-LEVEL ordering is NOT stable run-to-run — the import
+// list order and the table statement order vary with database catalog state
+// (Postgres returns catalog rows in an order that TRUNCATE/seed activity
+// perturbs, and the serializer follows it). Comparing raw line order would
+// false-positive the gate after every `pnpm test`. Instead, both sides are
+// parsed into structure:
+//   - import lines  → compared as a SORTED SET (order is meaningless)
+//   - each `export const <name> = ...` block (pgTable/pgEnum/...) → compared
+//     BY NAME as an unordered map, with the block's INTERNAL lines still in
+//     order (column/index drift inside one table is still caught — column
+//     order is the DB's stable ordinal position)
+// Any top-level line that is neither an import nor an export block is keyed
+// by its own content, so it can never silently vanish from the comparison.
+// Canonicalize an import line's SPECIFIER ORDER: `import { b, a } from "x"`
+// and `import { a, b } from "x"` are the same statement. drizzle-kit pull
+// emits the pg-core specifiers in serializer-visit order, which is not stable
+// run-to-run (see parseBlocks) — sorting the names on BOTH sides removes that
+// false positive while still catching a genuinely added/removed/renamed
+// import (the sorted sets then differ).
+function canonicalizeImportLine(line) {
+  const match = line.match(/^import \{(.*)\} from (.+)$/);
+  if (!match) return line;
+  const specifiers = match[1]
+    .split(",")
+    .map((specifier) => specifier.trim())
+    .filter((specifier) => specifier !== "")
+    .sort();
+  return `import { ${specifiers.join(", ")} } from ${match[2]}`;
+}
+
+function parseBlocks(lines) {
+  const imports = new Set();
+  const blocks = new Map();
+  let current = null;
+  for (const line of lines) {
+    if (current) {
+      current.lines.push(line);
+      // `]);` (pgTable), `});` (single-line-close pgTable/pgEnum object) or
+      // `);` (bare call) — each terminator char individually escaped; a
+      // block's internal lines always end with `,` or `{`, never these
+      if (/^\]\);$|^\}\);$|^\);$/.test(line.trim())) {
+        blocks.set(current.name, current.lines);
+        current = null;
+      }
+      continue;
+    }
+    if (line.startsWith("import ")) {
+      imports.add(canonicalizeImportLine(line));
+      continue;
+    }
+    const match = line.match(/^export const ([A-Za-z_][A-Za-z0-9_]*) = /);
+    if (match) {
+      current = { name: match[1], lines: [line] };
+      continue;
+    }
+    blocks.set(`(top-level) ${line}`, [line]);
+  }
+  if (current) {
+    throw new Error(
+      `schema-gate failed: unterminated export block in schema source ` +
+        `(started at "${current.lines[0]}").`
+    );
+  }
+  return { imports, blocks };
+}
+
+function compareStructures(committedLines, pulledLines) {
+  const committed = parseBlocks(committedLines);
+  const pulled = parseBlocks(pulledLines);
+  const problems = [];
+
+  const committedImports = [...committed.imports].sort();
+  const pulledImports = [...pulled.imports].sort();
+  const importOps = diffLines(committedImports, pulledImports);
+  if (importOps.some((op) => op.type !== " ")) {
+    problems.push({ scope: "imports", ops: importOps });
+  }
+
+  for (const name of [...committed.blocks.keys()]) {
+    if (!pulled.blocks.has(name)) {
+      problems.push({
+        scope: name,
+        ops: [
+          {
+            type: "-",
+            line: `${name} exists only in the committed src/db/schema.ts (missing from the migrated database)`,
+          },
+        ],
+      });
+    }
+  }
+  for (const name of [...pulled.blocks.keys()]) {
+    if (!committed.blocks.has(name)) {
+      problems.push({
+        scope: name,
+        ops: [
+          {
+            type: "+",
+            line: `${name} exists only in the migrated database (missing from committed src/db/schema.ts)`,
+          },
+        ],
+      });
+    }
+  }
+  for (const [name, lines] of committed.blocks) {
+    const other = pulled.blocks.get(name);
+    if (!other) continue;
+    const ops = diffLines(lines, other);
+    if (ops.some((op) => op.type !== " ")) {
+      problems.push({ scope: name, ops });
+    }
+  }
+  return problems;
+}
+
+function printDrift(problems) {
+  const totalDiffering = problems.reduce(
+    (sum, problem) => sum + problem.ops.filter((op) => op.type !== " ").length,
+    0
+  );
   console.error(
-    `[schema-gate] DRIFT: ${differing.length} differing line(s) between ` +
-      `src/db/schema.ts and the migrated database. ` +
-      `(- committed schema only · + migrated database only)`
+    `[schema-gate] DRIFT: src/db/schema.ts does not match the migrated ` +
+      `database — ${problems.length} problem area(s), ${totalDiffering} ` +
+      `differing line(s). (- committed schema only · + migrated database only)`
   );
   let shown = 0;
-  for (const op of ops) {
-    if (op.type === " ") continue;
+  for (const problem of problems) {
     if (shown >= MAX_DIFF_LINES_SHOWN) {
       console.error(
-        `  ... ${differing.length - shown} more differing line(s) (truncated)`
+        `  ... output truncated at ${MAX_DIFF_LINES_SHOWN} lines ` +
+          `(remaining problem areas: ${problems
+            .slice(problems.indexOf(problem))
+            .map((p) => p.scope)
+            .join(", ")})`
       );
       break;
     }
-    console.error(`  ${op.type} ${op.line}`);
-    shown++;
+    console.error(`  [${problem.scope}]`);
+    for (const op of problem.ops) {
+      if (op.type === " ") continue;
+      if (shown >= MAX_DIFF_LINES_SHOWN) break;
+      console.error(`  ${op.type} ${op.line}`);
+      shown++;
+    }
   }
   console.error(
     `Fix direction: schema changes belong in a NEW drizzle migration ` +
@@ -340,14 +470,15 @@ function main() {
       );
     }
 
-    // (c) normalized diff against the committed schema
+    // (c) normalized STRUCTURAL diff against the committed schema (top-level
+    // order-insensitive — see parseBlocks for why raw line order is unstable)
     stepStart = Date.now();
     const committed = normalizeSchema(readFileSync(COMMITTED_SCHEMA, "utf8"));
     const pulled = normalizeSchema(readFileSync(pulledSchemaPath, "utf8"));
-    const ops = diffLines(committed, pulled);
+    const problems = compareStructures(committed, pulled);
     timings.diff = Date.now() - stepStart;
-    if (ops.some((op) => op.type !== " ")) {
-      printDrift(ops);
+    if (problems.length > 0) {
+      printDrift(problems);
       process.exitCode = 1;
       return; // scan half fires only after the diff half passes
     }

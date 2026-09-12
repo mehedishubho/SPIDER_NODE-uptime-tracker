@@ -1,0 +1,7 @@
+# Migration artifacts are HASH-BEARING (03-03, D-12): the baseline stamp and
+# the drizzle migrator both compute sha256 over the raw bytes of drizzle/*.sql,
+# so the committed newline style must be identical on every machine that runs
+# them (dev Windows checkout, VPS Linux checkout, tarball deploys). Force LF
+# on checkout for exactly these paths — everything else keeps autocrlf behavior.
+drizzle/** text eol=lf
+scripts/stamp-baseline.mjs text eol=lf

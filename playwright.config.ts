@@ -4,17 +4,22 @@ import dotenv from "dotenv";
 // Same env contract as vitest: .env.test is the single test env source when
 // present (override: true beats ambient shell env); the docker-compose.test.yml
 // default (Postgres :5453 — 5433 is taken by sibling stacks on this machine)
-// is the canonical fallback for checkouts without the file.
+// is the canonical fallback for checkouts without the file. The Redis twin
+// (:6390) keeps the booted server's rate limiter live against the test stack.
 const DEFAULT_TEST_DATABASE_URL =
   "postgresql://postgres:postgres@localhost:5453/uptime_test";
+const DEFAULT_TEST_REDIS_URL = "redis://localhost:6390";
 
 dotenv.config({ path: ".env.test", override: true });
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL ?? DEFAULT_TEST_DATABASE_URL;
+const TEST_REDIS_URL = process.env.TEST_REDIS_URL ?? DEFAULT_TEST_REDIS_URL;
 
 // Propagate to spec worker processes (seed helpers read it defensively too)
 process.env.DATABASE_URL = TEST_DATABASE_URL;
 process.env.TEST_DATABASE_URL = TEST_DATABASE_URL;
+process.env.REDIS_URL = TEST_REDIS_URL;
+process.env.TEST_REDIS_URL = TEST_REDIS_URL;
 
 const PORT = 3100; // offset from the app's dev/prod port 3007
 const baseURL = `http://localhost:${PORT}`;
@@ -58,6 +63,10 @@ export default defineConfig({
       CRON_MODE: "vercel",
       NODE_ENV: "production",
       DATABASE_URL: TEST_DATABASE_URL,
+      // Server-side module-load validation in src/lib/redis.ts throws without
+      // this — and the limiter stays REAL against the test Redis so the 429
+      // characterization parity is exercised end-to-end.
+      REDIS_URL: TEST_REDIS_URL,
       NEXTAUTH_URL: baseURL,
       NEXTAUTH_SECRET: "test-secret",
       // Server-side module-load validation in src/redux/api/baseApi.ts

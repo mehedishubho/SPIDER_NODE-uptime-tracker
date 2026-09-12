@@ -15,7 +15,7 @@
 //   users                  email, name, "telegramChatId"   (PII)
 //   accounts               "providerAccountId"             (OAuth subject id)
 //                          refresh_token, access_token, id_token  (secrets)
-//   sessions               sessionToken                    (secret)
+//   sessions               "sessionToken"                  (secret)
 //   verification_tokens    email, token                    (PII + secret)
 //   password_reset_tokens  email, token                    (PII + secret)
 // Not masked, deliberately:
@@ -83,7 +83,7 @@ const MASKING_STATEMENTS = [
   {
     table: "sessions",
     sql: `UPDATE sessions SET
-      sessionToken = 'sess-' || substr(md5(id::text), 1, 24)`,
+      "sessionToken" = 'sess-' || substr(md5(id::text), 1, 24)`,
   },
   {
     table: "verification_tokens",

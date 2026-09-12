@@ -38,6 +38,11 @@ yarn-error.log*
 # test env contract (localhost-only URLs, no secrets) — committable
 !.env.test
 
+# production snapshot dumps for migration rehearsals (D-11): fresh pg_dump
+# copies of live production restored into throwaway containers — PII-bearing,
+# never committed
+.snapshots/
+
 # vercel
 .vercel
 

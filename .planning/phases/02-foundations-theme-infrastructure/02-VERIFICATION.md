@@ -1,7 +1,7 @@
 ---
 phase: 02-foundations-theme-infrastructure
 verified: 2026-09-11T18:21:06Z
-status: human_needed
+status: passed
 score: 7/11 must-haves verified
 behavior_unverified: 2 # truths present + wired but runtime behavior not exercised in this verification
 overrides_applied: 0
@@ -10,38 +10,49 @@ re_verification:
   previous_status: gaps_found
   previous_score: 6/11
   gaps_closed:
+
     - "Dark mode visually identical / THM-03 no-visual-change (was CR-01 + CR-02): CR-01 closed by commit e4999bf — per-file emerald-500 utility multisets on all 8 affected files verified byte-identical to the bebd879~1 pre-migration baseline by this verifier (grep multiset diff per file, ALL MATCH; zero opacity-suffixed (bg|border|text|shadow)-status-up/N remain in src/); CR-02 closed by commit 6a93cb4 — global-error.tsx line 14 verified byte-identical to 53b0ce8:14 (bg-[#121212]), bg-background count 0 in the file, and the only remaining diff vs pre-phase is line 16 bg-[#0F172A] -> bg-foreground-invert, a same-value token (#0f172a in BOTH :root and .dark). globals.css untouched by bebd879..HEAD (empty diff), so the round-1 token-layer byte-identity verdict (27/27 original values preserved in .dark) carries forward unchanged."
   gaps_remaining: []
   regressions: []
 deferred: # Items addressed in later phases — not actionable gaps
+
   - truth: "Error responses never include stack traces (criterion 4 clause)"
     addressed_in: "Phase 6"
     evidence: "Phase 6 Success Criterion 3 (verbatim): 'No endpoint accepts a secret via query string and no CRON_SECRET reference remains in the codebase; error responses never leak stack traces or internals' + requirement SEC-06 (Phase 6, Pending): 'No secret accepted via query string; CRON_SECRET retires with the cron endpoints (S-4/R15)'. The two remaining echo sites (src/app/api/cron/check/route.ts:45 and src/app/api/cron/cleanup/route.ts:39, returning error.message + error.stack) are pinned AS-IS in tests/api/cron-and-webhook.handler.test.ts ('PINNED DEFECT (S-4 family): the 500 body echoes err.message AND the full stack') with in-file Phase-6/SEC-06 remediation notes. The echo is only reachable after CRON_SECRET validation. The monitors GET leak (the plan-scoped FND-07 fix) IS fixed and test-pinned."
 behavior_unverified_items:
+
   - truth: "Theme applies before first paint (no flash of wrong theme) and produces zero hydration mismatches during load and toggle cycling"
     test: "Load /login and the dashboard with no stored preference, cycle Light/Dark/System, reload; watch first paint and the browser console"
     expected: "html.dark is set before first paint (no light flash), selected theme persists across reload, zero hydration/mismatch console errors"
     why_human: "The e2e spec (tests/e2e/smoke.spec.ts — 5 dedicated 'Theme:' tests incl. a zero-hydration-warnings collector) exists and is wired, and the gap-closure executor's full verify (exit 0, 18/18 e2e) covers it, but running it requires a built server (next start), which this verifier may not launch; not independently reproduced."
+
   - truth: "Toasts render in the active palette — the Toaster follows the resolved theme"
     test: "Trigger a sonner toast (e.g. save a monitor) in dark, then toggle light and trigger another"
     expected: "Toast chrome follows the resolved theme (richColors, position top-right frozen)"
     why_human: "ThemedToaster is present and wired inside ThemeProvider (src/components/theme/ThemedToaster.tsx reads useTheme().resolvedTheme into the Toaster theme prop), but no test asserts toast rendering at runtime — presence checks cannot see rendered toast chrome."
 human_verification:
+
   - test: "Review .env.example content (permission rules deny .env* to agents — IN-06)"
     expected: "Every variable the app reads is listed (31 unique process.env.* reads in src/ + ecosystem.config.js at HEAD) with names + purpose comments only; zero real secrets or token-shaped values (02-01 executor reported a 24-key equality sweep + 0 token-shaped values; not independently confirmable)"
     why_human: "Deny rule blocks agent reads of .env* paths; only existence + git-tracking verified programmatically"
+
   - test: "Visual: dark dashboard/status/home — confirm UNCHANGED pre-phase appearance (post gap-closure)"
     expected: "UP-status pill/banner/border tints across Dashboard, Incidents, MonitorDetails, DashboardStatus, PublicStatus, StatusContent, Footer, LivePreviewMockup look exactly as before the phase (computed values proven byte-identical: emerald-500 opacity utilities restored, text/bg-status-up unsuffixed swaps are #34d399 = emerald-400). Perceptual confirmation only — the single-green convergence option was NOT taken and remains a Phase 8 decision if ever wanted."
     why_human: "Computed color identity is proven programmatically; holistic visual identity (any non-color regression no gate sees) is perceptual"
+
   - test: "Visual: fatal-error page (force src/app/global-error.tsx to render) — confirm UNCHANGED pre-phase appearance"
     expected: "Full-bleed dark #121212 body with #0f172a inner card, exactly as pre-phase (line 14 literal restored byte-identical; only same-value token swap remains on the card)"
     why_human: "Requires triggering a root-layout-crashing error in a running app"
+
   - test: "02-07/02-08 deferred visual spot-checks: both palettes, auth + dashboard surfaces, toast theming"
     expected: "Light palette reads correctly on migrated surfaces; no layout shift vs pre-phase; toasts follow theme; copy changes limited to the six toggle strings"
     why_human: "Planner-deferred end-of-phase human checks (human_verify_mode); grep cannot judge visual layout/copy equivalence"
+
   - test: "WR-02 decision: light-mode legibility of unmigrated surfaces (text-white on bg-background in Navbar/TeamSwitch, bg-slate-950/80 header, text-slate-300/400 marketing copy)"
     expected: "Either accept as Phase-8 scope (record it) or gate/fix the worst offenders — a user opting into light sees invisible headings on several surfaces today"
     why_human: "Product/scope judgment on a user-reachable state; review WR-02 lists the exact sites"
+addressed_in: Phase 6
+evidence: "Phase 6 Success Criterion 3 (verbatim): 'No endpoint accepts a secret via query string and no CRON_SECRET reference remains in the codebase; error responses never leak stack traces or internals' + requirement SEC-06 (Phase 6, Pending): 'No secret accepted via query string; CRON_SECRET retires with the cron endpoints (S-4/R15)'. The two remaining echo sites (src/app/api/cron/check/route.ts:45 and src/app/api/cron/cleanup/route.ts:39, returning error.message + error.stack) are pinned AS-IS in tests/api/cron-and-webhook.handler.test.ts ('PINNED DEFECT (S-4 family): the 500 body echoes err.message AND the full stack') with in-file Phase-6/SEC-06 remediation notes. The echo is only reachable after CRON_SECRET validation. The monitors GET leak (the plan-scoped FND-07 fix) IS fixed and test-pinned."
 ---
 
 # Phase 2: Foundations & Theme Infrastructure Verification Report

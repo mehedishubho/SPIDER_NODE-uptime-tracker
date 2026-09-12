@@ -2,38 +2,38 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 2
-current_phase_name: Foundations & Theme Infrastructure
-status: verifying
-stopped_at: Phase 2 UAT pending — 5 human tests in 02-UAT.md (round-2 verification: gaps closed, human_needed)
-last_updated: "2026-09-12T00:00:00.000Z"
+current_phase: 3
+current_phase_name: Redis & Drizzle Schema Ownership
+status: ready-to-plan
+stopped_at: Phase 2 complete, ready to plan Phase 3
+last_updated: "2026-09-12T02:18:46.327Z"
 last_activity: 2026-09-12
-last_activity_desc: Phase 2 round-2 verification (gaps closed, human_needed)
+last_activity_desc: Phase 2 complete, transitioned to Phase 3
 progress:
   total_phases: 8
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 19
   completed_plans: 19
-  percent: 13
+  percent: 25
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-09)
+See: .planning/PROJECT.md (updated 2026-09-12)
 
 **Core value:** Modernize the infrastructure without breaking existing monitoring — never lose or corrupt uptime data, silently stop checking, or lock users out irrecoverably.
-**Current focus:** Phase 2 — Foundations & Theme Infrastructure
+**Current focus:** Phase 3 — Redis & Drizzle Schema Ownership
 
 ## Current Position
 
-Phase: 2 (Foundations & Theme Infrastructure) — UAT
-Plan: 10 of 10 (all executed; 02-10 gap closure done 2026-09-11)
-Status: Round-2 verification: gaps closed, human_needed (7/11) — 5 manual tests pending in 02-UAT.md; phase closes when UAT passes and verification flips to passed
-Last activity: 2026-09-12 — Round-2 verification (human_needed)
+Phase: 3 — Redis & Drizzle Schema Ownership
+Plan: Not started
+Status: Ready to plan (Phase 2 closed 2026-09-12 — round-2 verification passed, UAT 5/5, 02-SECURITY.md threats_open: 0)
+Last activity: 2026-09-12 — Phase 2 complete, transitioned to Phase 3
 
-Progress: [████████████████████] 10/10 plans (100%)
+Progress: [████████████████████] 19/19 plans (100%)
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Progress: [████████████████████] 10/10 p
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 9 | - | - |
+| 2 | 10 | - | - |
 
 **Recent Trend:**
 
@@ -139,6 +140,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 02]: 02-09: mutation 1 realized as true 2-consecutive-failure gate (DOWN only when monitor.status already DOWN) - the failedChecks>=2 example leaves the seeded failedChecks=2 UP-to-DOWN case green; consecutive form turns BOTH plan-named cases red
 - [Phase ?]: [Phase 02]: 02-09: HTTP-layer mutation proof requires rebuild-between (playwright api project runs the built artifact) - mutate, build, RED e2e, revert, rebuild, GREEN; per-task evidence as --allow-empty commits since mutations are never committed (T-02-19)
 - [Phase 02]: 02-10: hex gate exclusion extended by exactly one name (global-error.tsx frozen bg-[#121212] literal — .dark never applies on that surface) and the command form switched to filename-fragment exclusions: Windows rg emits backslash paths, so 02-08 full-path patterns (-e src/lib/mail.ts) silently fail to exclude
+- [Phase 02]: UAT close 2026-09-12 — WR-02 dispositioned by operator: light-mode legibility of unmigrated marketing surfaces (Navbar/TeamSwitch `text-white`, `bg-slate-950/80` header, `text-slate-300/400` copy) + light-palette polish notes ACCEPTED as Phase-8 scope; dark mode (the default) unaffected (02-UAT.md Decision Record)
+- [Phase 02]: security closeout 2026-09-12 — 02-SECURITY.md: 25/25 register rows closed at L1/ASVS-1 (grep-depth, plan-time register); one accepted risk AR-02-01 (unauthenticated telegram webhook S-2 + cron query-string secret S-4, pinned per D-17) rides to Phase 6 SEC-03/SEC-06
 
 ### Pending Todos
 
@@ -149,6 +152,7 @@ None yet.
 - Research flags requiring `--research-phase` during planning: Phase 4 (BullMQ 6 `upsertJobScheduler`, breaker/backlog tuning, PM2 handshake), Phase 7 (social `providerId` casing, token-flow cutover, cookieCache revocation lag), Phase 3 (drizzle-kit journal-stamping, `CREATE INDEX CONCURRENTLY` transaction wrapping)
 - Live production system: every cutover step needs a full `pg_dump` backup and an anonymized-snapshot rehearsal first (D-9/D-10)
 - [Phase 4/5] Design-debt register (01-VERIFICATION.md): CR-01 (`uptime_percent` has no writer — displayed lifetime uptime would freeze at cutover) and CR-02 (runbook §4a "disable nothing" vs audit M4 ordering) are must-resolve inputs at Phase 4/5 planning, before any plan transcribes §16 or the §4a overlap path; advisory register WR-01..05 / IN-01..07 / RR2-01..03 rides along
+- [Phase 8] WR-02 accepted input: light-mode legibility of unmigrated marketing surfaces + light dashboard/toast polish notes are Phase-8 planning inputs (02-UAT.md Decision Record, 2026-09-12); mixed emerald/rose ternaries flagged for Phase 8 UI-03 review also ride along
 
 ## Deferred Items
 
@@ -160,6 +164,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-11T17:40:56.117Z
-Stopped at: Completed 02-09-PLAN.md
+Last session: 2026-09-12T02:20:00Z
+Stopped at: Phase 2 complete, ready to plan Phase 3
 Resume file: None

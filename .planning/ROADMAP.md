@@ -14,7 +14,7 @@ A brownfield modernization of a live production uptime-monitoring SaaS. The arc 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Design Gate — Review Verdict READY** - All 8 review addenda incorporated, §9 checklist resolved, verdict flipped NOT READY → READY before any code — **complete 2026-09-09: cycle-2 re-review clean pass (zero blocking findings) human-ratified, verdict flipped to READY per D-16; RR2-01/02/03 recorded as advisory Phase 4/5 design-debt (01-09)**
-- [ ] **Phase 2: Foundations & Theme Infrastructure** - pnpm, CI gates, characterization tests on real Postgres/Redis; theme tokens land with zero behavior change — *round-2 verification 2026-09-12: both gaps independently confirmed closed (02-10), human_needed — 5 manual UAT tests pending (02-UAT.md)*
+- [x] **Phase 2: Foundations & Theme Infrastructure** - pnpm, CI gates, characterization tests on real Postgres/Redis; theme tokens land with zero behavior change — *round-2 verification 2026-09-12: both gaps independently confirmed closed (02-10), human_needed — 5 manual UAT tests pending (02-UAT.md)* (completed 2026-09-12)
 - [ ] **Phase 3: Redis & Drizzle Schema Ownership** - Redis with no correctness dependence; live-DDL Drizzle baseline plus worker schema addenda, rehearsed on a prod snapshot
 - [ ] **Phase 4: Monitoring Worker — Build & Dark Launch** - Dedicated worker owns all monitoring on idempotent, resilient BullMQ machinery; dark-launched while cron still serves users
 - [ ] **Phase 5: Worker Cutover & Operational Hardening** - Gated overlap cutover deletes the cron; heartbeat moves, observability, env transition, rehearsed rollback

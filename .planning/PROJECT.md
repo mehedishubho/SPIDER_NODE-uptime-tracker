@@ -48,8 +48,8 @@ The modernization. Binding hard constraints (treat as non-negotiable; audit rule
 Derived scope (audit §24 order — the chosen sequence):
 
 - [x] Design addenda phase: amend the audit/incorporate all 8 review addenda (§8) — schema (`next_check_at`, `write_guards`, `outbox`, partial unique index on ongoing incidents, ID-generation), scheduler spec (J-1 claims), check job spec (J-3/J-4/S-1), writer specs (J-2/D-1/D-5), resilience spec (J-5/R-1), auth spec (A-1/A-2/A-3), connection budget (D-8), deploy runbook (P-1) — flipping the review verdict to READY before implementation — **done (Phase 01)**
-- [ ] Phase 0 foundations: pnpm migration, typecheck gate (`ignoreBuildErrors` off), Vitest + Playwright scaffolding, characterization tests for cron/batcher/API contracts, repo hygiene (remove ngrok binary/log, `.env.example`)
-- [ ] Theme infrastructure early (`next-themes`, light palette tokens, toggle; no visual redesign)
+- [x] Phase 0 foundations: pnpm migration, typecheck gate (`ignoreBuildErrors` off), Vitest + Playwright scaffolding, characterization tests for cron/batcher/API contracts, repo hygiene (remove ngrok binary/log, `.env.example`) — **done (Phase 02)**
+- [x] Theme infrastructure early (`next-themes`, light palette tokens, toggle; no visual redesign) — **done (Phase 02)**
 - [ ] Redis introduction (ioredis, Redis-backed rate limiting + cache; AOF + `noeviction` documented)
 - [ ] Drizzle adoption: baseline from **live DDL** (not schema.prisma), versioned drizzle-kit migrations replacing `db push --accept-data-loss`, empty-diff CI gate, rehearsed against local prod snapshot
 - [ ] BullMQ + dedicated worker process (PM2 app #2): scheduler with claim-based due-selection, per-monitor locks, idempotency keys, retries/backoff, two-tier persistence, circuit breaker, outbox-based alerting; delete `instrumentation.ts` cron + `CRON_MODE` after overlap-window verification
@@ -79,7 +79,7 @@ Derived scope (audit §24 order — the chosen sequence):
 - **Rehearsal strategy:** local docker-compose Postgres/Redis in dev + CI; restore an anonymized `pg_dump` of production locally to dry-run the Drizzle baseline, auth cutover, and data-diff verification before touching production (D-9). Full `pg_dump` backup immediately before each production cutover (D-10).
 - **Migration discipline:** expand/contract — additive-only migrations during each verification window; no drops/renames until the following release (M-2). Old cron and new worker overlap briefly before deletion (M3); both paths idempotent.
 - **Known current-state defects the migration fixes** (audit §5 B1–B6, §9 R1–R22): batch-loss data loss, state regression, lost counter updates, no locks/idempotency, alerts-before-persistence, SSRF surface, unauthenticated Telegram webhook, feedback exposure, no admin roles.
-- **Frontend state:** Redux `auth` slice is dead code (nothing populates it); NextAuth `useSession` is the real client auth source; RTK Query has zero endpoints. Theme is permanently dark (`:root` and `.dark` byte-identical; `.dark` hardcoded).
+- **Frontend state:** Redux `auth` slice is dead code (nothing populates it); NextAuth `useSession` is the real client auth source; RTK Query has zero endpoints. Theme infrastructure landed in Phase 02 (`next-themes` toggle on dashboard/auth surfaces; `:root`/`.dark` split with dark values byte-identical to pre-phase; marketing surfaces stay dark-only until Phase 8 — WR-02).
 
 ## Constraints
 
@@ -97,7 +97,8 @@ Derived scope (audit §24 order — the chosen sequence):
 |----------|-----------|---------|
 | Follow audit §24 migration order (worker core move before Better Auth) | Reviewed dependency-engineered sequence; highest-risk core move lands with foundations in place | — Pending |
 | Dedicated design-amendment phase before any implementation | Review verdict is NOT READY; §8 addenda cheap on paper, expensive in production | ✓ Done (Phase 01 — verdict READY 2026-09-09) |
-| Full phase 0 incl. characterization tests | Review §7.9: "the single most valuable safety investment" — pins current behavior before rewrite | — Pending |
+| Full phase 0 incl. characterization tests | Review §7.9: "the single most valuable safety investment" — pins current behavior before rewrite | ✓ Done (Phase 02 — pnpm/Vitest/Playwright scaffold, 102 vitest + e2e characterization, deploy runbook, theme tokens with zero dark-mode change) |
+| WR-02: light-mode legibility of unmigrated marketing surfaces accepted as Phase-8 scope | Dark mode (the default, today's production reality) unaffected; Phase 8 owns "light mode looking intentional"; piecemeal fixes would reopen a closed phase for cosmetic gain | — Phase 8 planning input (02-UAT.md Decision Record, 2026-09-12) |
 | All 5 product defaults accepted (Q-1 lifetime uptime, Q-2 1-strike DOWN, Q-3 self-host Redis, Q-4 announced re-login, Q-5 enqueue+poll) | Behavior compatibility + lowest operational change during migration | — Pending |
 | v1 spans the full sequence through AI SDK and visual redesign | One coherent arc; AI flagged-off makes it safe to include | — Pending |
 | Telegram-only alerting in v1 | Preserve current behavior; email alert channel is UPGRADE_PLAN phase 7 | — Pending |
@@ -122,4 +123,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-09 after Phase 01 completion (design gate READY; implementation phases 2–8 next)*
+*Last updated: 2026-09-12 after Phase 02 completion (foundations + theme infra verified, UAT 5/5, threats 25/25 closed; Phase 3 next)*

@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   try {
     const ip = getIP(req);
     // Max 20 monitor creation attempts per minute per IP
-    const { success, remaining } = rateLimit(`monitors_${ip}`, { limit: 20, windowMs: 60000 });
+    const { success, remaining } = await rateLimit(`monitors_${ip}`, { limit: 20, windowMs: 60000 });
     if (!success) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },

@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import Redis from "ioredis";
 import "./_harness";
 import {
   buildRequest,
@@ -15,19 +16,47 @@ import {
 // Characterization suite: src/app/api/monitors/route.ts (GET list + POST
 // create) — the canonical session-guard template every D-17 route follows.
 //
-// This file exercises the rate limiter (@/lib/rate-limit keeps an in-memory
-// Map that survives across cases), so every case re-resolves the route via
-// vi.resetModules() + dynamic import — the same registry-reset discipline
-// 02-03 established for db-batcher (Pitfall 6). The harness mocks (next-auth,
-// @/lib/prisma) keep their identity across resets via vi.hoisted().
+// This file exercises the rate limiter — REAL, never mocked: since Phase 3
+// (03-01) @/lib/rate-limit is Redis-backed (atomic Lua INCR+EXPIRE) against
+// the docker test Redis via REDIS_URL, so limiter state now survives module
+// resets. The per-case reset mechanism is a flush of the rl:* keyspace on
+// that Redis (SCAN+DEL via the admin client below — never KEYS) in
+// beforeEach; vi.resetModules() is RETAINED because the route/prisma mock
+// seams still need a fresh module registry per case (Pitfall 6 / 03-01
+// Pitfall 3). The 429 + same-IP follow-up cases below prove cross-case
+// isolation through that flush.
 //
 // ZERO production code is changed by this suite: every response body below —
 // including the misspellings — is pinned VERBATIM as today's contract. A
 // future "fix the typo" PR must update these assertions DELIBERATELY.
 // ---------------------------------------------------------------------------
 
-beforeEach(() => {
-  vi.resetModules(); // fresh @/lib/rate-limit Map per case (Pitfall 6)
+/** Dedicated admin client for the per-case rl:* flush (separate from the limiter's). */
+const redisAdmin = new Redis(process.env.REDIS_URL!);
+
+/** Flushes limiter keys on the test Redis — the fresh-state reset per case. */
+async function flushLimiterKeys(): Promise<void> {
+  let cursor = "0";
+  do {
+    const [next, batch] = await redisAdmin.scan(cursor, "MATCH", "rl:*", "COUNT", 100);
+    if (batch.length > 0) {
+      await redisAdmin.del(...batch);
+    }
+    cursor = next;
+  } while (cursor !== "0");
+}
+
+afterAll(async () => {
+  await redisAdmin.quit();
+  // Drop the limiter singleton's socket so the worker process can exit cleanly.
+  const globalForRedis = global as unknown as { redis?: Redis };
+  globalForRedis.redis?.disconnect();
+  delete globalForRedis.redis;
+});
+
+beforeEach(async () => {
+  vi.resetModules(); // fresh route-module registry per case (mock seams — Pitfall 6)
+  await flushLimiterKeys(); // limiter state lives in Redis now — flush rl:* per case
   mockSession(null); // default: unauthenticated
   resetPrismaMocks();
 });

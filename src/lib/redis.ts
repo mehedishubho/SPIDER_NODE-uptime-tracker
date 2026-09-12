@@ -18,18 +18,23 @@ if (!connectionString) {
 
 export const redis =
   globalForRedis.redis ||
-  new Redis(connectionString, {
-    commandTimeout: 200,
-    maxRetriesPerRequest: 1,
-    connectTimeout: 500,
-  });
-
-// REQUIRED (Pitfall 6): ioredis emits "error" on connection loss and an
-// unhandled "error" event throws — crashing the process. Fail-open needs this
-// listener so a dead Redis only logs. Never log the URL itself (secrets rule).
-redis.on("error", (err) => {
-  console.error("[redis] connection error (limiter will fail-open):", err.message);
-});
+  (() => {
+    const client = new Redis(connectionString, {
+      commandTimeout: 200,
+      maxRetriesPerRequest: 1,
+      connectTimeout: 500,
+    });
+    // REQUIRED (Pitfall 6): ioredis emits "error" on connection loss and an
+    // unhandled "error" event throws — crashing the process. Fail-open needs
+    // this listener so a dead Redis only logs. Attached INSIDE the factory so
+    // module re-evaluations (vitest resetModules, dev HMR) that hit the
+    // globalThis cache never stack duplicate listeners. Never log the URL
+    // itself (secrets rule).
+    client.on("error", (err) => {
+      console.error("[redis] connection error (limiter will fail-open):", err.message);
+    });
+    return client;
+  })();
 
 if (process.env.NODE_ENV !== "production") {
   globalForRedis.redis = redis;

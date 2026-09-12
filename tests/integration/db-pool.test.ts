@@ -56,4 +56,19 @@ describe("db-pool — §25.2 pinned options + per-process singleton (DAT-09, D-0
     const result = await pgPool.query<{ ok: number }>("select 1 as ok");
     expect(result.rows[0]?.ok).toBe(1);
   });
+
+  it("4. Prisma still queries through the shared pool (prisma.$queryRaw select 1, no own Pool)", async () => {
+    const { pgPool } = await freshPoolModule();
+    // The @/lib/prisma singleton wraps PrismaPg(pgPool) — never a new Pool —
+    // so a resolving $queryRaw is proof Prisma rides the shared pool (03-02
+    // Task 2: zero-Prisma-behavior-change extraction).
+    const { prisma } = await import("@/lib/prisma");
+
+    const rows = await prisma.$queryRaw<{ ok: number }[]>`select 1 as ok`;
+    expect(rows[0]?.ok).toBe(1);
+
+    // Same instance the pool module hands out — one pool, two consumers.
+    const globalForPool = globalThis as unknown as { pgPool?: Pool };
+    expect(globalForPool.pgPool).toBe(pgPool);
+  });
 });

@@ -1,17 +1,14 @@
 import { PrismaClient } from '../generated/prisma';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
+import { pgPool } from './db-pool';
 
 const globalForPrisma = global as unknown as {
   prisma?: PrismaClient;
-  pool?: Pool;
 };
 
-const connectionString = process.env.DATABASE_URL;
-
-// Pool-কেও global এ চেক করা হচ্ছে যেন HMR-এর সময় বারবার নতুন Pool তৈরি না হয়
-const pool = globalForPrisma.pool || new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
+// The pg.Pool is owned by ./db-pool (one pool per process, shared with the
+// Drizzle client from Phase 3 — DAT-09/D-06); Prisma only wraps it.
+const adapter = new PrismaPg(pgPool);
 
 export const prisma =
   globalForPrisma.prisma ||
@@ -22,5 +19,4 @@ export const prisma =
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
-  globalForPrisma.pool = pool;
 }

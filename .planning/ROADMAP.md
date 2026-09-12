@@ -141,12 +141,12 @@ Plans:
   4. Migrations have been rehearsed against an anonymized production snapshot with row-count and checksum verification matching; the deploy pipeline runs the single migration runner, and `prisma db push --accept-data-loss` no longer exists anywhere
   5. Redis hardening is applied and documented (AOF `everysec`, `maxmemory-policy noeviction`, supervised restart, memory alert at 70%) and ioredis clients follow BullMQ 6 config — separate blocking + queue connections, `maxRetriesPerRequest: null` on the worker side, no `keyPrefix` — with the connection budget (web 10 / worker 20 / migrations 1) documented
 
-**Plans**: 8 plans
+**Plans**: 1/8 plans executed
 
 Plans:
 **Wave 1** *(parallel, no file overlap)*
 
-- [ ] 03-01-PLAN.md — Redis rate limiter vertical slice: ioredis 6 + phase deps install, fail-open singleton, atomic Lua limiter (INCR+EXPIRE), D-20 integration suite, 429 characterization adaptation (RDS-01, RDS-02)
+- [x] 03-01-PLAN.md — Redis rate limiter vertical slice: ioredis 6 + phase deps install, fail-open singleton, atomic Lua limiter (INCR+EXPIRE), D-20 integration suite, 429 characterization adaptation (RDS-01, RDS-02)
 - [ ] 03-02-PLAN.md — Neutral pg pool module with §25.2 pinned options shared by Prisma (DAT-09, D-06)
 
 **Wave 2** *(blocked on 03-01 — drizzle-kit installed)*

@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 3
-current_phase_name: Redis & Drizzle Schema Ownership
-status: ready-to-plan
-stopped_at: Phase 3 context gathered
-last_updated: "2026-09-12T03:14:12.683Z"
+current_phase: 03
+current_phase_name: redis-drizzle-schema-ownership
+status: executing
+stopped_at: Completed 03-01-PLAN.md (Redis-backed atomic limiter GREEN)
+last_updated: "2026-09-12T09:52:13.332Z"
 last_activity: 2026-09-12
-last_activity_desc: Phase 2 complete, transitioned to Phase 3
+last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 8
   completed_phases: 2
-  total_plans: 19
-  completed_plans: 19
+  total_plans: 27
+  completed_plans: 20
   percent: 25
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-12)
 
 **Core value:** Modernize the infrastructure without breaking existing monitoring — never lose or corrupt uptime data, silently stop checking, or lock users out irrecoverably.
-**Current focus:** Phase 3 — Redis & Drizzle Schema Ownership
+**Current focus:** Phase 03 — redis-drizzle-schema-ownership
 
 ## Current Position
 
-Phase: 3 — Redis & Drizzle Schema Ownership
-Plan: Not started
-Status: Ready to plan (Phase 2 closed 2026-09-12 — round-2 verification passed, UAT 5/5, 02-SECURITY.md threats_open: 0)
-Last activity: 2026-09-12 — Phase 2 complete, transitioned to Phase 3
+Phase: 03 (redis-drizzle-schema-ownership) — EXECUTING
+Plan: 2 of 8
+Status: Ready to execute
+Last activity: 2026-09-12 — Phase 03 execution started
 
 Progress: [████████████████████] 19/19 plans (100%)
 
@@ -75,6 +75,7 @@ Progress: [████████████████████] 19/19 p
 | Phase 02 P08 | 796s (~13min) | 2 tasks | 39 files |
 | Phase 02 P09 | ~6min (387s) | 3 tasks | 1 files |
 | Phase 02 P10 | 21min | 3 tasks | 9 files |
+| Phase 03 P01 | ~40 min (2 sessions; continuation verified GREEN + closeout) | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -142,6 +143,10 @@ Recent decisions affecting current work:
 - [Phase 02]: 02-10: hex gate exclusion extended by exactly one name (global-error.tsx frozen bg-[#121212] literal — .dark never applies on that surface) and the command form switched to filename-fragment exclusions: Windows rg emits backslash paths, so 02-08 full-path patterns (-e src/lib/mail.ts) silently fail to exclude
 - [Phase 02]: UAT close 2026-09-12 — WR-02 dispositioned by operator: light-mode legibility of unmigrated marketing surfaces (Navbar/TeamSwitch `text-white`, `bg-slate-950/80` header, `text-slate-300/400` copy) + light-palette polish notes ACCEPTED as Phase-8 scope; dark mode (the default) unaffected (02-UAT.md Decision Record)
 - [Phase 02]: security closeout 2026-09-12 — 02-SECURITY.md: 25/25 register rows closed at L1/ASVS-1 (grep-depth, plan-time register); one accepted risk AR-02-01 (unauthenticated telegram webhook S-2 + cron query-string secret S-4, pinned per D-17) rides to Phase 6 SEC-03/SEC-06
+- [Phase 03]: 03-01: limiter atomicity realized as ONE Lua script INCR + EXPIRE-on-first-hit (current==1) via defineCommand('rlIncr') — key rl:{bucket}_{ip} keeps D-04 semantics byte-identical; fail-open catch returns success with DEGRADED marker, never rethrows, no in-memory fallback
+- [Phase 03]: 03-01: ioredis 6 A9 — custom defineCommand commands are runtime-only in v6 types; typed-view cast (redis as typeof redis & { rlIncr(key,secs): Promise<number> }) instead of any
+- [Phase 03]: 03-01: handler-suite reset discipline switched from fresh-Map-per-case to per-case rl:* SCAN+DEL flush on the test Redis (admin client); vi.resetModules retained for the route/prisma mock seams (Pitfall 3)
+- [Phase 03]: 03-01: redis.ts error listener attached inside the singleton factory — globalThis cache hits on module re-eval (vitest/HMR) never stack duplicate listeners; local .env carries REDIS_URL=redis://localhost:6390; pnpm build on env-less checkout still needs NEXT_PUBLIC_DEV_BASE_URL injected (02-07 precedent)
 
 ### Pending Todos
 
@@ -164,6 +169,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-12T03:14:12.677Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-redis-drizzle-schema-ownership/03-CONTEXT.md
+Last session: 2026-09-12T09:50:47.735Z
+Stopped at: Completed 03-01-PLAN.md (Redis-backed atomic limiter GREEN)
+Resume file: None

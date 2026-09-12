@@ -32,8 +32,8 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 
 ### Redis Infrastructure
 
-- [ ] **RDS-01**: Redis introduced (ioredis 6, explicit install for BullMQ 6) with correct client config: separate blocking + queue connections, `maxRetriesPerRequest: null`, no `keyPrefix`
-- [ ] **RDS-02**: Redis-backed rate limiting replaces the in-memory Map (atomic INCR+EXPIRE per bucket)
+- [x] **RDS-01**: Redis introduced (ioredis 6, explicit install for BullMQ 6) with correct client config: separate blocking + queue connections, `maxRetriesPerRequest: null`, no `keyPrefix`
+- [x] **RDS-02**: Redis-backed rate limiting replaces the in-memory Map (atomic INCR+EXPIRE per bucket)
 - [ ] **RDS-03**: Redis hardening applied and documented: AOF `everysec`, `maxmemory-policy noeviction`, supervised restart, memory alerting at 70%
 
 ### Drizzle Migration
@@ -207,8 +207,8 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | THM-02 | Phase 2 | Complete |
 | THM-03 | Phase 2 | Complete |
 | DEP-04 | Phase 2 | Complete |
-| RDS-01 | Phase 3 | Pending |
-| RDS-02 | Phase 3 | Pending |
+| RDS-01 | Phase 3 | Complete |
+| RDS-02 | Phase 3 | Complete |
 | RDS-03 | Phase 3 | Pending |
 | DRZ-01 | Phase 3 | Pending |
 | DRZ-02 | Phase 3 | Pending |

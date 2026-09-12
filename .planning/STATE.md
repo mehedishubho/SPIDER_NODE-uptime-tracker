@@ -5,8 +5,8 @@ milestone_name: milestone
 current_phase: 03
 current_phase_name: redis-drizzle-schema-ownership
 status: executing
-stopped_at: Completed 03-01-PLAN.md (Redis-backed atomic limiter GREEN)
-last_updated: "2026-09-12T09:52:13.332Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-09-12T10:00:55.410Z"
 last_activity: 2026-09-12
 last_activity_desc: Phase 03 execution started
 progress:
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-12)
 ## Current Position
 
 Phase: 03 (redis-drizzle-schema-ownership) — EXECUTING
-Plan: 2 of 8
+Plan: 3 of 8
 Status: Ready to execute
 Last activity: 2026-09-12 — Phase 03 execution started
 
@@ -76,6 +76,7 @@ Progress: [████████████████████] 19/19 p
 | Phase 02 P09 | ~6min (387s) | 3 tasks | 1 files |
 | Phase 02 P10 | 21min | 3 tasks | 9 files |
 | Phase 03 P01 | ~40 min (2 sessions; continuation verified GREEN + closeout) | 3 tasks | 12 files |
+| Phase 03 P02 | ~7min (352s) | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -147,6 +148,9 @@ Recent decisions affecting current work:
 - [Phase 03]: 03-01: ioredis 6 A9 — custom defineCommand commands are runtime-only in v6 types; typed-view cast (redis as typeof redis & { rlIncr(key,secs): Promise<number> }) instead of any
 - [Phase 03]: 03-01: handler-suite reset discipline switched from fresh-Map-per-case to per-case rl:* SCAN+DEL flush on the test Redis (admin client); vi.resetModules retained for the route/prisma mock seams (Pitfall 3)
 - [Phase 03]: 03-01: redis.ts error listener attached inside the singleton factory — globalThis cache hits on module re-eval (vitest/HMR) never stack duplicate listeners; local .env carries REDIS_URL=redis://localhost:6390; pnpm build on env-less checkout still needs NEXT_PUBLIC_DEV_BASE_URL injected (02-07 precedent)
+- [Phase 03]: 03-02: pool extraction lands the §25.2 pins as NEW pool semantics (connect timeout 0-to-10s fail-fast, statement_timeout + idle_in_transaction 30s caps) on a previously bare-defaults Pool — behavior-neutral at the ORM layer, proven by 111/111 characterization green
+- [Phase 03]: 03-02: DAT-09 NOT marked complete — only the code half (web pool max 10) exists; migration runner (03-03 direct one-shot) and worker pool max 20 (Phase 4) pending (02-03 false-signal precedent)
+- [Phase 03]: 03-02: pg 8.22 quirk check — none: statement_timeout/idle_in_transaction_session_timeout are plain ClientConfig pass-through keys, stored on pool.options and forwarded to every pooled client; assertions target pool.options directly
 
 ### Pending Todos
 
@@ -169,6 +173,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-12T09:50:47.735Z
-Stopped at: Completed 03-01-PLAN.md (Redis-backed atomic limiter GREEN)
+Last session: 2026-09-12T10:00:39.926Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None

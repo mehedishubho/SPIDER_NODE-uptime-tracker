@@ -147,7 +147,7 @@ Plans:
 **Wave 1** *(parallel, no file overlap)*
 
 - [x] 03-01-PLAN.md — Redis rate limiter vertical slice: ioredis 6 + phase deps install, fail-open singleton, atomic Lua limiter (INCR+EXPIRE), D-20 integration suite, 429 characterization adaptation (RDS-01, RDS-02)
-- [ ] 03-02-PLAN.md — Neutral pg pool module with §25.2 pinned options shared by Prisma (DAT-09, D-06)
+- [x] 03-02-PLAN.md — Neutral pg pool module with §25.2 pinned options shared by Prisma (DAT-09, D-06)
 
 **Wave 2** *(blocked on 03-01 — drizzle-kit installed)*
 

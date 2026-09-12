@@ -165,6 +165,57 @@ The VPS currently runs the app the way it always has: Node loaded via NVM (Ubunt
 
 ---
 
+## 3c. Redis 70% memory alert — VPS cron + dedicated healthchecks.io check (D-16)
+
+> **Dead-man's-switch semantics: the script pings while memory is healthy; silence pages.** The check is **separate from the app's existing healthchecks.io heartbeat** — one check, one meaning (D-02's philosophy): a Redis memory event must not surface as "app down", and a healthy app must not mask an unhealthy Redis. Threshold: 70% of `maxmemory` — at §3b's `maxmemory 512mb` that is ~358 MB decimal (exactly 377,487,360 bytes / 360 MiB, since Redis's `mb` is binary; the script computes from `INFO`'s raw byte values, so its arithmetic is exact). **Phase 5's OBS-03 (Prometheus export) supersedes this whole mechanism — do not extend it.**
+
+1. **Provision the dedicated check (manual step, healthchecks.io dashboard).**
+   - *Action:* create a **new** check named for this purpose (e.g. `redis-memory-vps`), Schedule = Period **5 minutes**, Grace short (e.g. 5 minutes) so silence pages quickly. Record its ping URL (`https://hc-ping.com/<uuid>`). No API is assumed — this is a dashboard step performed by the operator.
+   - *Verification:* the check exists in the dashboard with the 5-minute schedule; its ping URL is at hand for step 2's script.
+   - *Rollback:* delete the check in the dashboard.
+2. **Install `/usr/local/bin/redis-memory-check.sh`.**
+   - *Action:* create the script below, substituting the `<password>` from §3b step 2 and the ping URL from step 1, then `sudo chown root:root /usr/local/bin/redis-memory-check.sh && sudo chmod 700 /usr/local/bin/redis-memory-check.sh` — it embeds the Redis password and must never be world-readable:
+
+     ```bash
+     #!/usr/bin/env bash
+     # redis-memory-check.sh — 70% maxmemory dead-man alert (D-16).
+     # Pings ONLY while used_memory is below 70% of maxmemory; silence pages.
+     # Superseded by Phase 5 OBS-03 (Prometheus export) — do not extend.
+     set -u
+     REDIS_PASS="<password>"
+     PING_URL="https://hc-ping.com/<uuid>"
+     THRESHOLD_PCT=70
+
+     info="$(redis-cli -a "$REDIS_PASS" --no-auth-warning INFO memory 2>/dev/null)" || exit 0
+     used="$(awk -F: '/^used_memory:/{print $2}' <<<"$info" | tr -d '\r')"
+     max="$(awk -F: '/^maxmemory:/{print $2}' <<<"$info" | tr -d '\r')"
+     [ -n "$used" ] && [ -n "$max" ] && [ "$max" -gt 0 ] || exit 0
+
+     pct=$(( used * 100 / max ))
+     if [ "$pct" -lt "$THRESHOLD_PCT" ]; then
+       curl -fsS -m 10 "$PING_URL" >/dev/null 2>&1 || true
+     fi
+     exit 0
+     ```
+
+     The script exits 0 on every path — a monitoring script must never disrupt the app it watches or spam cron mail; its only signals are ping and silence. (An unreachable Redis also produces silence: the dead man catches both over-threshold memory **and** a Redis outage.)
+   - *Verification:* `sudo /usr/local/bin/redis-memory-check.sh; echo $?` prints `0`; the healthchecks.io check shows a fresh ping (Last Ping advanced).
+   - *Rollback:* `sudo rm /usr/local/bin/redis-memory-check.sh`.
+3. **Schedule it every 5 minutes.**
+   - *Action:* as root — either `sudo crontab -e` adding `*/5 * * * * /usr/local/bin/redis-memory-check.sh`, or a root-owned `/etc/cron.d/redis-memory-check` (mode 0644) containing `*/5 * * * * root /usr/local/bin/redis-memory-check.sh`.
+   - *Verification:* the entry lists (`sudo crontab -l`, or `cat /etc/cron.d/redis-memory-check`); within 5 minutes the check's Last Ping advances again on schedule.
+   - *Rollback:* remove the cron entry — pings stop and the check pages; pause or delete the check in the dashboard in the same motion.
+4. **Verify both branches by hand (once, at install time).**
+   - *Action:* the healthy branch is already proven (steps 2–3). For the over-threshold branch, run the comparison against a fake threshold **locally** — do NOT edit the production threshold on the box: copy the script to `/tmp/redis-memory-check-test.sh`, set `THRESHOLD_PCT=0` there, run it, and confirm no new ping appears (the ping branch is provably skipped when the percentage is not below the threshold).
+   - *Verification:* real run → fresh ping; zero-threshold copy → no ping. Silence-pages semantics demonstrated in both directions.
+   - *Rollback:* `rm /tmp/redis-memory-check-test.sh` (test artifact only).
+5. **Rollback — the whole mechanism.**
+   - *Action:* remove the cron entry (step 3), remove the script (step 2), delete the check in the dashboard (step 1).
+   - *Verification:* `sudo crontab -l` / `/etc/cron.d` no longer reference the script; the file is gone; the check is deleted (no lingering "down" pages).
+   - *Rollback:* n/a — this step IS the rollback.
+
+---
+
 ## 4. Target topology (Phase 4+) — two PM2 apps
 
 `uptime-tracker` (web) + `uptime-worker` (worker). The worker restart and `readyz` wait are inserted **before** the web restart — the worker gates the release (D-04/P-1).

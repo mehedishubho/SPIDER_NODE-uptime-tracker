@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 03
 current_phase_name: redis-drizzle-schema-ownership
-status: executing
-stopped_at: Completed 03-06-PLAN.md
-last_updated: "2026-09-12T18:05:09.378Z"
+status: verifying
+stopped_at: "Completed 03-08-PLAN.md (Phase 3 released: local-only, all proofs green)"
+last_updated: "2026-09-12T18:48:40.769Z"
 last_activity: 2026-09-12
 last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 8
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 27
-  completed_plans: 26
-  percent: 25
+  completed_plans: 27
+  percent: 38
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-12)
 
 Phase: 03 (redis-drizzle-schema-ownership) — EXECUTING
 Plan: 8 of 8
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-12 — Phase 03 execution started
 
 Progress: [████████████████████] 19/19 plans (100%)
@@ -81,6 +81,7 @@ Progress: [████████████████████] 19/19 p
 | Phase 03 P05 | 455s (~8 min; Task 3 continuation) | 3 tasks | 4 files |
 | Phase 03 P06 | 474s (~8 min) | 3 tasks | 1 files |
 | Phase 03 P03-07 | 218 minutes | 2 tasks | 5 files |
+| Phase 03 P08 | ~40 min (checkpoint-gated; local deploy leg 9 min) | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -168,6 +169,8 @@ Recent decisions affecting current work:
 - [Phase ?]: 03-07: schema gate compares STRUCTURALLY not textually — pull's top-level order (imports, tables) is unstable run-to-run; imports as canonicalized sorted set, export blocks by name with internal lines ordered
 - [Phase ?]: 03-07: gen_random_uuid defaults kept in canonical .default(sql`...`) form; gate rewrites .default((IDENT())) symmetrically on both diff sides
 - [Phase ?]: 03-07: gate targets docker test DB only (5453), vitest-identical URL resolution + localhost guard; full verify 31s warm, gate adds ~2.4s
+- [Phase 03]: [Phase 03]: 03-08: operator-ratified local-only release topology — DB leg on spidernode-dev-db (03-03 ground truth), dedicated hardened Redis stand-in container, app via pnpm start; VPS-only mechanisms (systemd/cron/healthchecks.io) dispositioned N/A-locally in 03-DEPLOY-RECORD.md
+- [Phase 03]: [Phase 03]: 03-08: RDS-03 + DRZ-02 closed under the ratified topology — every applicable §3b directive proven live (requirepass/loopback/AOF-everysec/512mb/noeviction/restart) and the schema pipeline ran against the real production DB; limiter window survived app restart (6th request 429) AND counter survived Redis restart (AOF)
 
 ### Pending Todos
 
@@ -190,6 +193,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-12T18:05:02.558Z
-Stopped at: Completed 03-06-PLAN.md
+Last session: 2026-09-12T18:48:32.095Z
+Stopped at: Completed 03-08-PLAN.md (Phase 3 released: local-only, all proofs green)
 Resume file: None

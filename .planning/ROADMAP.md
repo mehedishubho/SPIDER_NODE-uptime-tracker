@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Design Gate — Review Verdict READY** - All 8 review addenda incorporated, §9 checklist resolved, verdict flipped NOT READY → READY before any code — **complete 2026-09-09: cycle-2 re-review clean pass (zero blocking findings) human-ratified, verdict flipped to READY per D-16; RR2-01/02/03 recorded as advisory Phase 4/5 design-debt (01-09)**
 - [x] **Phase 2: Foundations & Theme Infrastructure** - pnpm, CI gates, characterization tests on real Postgres/Redis; theme tokens land with zero behavior change — *round-2 verification 2026-09-12: both gaps independently confirmed closed (02-10), human_needed — 5 manual UAT tests pending (02-UAT.md)* (completed 2026-09-12)
-- [ ] **Phase 3: Redis & Drizzle Schema Ownership** - Redis with no correctness dependence; live-DDL Drizzle baseline plus worker schema addenda, rehearsed on a prod snapshot
+- [x] **Phase 3: Redis & Drizzle Schema Ownership** - Redis with no correctness dependence; live-DDL Drizzle baseline plus worker schema addenda, rehearsed on a prod snapshot (completed 2026-09-12)
 - [ ] **Phase 4: Monitoring Worker — Build & Dark Launch** - Dedicated worker owns all monitoring on idempotent, resilient BullMQ machinery; dark-launched while cron still serves users
 - [ ] **Phase 5: Worker Cutover & Operational Hardening** - Gated overlap cutover deletes the cron; heartbeat moves, observability, env transition, rehearsed rollback
 - [ ] **Phase 6: Thin API Routes & Email Abstraction** - Web becomes an enqueue-only producer; security fixes at the new boundary; email queued off the request path
@@ -141,7 +141,7 @@ Plans:
   4. Migrations have been rehearsed against an anonymized production snapshot with row-count and checksum verification matching; the deploy pipeline runs the single migration runner, and `prisma db push --accept-data-loss` no longer exists anywhere
   5. Redis hardening is applied and documented (AOF `everysec`, `maxmemory-policy noeviction`, supervised restart, memory alert at 70%) and ioredis clients follow BullMQ 6 config — separate blocking + queue connections, `maxRetriesPerRequest: null` on the worker side, no `keyPrefix` — with the connection budget (web 10 / worker 20 / migrations 1) documented
 
-**Plans**: 7/8 plans executed
+**Plans**: 8/8 plans complete
 
 Plans:
 **Wave 1** *(parallel, no file overlap)*
@@ -168,7 +168,7 @@ Plans:
 
 **Wave 6** *(final — blocked on 03-05 + 03-06 + 03-07)*
 
-- [ ] 03-08-PLAN.md — Production release execution: backup → one-time stamp → single-runner migrate → ship → Redis hardening → post-deploy proofs (restart-survival 429, hardened Redis, schema owned) + deploy record (RDS-03, DRZ-02)
+- [x] 03-08-PLAN.md — Production release execution: backup → one-time stamp → single-runner migrate → ship → Redis hardening → post-deploy proofs (restart-survival 429, hardened Redis, schema owned) + deploy record (RDS-03, DRZ-02)
 
 **Research flag**: verify drizzle-kit baseline journal-stamping and transaction-wrapping vs `CREATE INDEX CONCURRENTLY` during the snapshot rehearsal (SUMMARY.md gaps) — *RESOLVED in 03-RESEARCH.md Pattern 4 (journal/hash/folderMillis verified from shipped drizzle-orm 0.45.2 source; CONCURRENTLY cannot run inside the runner's single transaction → D-19 rehearsal-driven rule)*
 

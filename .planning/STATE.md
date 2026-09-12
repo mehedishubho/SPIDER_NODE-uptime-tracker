@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03
 current_phase_name: redis-drizzle-schema-ownership
 status: executing
-stopped_at: Completed 03-05-PLAN.md
-last_updated: "2026-09-12T14:06:53.555Z"
+stopped_at: Completed 03-06-PLAN.md
+last_updated: "2026-09-12T14:20:41.904Z"
 last_activity: 2026-09-12
 last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 27
-  completed_plans: 24
+  completed_plans: 25
   percent: 25
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-12)
 ## Current Position
 
 Phase: 03 (redis-drizzle-schema-ownership) — EXECUTING
-Plan: 6 of 8
+Plan: 7 of 8
 Status: Ready to execute
 Last activity: 2026-09-12 — Phase 03 execution started
 
@@ -79,6 +79,7 @@ Progress: [████████████████████] 19/19 p
 | Phase 03 P02 | ~7min (352s) | 2 tasks | 3 files |
 | Phase 03 P04 | 857s (~14 min) | 3 tasks | 8 files |
 | Phase 03 P05 | 455s (~8 min; Task 3 continuation) | 3 tasks | 4 files |
+| Phase 03 P06 | 474s (~8 min) | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -160,6 +161,9 @@ Recent decisions affecting current work:
 - [Phase ?]: D-19: plain in-transaction indexes confirmed from rehearsal measurement (max build 0.841 ms on real anonymized prod data) — no out-of-runner CONCURRENTLY path needed for 0001
 - [Phase ?]: 03-05 rehearsal digest = md5(string_agg(md5(ROW(pinned pre-migration column inventory)::text),'' ORDER BY id)); carve-out implemented AS the pinned inventory (0001's added columns outside by construction), labeled in evidence — Phase 7 extends the list, not the pipeline
 - [Phase ?]: 03-05 per-statement DDL timing probe = pg_stat_statements (reset before the timed migrate; extension created before both structure snapshots so the additive-only diff stays clean) — server logs give one duration per query STRING and the migrator submits each migration file as one multi-statement string
+- [Phase ?]: 03-06: restart-survival check corrected to the 6th window request 429 — plan's '5th' was off by one vs shipped register route (limit:5/h); 03-08 must follow the runbook arithmetic
+- [Phase ?]: 03-06: RDS-03 left unchecked — documented half only; 03-08 (also carries RDS-03) executes the hardening live
+- [Phase ?]: 03-06: §3c threshold carries both ~358 MB decimal and the exact 377,487,360 bytes (360 MiB); §3 step 3/§3d note the 03-03 spidernode-dev-db deviation instead of hard-asserting Neon
 
 ### Pending Todos
 
@@ -182,6 +186,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-12T14:06:53.550Z
-Stopped at: Completed 03-05-PLAN.md
+Last session: 2026-09-12T14:20:24.996Z
+Stopped at: Completed 03-06-PLAN.md
 Resume file: None

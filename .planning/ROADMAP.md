@@ -141,7 +141,7 @@ Plans:
   4. Migrations have been rehearsed against an anonymized production snapshot with row-count and checksum verification matching; the deploy pipeline runs the single migration runner, and `prisma db push --accept-data-loss` no longer exists anywhere
   5. Redis hardening is applied and documented (AOF `everysec`, `maxmemory-policy noeviction`, supervised restart, memory alert at 70%) and ioredis clients follow BullMQ 6 config — separate blocking + queue connections, `maxRetriesPerRequest: null` on the worker side, no `keyPrefix` — with the connection budget (web 10 / worker 20 / migrations 1) documented
 
-**Plans**: 5/8 plans executed
+**Plans**: 6/8 plans executed
 
 Plans:
 **Wave 1** *(parallel, no file overlap)*
@@ -160,7 +160,7 @@ Plans:
 **Wave 4** *(blocked on 03-04; parallel pair, no file overlap)*
 
 - [x] 03-05-PLAN.md — Rehearsal tooling + execution: anonymization script, pnpm rehearse:migrations pipeline, evidence file, D-19 timing decision (DRZ-06)
-- [ ] 03-06-PLAN.md — Runbook amendments: VPS Redis install/hardening (§3b), 70% memory alert (§3c), rehearsal procedure + Migrate-step activation (§3d), limiter-live post-deploy checks (RDS-03)
+- [x] 03-06-PLAN.md — Runbook amendments: VPS Redis install/hardening (§3b), 70% memory alert (§3c), rehearsal procedure + Migrate-step activation (§3d), limiter-live post-deploy checks (RDS-03)
 
 **Wave 5** *(blocked on 03-05 — package.json ordering)*
 

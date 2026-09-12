@@ -118,6 +118,53 @@ The VPS currently runs the app the way it always has: Node loaded via NVM (Ubunt
 
 ---
 
+## 3b. One-time VPS Redis install + hardening (run once, at the Phase 3 deploy)
+
+> **D-15/D-17 — typed one-time steps, run exactly once at the Phase 3 deploy.** From the next deploy on, skip this section entirely. Order within the Phase 3 release: steps 1–3 may run any time before the §3 step 4 reload; step 4 (the `REDIS_URL` line) **must** land in the VPS `.env` before that release's `pm2 restart uptime-tracker`. Redis is self-hosted on the VPS by decision Q-3: Ubuntu's native `redis-server` package with systemd supervision satisfies RDS-03's "supervised restart" clause — no docker daemon enters the monitoring-infra critical path on the 2 GB VPS. Connection budget (§1): this phase the web process holds **1 Redis connection** (the rate limiter) on top of its 10 Postgres; the queue-producer and worker connections arrive in Phase 4.
+
+1. **Install the package.**
+   - *Action:* on the VPS: `sudo apt update && sudo apt install redis-server` (Ubuntu 24.04 universe package, D-17).
+   - *Verification:* `redis-server --version` prints — record the line in the deploy record. Assumption A1 expects 7.2.x; every directive pinned below has existed since ≤ 6, so any 7.x is safe. `systemctl show -p ActiveState redis-server` prints `active`.
+   - *Rollback:* `sudo apt remove redis-server` — the full retreat. The app's limiter fails open without Redis (D-03): removing it degrades rate limiting to always-allow; it never stops the app.
+2. **Harden `/etc/redis/redis.conf` — back it up first.**
+   - *Action:* `sudo cp /etc/redis/redis.conf /etc/redis/redis.conf.bak`, then edit the eight load-bearing lines (values verbatim; one-line reason each):
+
+     ```
+     supervised systemd          # MUST stay matched to the unit's Type=notify — Ubuntu ships this pair;
+                                 # editing either side alone (this line OR the unit file) makes Redis
+                                 # restart-loop until systemd's start limit fails the unit. Do not
+                                 # override the unit file; leave this line exactly as shipped.
+     bind 127.0.0.1              # loopback only — the app connects from the same host (D-18)
+     protected-mode yes          # refuses non-loopback clients even if bind is ever widened
+     requirepass <password>      # generate it: openssl rand -hex 32 — hex needs no URL escaping;
+                                 # the same value lands in REDIS_URL at step 4
+     appendonly yes              # AOF persistence on (RDS-03); Redis 7+ writes it under appenddirname
+     appendfsync everysec        # fsync once per second — at most ~1 s of writes lost on a disaster
+     maxmemory 512mb             # hard ceiling on the 2 GB VPS — revisit at Phase 4 (BullMQ state)
+     maxmemory-policy noeviction # at the ceiling writes FAIL LOUDLY (an error reply) while reads keep
+                                 # working — silently evicting limiter/BullMQ state is data loss
+                                 # dressed as health; BullMQ documents noeviction as its requirement
+     ```
+
+   - *Verification:* `grep -E '^(supervised|bind|protected-mode|requirepass|appendonly|appendfsync|maxmemory|maxmemory-policy)' /etc/redis/redis.conf` shows all eight lines with the pinned values; the backup `/etc/redis/redis.conf.bak` exists.
+   - *Rollback:* `sudo cp /etc/redis/redis.conf.bak /etc/redis/redis.conf && sudo systemctl restart redis-server`.
+3. **Restart and enable.**
+   - *Action:* `sudo systemctl restart redis-server` — persistence and auth config needs a restart, not a reload (a reload/SIGHUP applies only some directives). Then `sudo systemctl enable redis-server` — boot survival is the supervised-restart half of RDS-03.
+   - *Verification:* `systemctl show -p ActiveState redis-server` prints `active`; `systemctl is-enabled redis-server` prints `enabled`.
+   - *Rollback:* `sudo systemctl disable --now redis-server`, then the step 2 conf rollback, then (full retreat) the step 1 package removal.
+4. **Wire the app — `REDIS_URL` into `.env` BEFORE the next restart.**
+   - *Action:* construct the URL from the step 2 password — `REDIS_URL=redis://:<password>@127.0.0.1:6379` — and add the line to `/var/www/uptime-tracker/.env` **before** the next `pm2 restart uptime-tracker`. `src/lib/redis.ts` throws at module load when the variable is missing: restarting without it is a boot crash loop, not a degraded app.
+   - *Verification:* `grep -c '^REDIS_URL=' /var/www/uptime-tracker/.env` prints `1` (app-side reachability is proven after the release by §3 step 5 checks (d)/(e)).
+   - *Rollback:* never remove the line while Phase 3+ code is live — that re-arms the module-load throw. If the password is ever regenerated in the conf, update this line in the same change and restart; the rollback for the whole Redis introduction is the previous release tarball plus the step 1 package removal.
+5. **Verify the service — PONG, active, supervised restart, noeviction.**
+   - *Action:* run, in order: `redis-cli -a '<password>' --no-auth-warning ping`; `systemctl show -p ActiveState redis-server`; one more `sudo systemctl restart redis-server` followed by the same PING; `redis-cli -a '<password>' --no-auth-warning CONFIG GET maxmemory-policy`.
+   - *Verification:* the first PONG returns behind the password (`--no-auth-warning` suppresses only the clear-text-password warning); ActiveState prints `active`; the PONG after the second restart returns `PONG` again — supervised restart proven (RDS-03's second half); `CONFIG GET maxmemory-policy` prints `noeviction`. As the auth proof, an unauthenticated `redis-cli ping` must fail with `NOAUTH`.
+   - *Rollback:* none needed — these checks change no state; a failed check means an earlier step is wrong (step 2's conf rollback is the corrective path).
+
+> **Why no TLS and no ACL user (D-18):** TLS is unnecessary on loopback — an attacker able to sniff `127.0.0.1` traffic has already compromised the host and has better attacks than reading limiter counters; TLS would add certificate rotation to a single-host deployment without crossing any trust boundary. An ACL user is deliberately not created: Phase 4's BullMQ needs broad keyspace access (`~*`), so a least-privilege ACL would immediately need widening — `requirepass` + loopback bind + protected-mode is the chosen layering (authentication and network restriction together).
+
+---
+
 ## 4. Target topology (Phase 4+) — two PM2 apps
 
 `uptime-tracker` (web) + `uptime-worker` (worker). The worker restart and `readyz` wait are inserted **before** the web restart — the worker gates the release (D-04/P-1).

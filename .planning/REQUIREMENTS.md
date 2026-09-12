@@ -43,7 +43,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [ ] **DRZ-03**: Empty-diff CI gate (`drizzle-kit pull` diffed against committed schema) preventing silent schema drift
 - [x] **DRZ-04**: Schema addenda in the Drizzle schema: `monitors.next_check_at` + partial index `(is_active, next_check_at)`, `write_guards`, `outbox`, partial unique index `incidents(monitor_id) WHERE status='ONGOING'`, pinned ID-generation defaults, `error_class` metadata, `consecutive_failures` reserved
 - [x] **DRZ-05**: Drizzle adopted additively (new code uses Drizzle only) sharing one `pg` Pool with Prisma during transition; no dual-write
-- [ ] **DRZ-06**: Migrations rehearsed against an anonymized local prod snapshot with row-count + checksum verification before production
+- [x] **DRZ-06**: Migrations rehearsed against an anonymized local prod snapshot with row-count + checksum verification before production
 - [ ] **DRZ-07**: Prisma fully removed after cutover: `prisma/`, generated client, `@prisma/*` deps, adapter config deleted
 
 ### Worker & Orchestration
@@ -215,7 +215,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | DRZ-03 | Phase 3 | Pending |
 | DRZ-04 | Phase 3 | Complete |
 | DRZ-05 | Phase 3 | Complete |
-| DRZ-06 | Phase 3 | Pending |
+| DRZ-06 | Phase 3 | Complete |
 | DAT-09 | Phase 3 | Pending |
 | WRK-01 | Phase 4 | Pending |
 | WRK-02 | Phase 4 | Pending |

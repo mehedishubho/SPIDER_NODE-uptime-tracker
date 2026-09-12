@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03
 current_phase_name: redis-drizzle-schema-ownership
 status: executing
-stopped_at: Completed 03-04-PLAN.md
-last_updated: "2026-09-12T13:37:46.327Z"
+stopped_at: Completed 03-05-PLAN.md
+last_updated: "2026-09-12T14:06:53.555Z"
 last_activity: 2026-09-12
 last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 27
-  completed_plans: 22
+  completed_plans: 24
   percent: 25
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-12)
 ## Current Position
 
 Phase: 03 (redis-drizzle-schema-ownership) — EXECUTING
-Plan: 5 of 8
+Plan: 6 of 8
 Status: Ready to execute
 Last activity: 2026-09-12 — Phase 03 execution started
 
@@ -78,6 +78,7 @@ Progress: [████████████████████] 19/19 p
 | Phase 03 P01 | ~40 min (2 sessions; continuation verified GREEN + closeout) | 3 tasks | 12 files |
 | Phase 03 P02 | ~7min (352s) | 2 tasks | 3 files |
 | Phase 03 P04 | 857s (~14 min) | 3 tasks | 8 files |
+| Phase 03 P05 | 455s (~8 min; Task 3 continuation) | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -156,6 +157,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 03-04: gen_random_uuid()::text defaults included for existing text PKs (pings/incidents/users) per §11 ID-generation + schema.ts's committed 'arrive with migration 0001' contract + DRZ-04 — dormant for Prisma (client-side cuid still supplied), required by §16.1's id-omitting INSERTs in Phase 4
 - [Phase ?]: 03-04: stamp-baseline.mjs fixed (aba9aa4) to stamp journal entry idx 0 ONLY — journal growth to 2 entries had made the stamp-everything loop mark 0001 applied without running it (fake-green rehearsal/deploy path); boundary proven on scratch 5460
 - [Phase ?]: 03-04: DRZ-02 NOT marked complete — only the machinery half landed (test stack built by the single runner; zero push references in executable surfaces); deploy-pipeline + absence-gate legs are 03-07/03-08 (02-03 false-signal precedent)
+- [Phase ?]: D-19: plain in-transaction indexes confirmed from rehearsal measurement (max build 0.841 ms on real anonymized prod data) — no out-of-runner CONCURRENTLY path needed for 0001
+- [Phase ?]: 03-05 rehearsal digest = md5(string_agg(md5(ROW(pinned pre-migration column inventory)::text),'' ORDER BY id)); carve-out implemented AS the pinned inventory (0001's added columns outside by construction), labeled in evidence — Phase 7 extends the list, not the pipeline
+- [Phase ?]: 03-05 per-statement DDL timing probe = pg_stat_statements (reset before the timed migrate; extension created before both structure snapshots so the additive-only diff stays clean) — server logs give one duration per query STRING and the migrator submits each migration file as one multi-statement string
 
 ### Pending Todos
 
@@ -178,6 +182,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-12T13:37:46.321Z
-Stopped at: Completed 03-04-PLAN.md
+Last session: 2026-09-12T14:06:53.550Z
+Stopped at: Completed 03-05-PLAN.md
 Resume file: None

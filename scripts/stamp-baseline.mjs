@@ -6,12 +6,21 @@
 // snapshot and, one time, production itself — so `drizzle-kit migrate`
 // never re-executes existing DDL against it (research Pattern 4, Pitfall 2).
 //
+// BASELINE ONLY (Pattern 4: "the stamp records 0000 — and only 0000 — as
+// applied; then drizzle-kit migrate applies 0001+ everywhere"). Journal
+// entries AFTER the baseline are deliberately left pending: the runner must
+// be the thing that applies them (rehearsal timing evidence, 03-05/03-08's
+// "runner applies 0001 exactly once"). Stamping every journal entry here
+// would silently mark additive migrations as applied without ever running
+// them — a fake-green deploy path.
+//
 // The computation mirrors the drizzle-orm 0.45.x node-postgres migrator
 // EXACTLY (verified from shipped source, pg-core/dialect.js + migrator.js):
 //   hash       = sha256 hex digest of the migration .sql file content (utf8)
 //   created_at = the journal entry's `when` (folderMillis, epoch ms)
 // The runner selects pending migrations by `folderMillis > last created_at`,
-// so the stamp boundary is exact: after stamping, migrate applies NOTHING.
+// so the stamp boundary is exact: after stamping, migrate never re-executes
+// the baseline; every later journal entry remains pending for the runner.
 //
 // Runtime contract (D-08): plain Node ESM + pg only — zero TypeScript
 // toolchain, executable on the VPS with just the prod install. Uses a
@@ -53,9 +62,16 @@ async function main() {
     fail("migration journal has no entries — nothing to stamp", new Error("empty journal"));
   }
 
-  // Pre-compute (hash, when) for every journal entry BEFORE connecting, so a
-  // missing/misnamed .sql file fails before any database write happens.
-  const stamps = journal.entries.map((entry) => {
+  // BASELINE ONLY: entry idx 0 (0000_baseline) is the stamp boundary. The
+  // loop below deliberately stamps nothing after it — later entries stay
+  // pending so the runner applies them for real (see header, Pattern 4).
+  const baseline = journal.entries[0];
+  const laterEntries = journal.entries.slice(1).map((entry) => entry.tag);
+  const entriesToStamp = [baseline];
+
+  // Pre-compute (hash, when) BEFORE connecting, so a missing/misnamed .sql
+  // file fails before any database write happens.
+  const stamps = entriesToStamp.map((entry) => {
     const sqlPath = `${MIGRATIONS_DIR}/${entry.tag}.sql`;
     let sql;
     try {
@@ -102,6 +118,12 @@ async function main() {
       } else {
         console.log(`already stamped ${tag} — skipped`);
       }
+    }
+
+    if (laterEntries.length > 0) {
+      console.log(
+        `left pending for the runner (NOT stamped): ${laterEntries.join(", ")}`
+      );
     }
   } catch (error) {
     fail("database error while stamping", error);

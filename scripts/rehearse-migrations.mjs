@@ -24,9 +24,14 @@
 //       + pg_dump --schema-only line inventory (taken after the stamp so the
 //       drizzle bookkeeping schema is identical on both sides of the diff)
 //   6.  timed `pnpm exec drizzle-kit migrate` (wall clock) with per-statement
-//       durations captured via ALTER DATABASE ... SET log_min_duration_statement
-//       = 0 (new sessions log every statement + duration to docker logs) —
-//       the D-19 per-index-build evidence
+//       durations captured via pg_stat_statements (preloaded at container
+//       start, reset immediately before the timed migrate) — its utility hook
+//       fires PER STATEMENT inside the real migrate, so each CREATE INDEX
+//       build is timed individually (the D-19 evidence). The docker server
+//       log (log_min_duration_statement = 0) is kept as an auxiliary probe:
+//       it logs one duration per query STRING, and the migrator submits the
+//       whole migration file as a single multi-statement string, so it can
+//       show transaction shape but NOT per-index timings.
 //   7.  AFTER metrics — identical rules; any count/digest mismatch outside
 //       the carve-out exits non-zero naming the offending table (T-03-12)
 //   8.  additive-only assertion: the DDL delta may contain ONLY new tables /
@@ -377,8 +382,30 @@ function assertAdditiveOnly(before, after) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 6: timing — per-statement durations from the container's server log
+// Step 6: timing — pg_stat_statements (per statement) + docker server log
+// (per query string, auxiliary)
 // ---------------------------------------------------------------------------
+
+// Per-STATEMENT durations from inside the real migrate run. pg_stat_statements
+// hooks fire for every statement individually (utility statements included —
+// CREATE INDEX builds are timed whole), which the server log cannot do: the
+// migrator submits the entire migration file as ONE multi-statement simple-
+// protocol string, and postgres logs a single duration for that whole string.
+async function collectIndexBuildTimings(client) {
+  const result = await client.query(
+    `SELECT regexp_replace(query, E'[\\n\\r]+', ' ', 'g') AS statement,
+            calls,
+            round(total_exec_time::numeric, 3)::float8 AS ms
+       FROM pg_stat_statements
+      WHERE query ~* '^\\s*CREATE\\s+(UNIQUE\\s+)?INDEX'
+      ORDER BY total_exec_time DESC`
+  );
+  return result.rows.map((r) => ({
+    statement: r.statement,
+    calls: r.calls,
+    ms: r.ms,
+  }));
+}
 
 function parseStatementTimings() {
   let logs = "";
@@ -471,6 +498,7 @@ function renderEvidenceMarkdown(e) {
   lines.push(`## Timing (D-19 evidence)`);
   lines.push("");
   lines.push(`- \`drizzle-kit migrate\` wall time: **${e.timings.migrateWallMs} ms**`);
+  lines.push(`- Per-statement probe: pg_stat_statements (server-side, per statement inside the real migrate run; stats reset immediately before)`);
   for (const t of e.timings.indexBuilds) {
     lines.push(`- Index build: \`${t.statement.slice(0, 120)}\` — ${t.ms} ms`);
   }
@@ -515,7 +543,10 @@ async function main() {
   console.log(`[1/10] starting throwaway container ${CONTAINER} (${IMAGE}, port ${PORT})...`);
   try {
     run(
-      `docker run -d --name ${CONTAINER} -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=${DB} -p ${PORT}:5432 ${IMAGE}`,
+      // Postgres server flags go AFTER the image name (container command) —
+      // before it, `-c` would be consumed by docker itself (--cpu-shares).
+      `docker run -d --name ${CONTAINER} -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=${DB} -p ${PORT}:5432 ` +
+        `${IMAGE} -c shared_preload_libraries=pg_stat_statements`,
       { stdio: ["ignore", "inherit", "inherit"] }
     );
     containerStarted = true;
@@ -562,6 +593,13 @@ async function main() {
     await client.connect();
     await client.query("SET TIME ZONE 'UTC'");
 
+    // Per-statement timing probe (D-19): the extension is created BEFORE any
+    // structure snapshot so its view is present symmetrically in both the
+    // BEFORE and AFTER snapshots and never pollutes the additive-only delta.
+    // Preloading happened at docker run (-c shared_preload_libraries=...).
+    await client.query("CREATE EXTENSION IF NOT EXISTS pg_stat_statements");
+    console.log("pg_stat_statements loaded (per-statement D-19 probe)");
+
     const nonAnon = (
       await client.query(`SELECT count(*)::int AS n FROM users WHERE email NOT LIKE '%@anon.test'`)
     ).rows[0].n;
@@ -590,8 +628,9 @@ async function main() {
     console.log("[4.5/10] capturing structure snapshot BEFORE migrate...");
     const beforeStructure = await collectStructure(client);
 
-    // Step 6: per-statement duration logging + timed migrate.
+    // Step 6: per-statement duration capture + timed migrate.
     await client.query(`ALTER DATABASE ${DB} SET log_min_duration_statement = 0`);
+    await client.query("SELECT pg_stat_statements_reset()"); // timings = this migrate only
     console.log("[6/10] running timed `pnpm exec drizzle-kit migrate`...");
     const migrateStart = Date.now();
     try {
@@ -603,8 +642,8 @@ async function main() {
       fail("drizzle-kit migrate failed against the rehearsal container", error);
     }
     const migrateWallMs = Date.now() - migrateStart;
-    const statementTimings = parseStatementTimings();
-    const indexBuilds = statementTimings.filter((t) => /^CREATE\s+(UNIQUE\s+)?INDEX/i.test(t.statement));
+    const statementTimings = parseStatementTimings(); // auxiliary: per query string
+    const indexBuilds = await collectIndexBuildTimings(client); // primary: per statement
 
     // Step 7: AFTER metrics + comparison.
     console.log("[7/10] collecting AFTER metrics and comparing...");
@@ -650,7 +689,14 @@ async function main() {
       failures.push(`drizzle.__drizzle_migrations has ${journalRows} rows — expected 2 (stamped baseline + runner-applied 0001)`);
     }
 
-    // D-19 decision derived from measured index-build timings.
+    // D-19 decision derived from measured index-build timings. 0001 is KNOWN
+    // to create indexes — an empty capture means the probe broke, not that
+    // builds were free. Fail loud rather than derive D-19 from nothing.
+    if (indexBuilds.length === 0) {
+      failures.push(
+        "index-build timing probe captured 0 CREATE INDEX statements — the D-19 evidence is missing (pg_stat_statements probe broken)"
+      );
+    }
     const maxIndexBuild = indexBuilds.reduce((m, t) => (t.ms > m ? t.ms : m), 0);
     const slowIndex = indexBuilds.find((t) => t.ms >= D19_THRESHOLD_MS);
     const d19 = slowIndex

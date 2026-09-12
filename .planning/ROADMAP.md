@@ -141,7 +141,7 @@ Plans:
   4. Migrations have been rehearsed against an anonymized production snapshot with row-count and checksum verification matching; the deploy pipeline runs the single migration runner, and `prisma db push --accept-data-loss` no longer exists anywhere
   5. Redis hardening is applied and documented (AOF `everysec`, `maxmemory-policy noeviction`, supervised restart, memory alert at 70%) and ioredis clients follow BullMQ 6 config — separate blocking + queue connections, `maxRetriesPerRequest: null` on the worker side, no `keyPrefix` — with the connection budget (web 10 / worker 20 / migrations 1) documented
 
-**Plans**: 2/8 plans executed
+**Plans**: 4/8 plans executed
 
 Plans:
 **Wave 1** *(parallel, no file overlap)*
@@ -151,11 +151,11 @@ Plans:
 
 **Wave 2** *(blocked on 03-01 — drizzle-kit installed)*
 
-- [ ] 03-03-PLAN.md — Live-DDL schema ownership: fresh prod dump (operator), restore container, drizzle-kit pull → src/db/schema.ts, full-DDL baseline 0000 + deterministic stamp script (DRZ-01)
+- [x] 03-03-PLAN.md — Live-DDL schema ownership: fresh prod dump (operator), restore container, drizzle-kit pull → src/db/schema.ts, full-DDL baseline 0000 + deterministic stamp script (DRZ-01)
 
 **Wave 3** *(blocked on 03-02 + 03-03)*
 
-- [ ] 03-04-PLAN.md — Worker-prereqs migration 0001 from audit §11, shared-pool Drizzle client, prisma freeze, global-setup switch to the single runner, [BLOCKING] apply + prove (DRZ-02, DRZ-04, DRZ-05)
+- [x] 03-04-PLAN.md — Worker-prereqs migration 0001 from audit §11, shared-pool Drizzle client, prisma freeze, global-setup switch to the single runner, [BLOCKING] apply + prove (DRZ-02, DRZ-04, DRZ-05)
 
 **Wave 4** *(blocked on 03-04; parallel pair, no file overlap)*
 

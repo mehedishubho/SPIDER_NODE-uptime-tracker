@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03
 current_phase_name: redis-drizzle-schema-ownership
 status: executing
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-09-12T13:14:16.792Z"
+stopped_at: Completed 03-04-PLAN.md
+last_updated: "2026-09-12T13:37:46.327Z"
 last_activity: 2026-09-12
 last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 27
-  completed_plans: 21
+  completed_plans: 22
   percent: 25
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-12)
 ## Current Position
 
 Phase: 03 (redis-drizzle-schema-ownership) — EXECUTING
-Plan: 4 of 8
+Plan: 5 of 8
 Status: Ready to execute
 Last activity: 2026-09-12 — Phase 03 execution started
 
@@ -77,6 +77,7 @@ Progress: [████████████████████] 19/19 p
 | Phase 02 P10 | 21min | 3 tasks | 9 files |
 | Phase 03 P01 | ~40 min (2 sessions; continuation verified GREEN + closeout) | 3 tasks | 12 files |
 | Phase 03 P02 | ~7min (352s) | 2 tasks | 3 files |
+| Phase 03 P04 | 857s (~14 min) | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -151,6 +152,10 @@ Recent decisions affecting current work:
 - [Phase 03]: 03-02: pool extraction lands the §25.2 pins as NEW pool semantics (connect timeout 0-to-10s fail-fast, statement_timeout + idle_in_transaction 30s caps) on a previously bare-defaults Pool — behavior-neutral at the ORM layer, proven by 111/111 characterization green
 - [Phase 03]: 03-02: DAT-09 NOT marked complete — only the code half (web pool max 10) exists; migration runner (03-03 direct one-shot) and worker pool max 20 (Phase 4) pending (02-03 false-signal precedent)
 - [Phase 03]: 03-02: pg 8.22 quirk check — none: statement_timeout/idle_in_transaction_session_timeout are plain ClientConfig pass-through keys, stored on pool.options and forwarded to every pooled client; assertions target pool.options directly
+- [Phase ?]: 03-04: §11 DDL transcribed against LIVE camelCase columns (isActive/lastChecked/createdAt/interval/monitorId) — new objects keep §11 snake_case names; backfill carries explicit AT TIME ZONE 'UTC' naive-to-tz conversion (A6), proven 300s-exact on a real row
+- [Phase ?]: 03-04: gen_random_uuid()::text defaults included for existing text PKs (pings/incidents/users) per §11 ID-generation + schema.ts's committed 'arrive with migration 0001' contract + DRZ-04 — dormant for Prisma (client-side cuid still supplied), required by §16.1's id-omitting INSERTs in Phase 4
+- [Phase ?]: 03-04: stamp-baseline.mjs fixed (aba9aa4) to stamp journal entry idx 0 ONLY — journal growth to 2 entries had made the stamp-everything loop mark 0001 applied without running it (fake-green rehearsal/deploy path); boundary proven on scratch 5460
+- [Phase ?]: 03-04: DRZ-02 NOT marked complete — only the machinery half landed (test stack built by the single runner; zero push references in executable surfaces); deploy-pipeline + absence-gate legs are 03-07/03-08 (02-03 false-signal precedent)
 
 ### Pending Todos
 
@@ -173,6 +178,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-12T13:14:16.787Z
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-09-12T13:37:46.321Z
+Stopped at: Completed 03-04-PLAN.md
 Resume file: None

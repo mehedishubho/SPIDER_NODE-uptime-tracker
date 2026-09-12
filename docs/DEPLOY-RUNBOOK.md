@@ -7,6 +7,7 @@
 > **Companion document:** [ARCHITECTURE-AUDIT.md](./ARCHITECTURE-AUDIT.md) — all design rationale lives there, not here (D-01/D-03). This document contains ordering, verification, and rollback only.
 > **Amended 2026-09-09 (fix cycle):** §1/§2/§3/§4/§5 amended and §4a added — the Migrate step is phase-conditional (WR-03), the PM2 ready handshake names the process signal (WR-04), the first worker release has its own path (WR-05), and the steady-state budget is stated as ≤ 30 (IN-05 runbook half). §10 added later in the same fix cycle — worker-host egress control, closing RR-01's operator half (S-1 layer 1, mirroring audit §15.4).
 > **Amended 2026-09-11 (Phase 2, plan 02-04):** deployment is fully manual from Phase 2 on — the GitHub-hosted deploy workflow was deleted (D-01), so §3 is rewritten as typed-by-hand steps with `pnpm verify` as the pre-deploy gate (D-02), the build happens on the dev machine and ships as a tarball (D-03), post-deploy verification is typed checks (D-04), Phase 2 runs no schema command (D-05), the generated Prisma client ships in the tarball so the VPS never builds or generates (D-14), and §3a adds the one-time VPS Node 24 + pnpm switch for the operator to run at their next real deploy (D-26). Every workflow-era instruction is gone from this document.
+> **Amended 2026-09-12 (Phase 3, plan 03-06):** the Phase 3 operator path is complete — §3b adds the one-time VPS Redis install + hardening (D-15/D-17/D-18), §3c the Redis 70% memory alert via VPS cron + a dedicated healthchecks.io check (D-16), and §3d the migration-rehearsal procedure (D-10..D-12). §3 step 3's Phase-3 branch is activated (one-time baseline stamp via `scripts/stamp-baseline.mjs`, then the single `pnpm exec drizzle-kit migrate` runner), §3 step 5 gains the limiter-live checks (d)/(e)/(f), and §1's budget now counts the web process's 1 Redis connection.
 
 ---
 
@@ -18,7 +19,7 @@
 | **worker** (PM2 `uptime-worker`, from Phase 4) | **20** | **DIRECT** |
 | **migration runner** (operator-run, one-shot) | **1** | **DIRECT** |
 
-Operational summary — **web 10 / worker 20 / migrations 1**; steady-state total ≤ 30 connections (web 10 + worker 20), rising to ≤ 31 only during deploys while the single one-shot migration runner is connected. Full spec (pool options, timeouts, pooled-vs-direct rationale, Neon limits): audit [§25](./ARCHITECTURE-AUDIT.md).
+Operational summary — **web 10 / worker 20 / migrations 1**; steady-state total ≤ 30 connections (web 10 + worker 20), rising to ≤ 31 only during deploys while the single one-shot migration runner is connected. Redis is budgeted separately: from Phase 3 the web process holds **1 Redis connection** (the rate limiter, `src/lib/redis.ts`) on top of its 10 Postgres; Phase 4's BullMQ raises web to 2 (queue producer + limiter) and adds the worker's 2 (IN-05/OBS-05). Full spec (pool options, timeouts, pooled-vs-direct rationale, Neon limits): audit [§25](./ARCHITECTURE-AUDIT.md).
 
 During a release, keep `psql` and dashboard sessions to a minimum: web 10 / worker 20 / migrations 1 leaves ≥ 70 % headroom against Neon's ~104 `max_connections` (assumption A4 — verify the project's tier before Phase 3).
 
@@ -64,15 +65,25 @@ In every release the migration runs **before** any process restart, and in the t
    - *Verification:* `pnpm verify` exited 0 (all five stages green); the tarball exists, is non-empty, and its name carries the release SHA; `tar -tzf /tmp/uptime-tracker-<SHA>.tar.gz | grep -c 'src/generated/prisma'` is non-zero (the client really is inside).
    - *Rollback:* abort the release — nothing has touched production yet.
 2. **Backup.**
-   - *Action:* on the VPS, take a full database backup: `pg_dump "$DATABASE_URL" -F c -f /var/backups/uptime/pre-release-<SHA>.dump`. Before any cutover-adjacent release (schema or auth changes), rehearse the release first against an anonymized local copy of that snapshot (restore → run migration → run smoke check locally).
-   - *Verification:* `pg_dump` exits 0; the dump file is non-empty; the rehearsal completed with the smoke check passing.
+   - *Action:* on the VPS, take a full database backup: `pg_dump "$DATABASE_URL" -F c -f /var/backups/uptime/pre-release-<SHA>.dump`. Before any cutover-adjacent release (schema or auth changes), rehearse the release first — the procedure is §3d (fresh dump → `pnpm rehearse:migrations` → evidence review → abort on mismatch).
+   - *Verification:* `pg_dump` exits 0; the dump file is non-empty; the rehearsal (§3d) completed with a PASS evidence file.
    - *Rollback:* abort the release — production data is unchanged. (No rollback action is ever taken against the dump itself; it is retained as the restore point of last resort.)
 3. **Migrate (phase-conditional — check which phase you are releasing).**
-   - *Action:* **Phase 2 releases: run no schema command at all (D-05).** The deploy workflow that used to run `prisma db push` on every release was deleted in Phase 2 (D-01) — its push-with-`--accept-data-loss` hazard left the deploy path with it, and no automated schema mechanism exists anymore. Production's schema stays exactly as the last workflow-driven deploy left it until Phase 3 transcribes it into versioned SQL; do not run any schema command ad hoc from this runbook. **Phase 3 onward: run the single migration runner — one runner, once:** `pnpm drizzle-kit migrate`. Never run migrations at process boot; never run two runners concurrently (concurrent boot = concurrent DDL is forbidden, M-1). If no migrations are pending, the command is a no-op that exits 0.
-   - *Verification:* Phase 2 — nothing to check: no schema command ran anywhere, by design (D-05). Phase 3+ — command exits 0; the migrations journal shows the release's entries; the empty-diff check (`drizzle-kit` diff against the live database) reports no drift (M-3).
+   - *Action:* **Phase 2 releases: run no schema command at all (D-05).** The deploy workflow that used to run `prisma db push` on every release was deleted in Phase 2 (D-01) — its push-with-`--accept-data-loss` hazard left the deploy path with it, and no automated schema mechanism exists anymore. Production's schema stays exactly as the last workflow-driven deploy left it until Phase 3 transcribes it into versioned SQL; do not run any schema command ad hoc from this runbook. **Phase 3 onward (activated — the baseline and runner shipped in Phase 3): first Phase-3 release ONLY, stamp the baseline one time before the first migrate.** From `/var/www/uptime-tracker`, after extracting the new tarball and before the app reload:
+
+     ```
+     DATABASE_URL="<DIRECT connection string — not the pooled web endpoint; the script
+     opens a one-shot client with statement_timeout deliberately unset>" \
+       node scripts/stamp-baseline.mjs
+     ```
+
+     Then verify the bookkeeping table holds one row per committed migration: `SELECT hash, created_at FROM drizzle.__drizzle_migrations;` — the baseline row present, later entries still pending for the runner to apply exactly once. **Every release thereafter (the first included, after the stamp): run the single migration runner — one runner, once:** `pnpm exec drizzle-kit migrate`. Never run migrations at process boot; never run two runners concurrently (concurrent boot = concurrent DDL is forbidden, M-1). If no migrations are pending, the command is a no-op that exits 0.
+   - *Verification:* Phase 2 — nothing to check: no schema command ran anywhere, by design (D-05). Phase 3+ — the first-release stamp prints `stamped 0000_baseline` (or `already stamped 0000_baseline — skipped` if re-run); `pnpm exec drizzle-kit migrate` exits 0; the migrations journal shows the release's entries; the empty-diff check (`drizzle-kit` diff against the live database) reports no drift (M-3).
    - *Rollback:* do not run down-migrations inside the verification window. Migrations are forward-only, additive-first (§7): restore the previous release tarball and restart — the previous code runs against the expanded schema.
 
    > *Note (D-01):* deleting the workflow also orphaned any repo secrets it referenced (deploy keys, host entries). They are inert — nothing reads them anymore. Prune them in the repository's secret settings at leisure; nothing in this runbook depends on them.
+
+   > *Note (03-03 recorded deviation):* the pooled-vs-DIRECT distinction above assumes the planning docs' provider model (Neon). Phase 3 recorded the operator-confirmed reality that the production database currently lives in the local docker container `spidernode-dev-db` (PostgreSQL 17.7), where every connection is direct and no pooler exists. Whichever host holds production at deploy time: give the stamp the same one-shot, unpooled URL that `pg_dump`/`psql` would use — never a pooler endpoint.
 4. **Ship, install, reload web.**
    - *Action:* copy the tarball to the VPS, extract it over the app directory, install the runtime dependency tree from the shipped lockfile, then reload:
 
@@ -84,12 +95,12 @@ In every release the migration runs **before** any process restart, and in the t
      pm2 restart uptime-tracker
      ```
 
-     `--prod` keeps the VPS to the runtime tree — the toolchain (typescript, vitest, playwright, eslint, the prisma CLI) never installs there; it is not needed because the client ships pre-generated (D-14). **First release after the toolchain switch:** §3a replaces this step — PM2 re-reads `ecosystem.config.js` only on `pm2 startOrReload` (see §3a step 4).
+     `--prod` keeps the VPS to the runtime tree — the toolchain (typescript, vitest, playwright, eslint, the prisma CLI) never installs there; it is not needed because the client ships pre-generated (D-14). **First Phase-3 release:** §3b step 4 must already have added `REDIS_URL` to the VPS `.env` — the app throws at module load without it; never reload Phase 3+ code before that line exists. **First release after the toolchain switch:** §3a replaces this step — PM2 re-reads `ecosystem.config.js` only on `pm2 startOrReload` (see §3a step 4).
    - *Verification:* `pm2 ls` shows the app `online`; `curl -fsS http://127.0.0.1:3007/login` returns HTTP 200.
    - *Rollback:* restore the previous release tarball (`tar -xzf` over `/var/www/uptime-tracker`, `pnpm install --frozen-lockfile --prod`, `pm2 restart uptime-tracker`); re-verify the 200.
 5. **Typed post-deploy checks (D-04 — all hand-executed; no smoke script exists).**
-   - *Action:* run all three, by hand: (a) `curl -fsS https://<app-url>/login` (or the local form `curl -fsS http://127.0.0.1:3007/login` over SSH) and confirm the login page renders — HTTP 200; (b) `pm2 status` and confirm `uptime-tracker` is `online` — not `errored`, not restart-looping; (c) `pm2 logs uptime-tracker --lines 50` and glance for startup errors (unhandled rejections, missing env vars, database connection failures). Also confirm the healthchecks.io heartbeat for the app has resumed (no `/fail` ping fired during the restart window).
-   - *Verification:* all checks green within 30 s of the reload; heartbeat green. **No `readyz` endpoint exists in this topology** — it arrives with Phase 4's worker; these typed checks are the entire post-deploy verification until then (D-04).
+   - *Action:* run all six, by hand. **(a)** `curl -fsS https://<app-url>/login` (or the local form `curl -fsS http://127.0.0.1:3007/login` over SSH) and confirm the login page renders — HTTP 200. **(b)** `pm2 status` and confirm `uptime-tracker` is `online` — not `errored`, not restart-looping. **(c)** `pm2 logs uptime-tracker --lines 50` and glance for startup errors (unhandled rejections, missing env vars, database connection failures). **(d)** The same 50-line log must contain **no** line matching `[redis-limiter] DEGRADED` (`pm2 logs uptime-tracker --lines 50 | grep -c '\[redis-limiter\] DEGRADED'` prints `0`) — that marker means the app cannot reach Redis and the limiter is failing open; if it appears, re-check §3b step 4's `REDIS_URL` wiring and the `redis-server` unit, fix, restart, and re-run this check. **(e)** Prove the limiter's counters live in Redis, not process memory: send one rate-limited request (`curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:3007/api/auth/register -H 'content-type: application/json' -d '{}'` — a 400 is fine, the limiter counts before validation), then `redis-cli -a '<password>' --no-auth-warning INFO keyspace` shows `db0` with `keys>0` (the limiter's `rl:*` counters). **(f)** Limiter restart-survival proof (Phase 3's headline check): `POST /api/auth/register` once with any body (the limiter fires before validation — no user is created), `pm2 restart uptime-tracker`, then POST five more times — the first four return non-429 (requests 2–5 of the window) and the fifth post-restart POST, the **6th request in the 5-per-hour window, returns 429**. The 429 proves the window survived the restart in Redis: the deleted in-memory limiter would have reset the counter at the restart, and the sixth request would have succeeded. (Requests sent from the VPS itself share the `127.0.0.1` bucket.) Also confirm the healthchecks.io heartbeat for the app has resumed (no `/fail` ping fired during the restart window).
+   - *Verification:* checks (a)–(e) green within 30 s of the reload; (f) green when run — it performs its own restart mid-check; heartbeat green. **No `readyz` endpoint exists in this topology** — it arrives with Phase 4's worker; these typed checks are the entire post-deploy verification until then (D-04).
    - *Rollback:* if any check fails, restore the previous release tarball, restart, and repeat the checks. If they still fail, stop and escalate — do not attempt schema changes under pressure.
 
 ---
@@ -216,6 +227,37 @@ The VPS currently runs the app the way it always has: Node loaded via NVM (Ubunt
 
 ---
 
+## 3d. Migration rehearsal — before every schema-touching release (D-10..D-12)
+
+> **The rehearsal is the gate, not a formality.** Every release that ships a migration (or touches auth — Phase 7) rehearses the exact production migration path against a fresh anonymized production snapshot first: one command, zero hand-computed verification (D-12). Runs on the dev machine; production is never touched.
+
+1. **Take a FRESH dump into `.snapshots/` (dev machine).**
+   - *Action:* a new dump each time a rehearsal is scheduled (D-11 — a stale dump rehearses stale drift). Generic form (03-05's docker-run command — works against any reachable Postgres; run from the repo root in Git Bash):
+
+     ```
+     docker run --rm -v "${PWD}/.snapshots:/dump" postgres:17-alpine \
+       pg_dump "<DIRECT production connection string — never paste it into chat>" \
+       -F c -f /dump/prod-$(date +%Y%m%d).dump
+     ```
+
+     **Recorded deviation (03-03):** today's production data lives in the local docker container `spidernode-dev-db` (PostgreSQL 17.7) — both committed rehearsal dumps were taken as `docker exec spidernode-dev-db pg_dump -U postgres -F c uptime_dev > .snapshots/prod-YYYYMMDD.dump` instead. Whichever host holds production at rehearsal time: dump THAT, land it in `.snapshots/` as `prod-*.dump` (custom format), never commit it.
+   - *Verification:* the dump file exists and is non-empty; `pg_restore --list` on it exits 0.
+   - *Rollback:* nothing to undo — production untouched; delete the dump if the release is abandoned.
+2. **Run the rehearsal — one command.**
+   - *Action:* `pnpm rehearse:migrations` (discovers the newest `.snapshots/prod-*.dump`; needs Docker running and port 5460 free — its pre-checks abort rather than touch the 5453/6390 test stack). The pipeline: throwaway `postgres:17-alpine` → `pg_restore` → deterministic anonymization → BEFORE metrics (row counts + digests) → baseline stamp → timed migrate → AFTER metrics → additive-only assertion → evidence → teardown.
+   - *Verification:* the command exits 0. A non-zero exit names the offending table or DDL violation — that IS the mismatch signal.
+   - *Rollback:* n/a — throwaway container, torn down in a `finally` on success and failure alike.
+3. **Review the evidence file.**
+   - *Action:* read the committed evidence at `.planning/phases/03-redis-drizzle-schema-ownership/03-REHEARSAL-EVIDENCE-YYYYMMDD.md` (local copy in `.snapshots/rehearsal-*`): every table's row count and digest BEFORE == AFTER — the one **labeled sanctioned carve-out** excepted (the digest runs over the pinned pre-migration column inventory, so this release's added columns are outside it by construction); the DDL delta is additive-only (nothing dropped, renamed, or retyped); the D-19 per-index timing record lives in the same file.
+   - *Verification:* verdict PASS; zero mismatches; the delta contains only this release's expected additive objects.
+   - *Rollback:* n/a — review step.
+4. **Abort the release on any mismatch.**
+   - *Action:* any count/digest drift outside the carve-out, any non-additive DDL, or a non-zero pipeline exit aborts the release — do not proceed to §3 steps 2–3 on a failed rehearsal. Fix the migration, commit, re-rehearse.
+   - *Verification:* the release either carries a PASS evidence file or does not ship.
+   - *Rollback:* the abort IS the rollback — production was never touched.
+
+---
+
 ## 4. Target topology (Phase 4+) — two PM2 apps
 
 `uptime-tracker` (web) + `uptime-worker` (worker). The worker restart and `readyz` wait are inserted **before** the web restart — the worker gates the release (D-04/P-1).
@@ -229,7 +271,7 @@ Two distinct readiness signals exist, and PM2 watches only the first: the worker
    - *Verification:* every gate exits 0; both artifacts exist and carry the same SHA.
    - *Rollback:* abort the release — nothing has touched production yet.
 2. **Backup.**
-   - *Action:* on the VPS, take a full database backup: `pg_dump "$DATABASE_URL" -F c -f /var/backups/uptime/pre-release-<SHA>.dump`. For cutover-adjacent releases, rehearse against an anonymized local copy of that snapshot first (restore → migrate → worker restart → `readyz` → smoke check locally).
+   - *Action:* on the VPS, take a full database backup: `pg_dump "$DATABASE_URL" -F c -f /var/backups/uptime/pre-release-<SHA>.dump`. For cutover-adjacent releases, rehearse first — the mechanics are §3d's pipeline (fresh dump → `pnpm rehearse:migrations` → evidence review → abort on mismatch), with the worker restart and `readyz` wait wrapped around the migrate.
    - *Verification:* `pg_dump` exits 0; the dump file is non-empty; the rehearsal completed with `readyz` and the smoke check passing.
    - *Rollback:* abort the release — production data is unchanged.
 3. **Migrate.**
@@ -286,7 +328,7 @@ The first release that introduces `uptime-worker` is not a restart: the app does
 
 ## 6. Smoke check definition (normative)
 
-The target-topology smoke check is: **enqueue one synthetic check against a known-good target and assert the ping row appears in the database.** It proves the full path — web enqueue → Redis/BullMQ → worker check → Postgres persist — in one action. Interim releases (Phases 2–3) have no worker; their post-deploy check is the typed check set in §3 step 5 (curl, `pm2 status`, log glance — D-04). A release is not good until its topology's check passes.
+The target-topology smoke check is: **enqueue one synthetic check against a known-good target and assert the ping row appears in the database.** It proves the full path — web enqueue → Redis/BullMQ → worker check → Postgres persist — in one action. Interim releases (Phases 2–3) have no worker; their post-deploy check is the typed check set in §3 step 5 (from Phase 3 including the Redis limiter-live checks (d)–(f) — D-04). A release is not good until its topology's check passes.
 
 ---
 

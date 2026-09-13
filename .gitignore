@@ -22,6 +22,10 @@
 # production
 /build
 
+# worker bundle output (tsup, 04-01/D-06): built by `pnpm build` on the dev
+# machine and shipped inside the deploy tarball — never committed
+/dist/
+
 # misc
 .DS_Store
 *.pem

@@ -742,24 +742,30 @@ log.info({ statusCode, responseTimeMs }, 'check complete');
 
 **All other claims** in this research are [VERIFIED: source] or [CITED: source] as tagged inline — no user confirmation needed for those.
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All four questions are resolved by phase plan content — pointers below.
 
 1. **tsup maintenance status — operator acknowledgment (D-02 conflict).**
    - What we know: tsup's README says unmaintained, recommends tsdown; D-02 locks tsup; needed options are 8 verified lines.
    - What's unclear: whether the operator wants to (a) proceed on tsup per D-02 as locked, or (b) treat this as new information justifying a swap before the dependency lands.
    - Recommendation: proceed with tsup (locked decision, minimal surface, swappable); the planner should surface this at the dependency checkpoint (human-verify) rather than silently installing an unmaintained tool.
+   - **Resolved → 04-01 Task 1**: the blocking package-legitimacy checkpoint surfaces the unmaintained-status acknowledgment explicitly (registry page cited); install proceeds only on operator approval per D-02 as locked.
 2. **Check-engine HTTP client: npm undici vs zero-dep node:https.**
    - What we know: both can pin the dial to resolve-time-validated IPs (undici Agent / node:https custom lookup); D-41 names `fetch`; global fetch alone cannot pin.
    - What's unclear: nothing material — this is a discretion recommendation needing planner sign-off because it adds a runtime dependency.
    - Recommendation: npm `undici` 8.x (`fetch` + `Agent`) — keeps D-41's fetch semantics, streaming byte cap, and redirect-manual handling in one maintained client from the Node core team; fallback documented in Standard Stack if the operator prefers zero new runtime deps.
+   - **Resolved → 04-01 Task 1** (undici 8.x approved at the same blocking package gate) **+ 04-03 Task 1** (check engine implements the undici `Agent` connection pinning per D-41).
 3. **SIGINT-drain automation platform (Pitfall 8).**
    - What we know: Windows cannot deliver SIGINT to a spawned child programmatically; SIGKILL-based D-29 works natively; docker is present on the dev machine.
    - What's unclear: whether the resilience suite should carry a Linux-container leg for the signal-level drain proof, or disposition it N/A-locally (D-15 pattern) with drain proven unit-level (direct handler invocation) plus in the rehearsal.
    - Recommendation: unit-level drain test + rehearse:worker container leg; keep `pnpm test:resilience` free of docker-in-docker complexity on Windows.
+   - **Resolved → 04-01 Task 3** (handler-level drain test in tests/worker/shutdown.test.ts) **+ 04-08 Task 1** (resilience suite uses native SIGKILL only; config header documents the split) **+ 04-09 Task 1** (rehearse:worker's SIGINT-drain Linux-container leg delivers the signal-level proof).
 4. **D-34 RES-03 staleness pin — confirm the existing UI surfaces aging lastChecked.**
    - What we know: dashboards display `lastChecked` from monitor rows (cron path) — when checks stop, the displayed age grows; the research pass found no gap needing new UI.
    - What's unclear: the exact component/format (relative "Xm ago" vs raw timestamp) — the pinning test needs the concrete surface named at planning time.
    - Recommendation: planner adds a small test-writing task that first locates the exact rendering (Dashboard/Status components), then pins it; disposition anything genuinely missing per D-34.
+   - **Resolved → 04-08 Task 3**: locate-then-pin task finds the exact lastChecked rendering surface, pins it with a regression test, and dispositions any genuine gap per D-34 without building UI in this backend-only phase.
 
 ## Environment Availability
 

@@ -14,12 +14,17 @@
 // one-ongoing partial unique index, and gen_random_uuid()::text defaults on
 // the text PKs. This file is now a pull of the docker test database after
 // the full committed migration set (0000 + 0001) ran through the single
-// runner — the state src/db/schema.ts must always describe. The one
-// non-verbatim adaptation: pull renders the gen_random_uuid() defaults as
-// `.default((gen_random_uuid()))`, a bare call to an identifier
+// runner — the state src/db/schema.ts must always describe. The two
+// non-verbatim adaptations: (1) pull renders the gen_random_uuid() defaults
+// as `.default((gen_random_uuid()))`, a bare call to an identifier
 // drizzle-orm does not export; they are kept here in the canonical
-// `.default(sql`gen_random_uuid()`)` form. The 03-07 gate's normalization
-// applies that same rewrite to BOTH sides of its diff before comparing.
+// `.default(sql`gen_random_uuid()`)` form. (2) pull renders the opclass of
+// the BOOLEAN isActive column in idx_monitors_due as `timestamptz_ops`
+// (a serializer quirk on that two-column btree — PostgreSQL cannot create
+// that pairing, error 42804, and `drizzle-kit generate` would emit it
+// invalidly); it is kept here as the correct `bool_ops`. The 03-07 gate's
+// normalization applies both rewrites to BOTH sides of its diff before
+// comparing.
 //
 // GATE CONTRACT (03-07, D-13): the code below keeps the exact formatting
 // drizzle-kit pull emits (single quotes, no semicolons, pull's column and
@@ -90,7 +95,7 @@ export const monitors = pgTable("monitors", {
 	nextCheckAt: timestamp("next_check_at", { withTimezone: true, mode: 'string' }),
 	consecutiveFailures: integer("consecutive_failures").default(0).notNull(),
 }, (table) => [
-	index("idx_monitors_due").using("btree", table.isActive.asc().nullsLast().op("timestamptz_ops"), table.nextCheckAt.asc().nullsLast().op("timestamptz_ops")).where(sql`"isActive"`),
+	index("idx_monitors_due").using("btree", table.isActive.asc().nullsLast().op("bool_ops"), table.nextCheckAt.asc().nullsLast().op("timestamptz_ops")).where(sql`"isActive"`),
 	foreignKey({
 			columns: [table.userId],
 			foreignColumns: [users.id],

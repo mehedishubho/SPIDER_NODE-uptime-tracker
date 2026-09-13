@@ -15,7 +15,8 @@
 //   c. Normalized STRUCTURAL diff of the pull against the committed
 //      src/db/schema.ts. BOTH sides are normalized identically (line endings,
 //      // comments outside string literals, trailing whitespace, blank lines,
-//      expression-default canonicalization), then compared STRUCTURALLY:
+//      expression-default + boolean-opclass canonicalization), then compared
+//      STRUCTURALLY:
 //      imports as a sorted set, each `export const` block by name with its
 //      internal lines ordered (pull's TOP-LEVEL ordering is not stable
 //      run-to-run — see parseBlocks). The committed schema is pull-generated
@@ -174,17 +175,42 @@ function canonicalizeDefaultRenderings(line) {
   );
 }
 
+// Canonicalize the opclass pull renders on a BOOLEAN index column (WR-01).
+// drizzle-kit pull (0.31.x pg serializer) renders `timestamptz_ops` on BOTH
+// columns of idx_monitors_due (boolean "isActive" + timestamptz
+// next_check_at) even though the live index carries default opclasses
+// (migration 0001 created it without any) and PostgreSQL rejects a
+// timestamptz opclass on a boolean outright (error 42804). The committed
+// schema authority therefore spells `bool_ops` — the opclass generate must
+// be able to round-trip — and this rule rewrites pull's quirk to the same
+// rendering, identically on BOTH sides. Fail-closed posture is preserved:
+// an opclass change on any NON-boolean column still drifts, and a boolean
+// column outside this set still drifts on any opclass difference. Extend
+// the set when a future boolean column joins an index.
+const BOOLEAN_INDEXED_COLUMNS = new Set(["isActive"]);
+function canonicalizeBooleanOpclass(line) {
+  return line.replace(
+    /(table\.([A-Za-z_][A-Za-z0-9_]*)\.(?:asc|desc)\(\)\.nulls(?:First|Last)\(\)\.op\(")([A-Za-z0-9_]+)(_ops"\))/g,
+    (match, prefix, columnName, opclass, suffix) =>
+      BOOLEAN_INDEXED_COLUMNS.has(columnName) && opclass !== "bool"
+        ? `${prefix}bool${suffix}`
+        : match
+  );
+}
+
 // The documented normalization (03-07 Task 1, research A5 — textual route):
 // identical on BOTH sides — strip // comments, trim trailing whitespace,
 // drop blank lines (collapsing runs), normalize line endings (the Windows
-// checkout reality), and canonicalize expression-default renderings (above).
-// Only after this transform are the pull output and the committed schema
-// expected to be equal.
+// checkout reality), and canonicalize expression-default + boolean-opclass
+// renderings (above). Only after this transform are the pull output and the
+// committed schema expected to be equal.
 function normalizeSchema(text) {
   const lines = [];
   for (const rawLine of text.split(/\r?\n/)) {
-    const line = canonicalizeDefaultRenderings(
-      stripLineComment(rawLine).replace(/\s+$/, "")
+    const line = canonicalizeBooleanOpclass(
+      canonicalizeDefaultRenderings(
+        stripLineComment(rawLine).replace(/\s+$/, "")
+      )
     );
     if (line.trim() === "") continue;
     lines.push(line);

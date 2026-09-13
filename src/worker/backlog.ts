@@ -7,7 +7,8 @@ import { buildLogger } from "./logger";
 // Enqueue-side backlog cap (RES-02 / J-5, audit §14.2 step 4 + §14.5).
 //
 // Before the tick enqueues a routine (priority-10) check, it reads the check
-// queue's depth (getJobCounts wait+delayed+active) and compares it against
+// queue's depth (getJobCounts wait+prioritized+delayed+active — priority-
+// carrying jobs live in the prioritized set) and compares it against
 // ~2x the active-monitor count. Above the cap the routine enqueue is DROPPED,
 // logged with the greppable BACKLOG_DROP marker, and counted — the counter is
 // exposed to the health collector (D-25). Claims stay advanced, so a dropped
@@ -92,8 +93,17 @@ export function openBacklogGate(deps: BacklogGateDeps): BacklogGate {
       let depth: number;
       let active: number;
       try {
-        const counts = await deps.checksQueue.getJobCounts("wait", "delayed", "active");
-        depth = (counts.wait ?? 0) + (counts.delayed ?? 0) + (counts.active ?? 0);
+        // "prioritized" is load-bearing: bullmq 6 files every job carrying
+        // `priority` in the PRIORITIZED set (never plain wait), and ALL
+        // check-lane jobs carry one (Pitfall 3) — a wait-only depth read
+        // would see an empty queue while routine checks back up, and the
+        // RES-02 cap would never trip.
+        const counts = await deps.checksQueue.getJobCounts("wait", "prioritized", "delayed", "active");
+        depth =
+          (counts.wait ?? 0) +
+          (counts.prioritized ?? 0) +
+          (counts.delayed ?? 0) +
+          (counts.active ?? 0);
         active = deps.activeMonitorCount ?? (await countActiveMonitors());
       } catch {
         // Fail-open (rate-limit.ts DEGRADED precedent): monitoring must not

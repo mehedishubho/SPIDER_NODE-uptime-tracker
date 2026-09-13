@@ -4,6 +4,7 @@ import { Client } from "pg";
 import type { Logger } from "pino";
 import {
   addCheckJob,
+  CHECK_JOB_OPTIONS,
   claimedCheckJobId,
   createWorkerQueues,
   enqueueClaimedCheck,
@@ -274,6 +275,31 @@ describe("queue topology — priorities, jobIds, J-1, backlog gate (WRK-02/WRK-1
       // Verdict cached: a second depth read is not even issued.
       expect(await gate.canAcceptRoutine()).toBe(true);
       expect(atCap.getJobCounts).toHaveBeenCalledTimes(1);
+    },
+    15_000
+  );
+
+  it(
+    "8. REAL-queue depth: prioritized jobs count toward the cap (bullmq files priority-carrying jobs in the prioritized set)",
+    async () => {
+      // Five routine (priority-10) checks on the REAL checks queue — bullmq
+      // files every one of them in the PRIORITIZED set, none in plain wait.
+      // A gate blind to that set would read depth 0 and never trip RES-02.
+      const token = Date.now();
+      for (let i = 0; i < 5; i++) {
+        await queues.checks.add(
+          "check",
+          { monitorId: 900 + i },
+          { ...CHECK_JOB_OPTIONS, priority: LANE_PRIORITY.routineCheck, jobId: `check:${900 + i}:${token}` }
+        );
+      }
+      const counts = await queues.checks.getJobCounts("wait", "prioritized", "delayed", "active");
+      expect(counts.prioritized).toBe(5); // the empirical pin this test guards
+      expect(counts.wait).toBe(0);
+
+      // 2 active monitors -> cap 4 < depth 5 -> routine enqueue refused.
+      const gate = openBacklogGate({ checksQueue: queues.checks, activeMonitorCount: 2 });
+      expect(await gate.canAcceptRoutine()).toBe(false);
     },
     15_000
   );

@@ -216,10 +216,32 @@ function parseIPv6(addr: string): { value: bigint; embeddedV4: bigint | null } |
   return { value, embeddedV4 };
 }
 
+/**
+ * The §15.1/runbook §10 notation writes IPv4 bases in shorthand — `10/8`,
+ * `172.16/12`, `169.254/16` — zero-padding to `10.0.0.0`, `172.16.0.0`,
+ * `169.254.0.0`. Tokens are contract-fixed, so the parser honors the
+ * documented form rather than demanding full quads.
+ */
+function expandIPv4Shorthand(part: string): string {
+  if (part.includes(":")) return part;
+  const groups = part.split(".");
+  if (groups.length === 0 || groups.length > 4) return part;
+  if (groups.some((g) => g === "" || !/^\d{1,3}$/.test(g))) return part;
+  while (groups.length < 4) groups.push("0");
+  return groups.join(".");
+}
+
 function parseCidr(token: string): CidrBlock | null {
   const slash = token.indexOf("/");
-  const ipPart = slash === -1 ? token : token.slice(0, slash);
-  const family = isIP(ipPart);
+  let ipPart = slash === -1 ? token : token.slice(0, slash);
+  let family = isIP(ipPart);
+  if (family === 0) {
+    const expanded = expandIPv4Shorthand(ipPart);
+    if (expanded !== ipPart && isIP(expanded) === 4) {
+      ipPart = expanded;
+      family = 4;
+    }
+  }
   if (family !== 4 && family !== 6) return null;
   const value = family === 4 ? parseIPv4(ipPart) : parseIPv6(ipPart)?.value ?? null;
   if (value === null) return null;

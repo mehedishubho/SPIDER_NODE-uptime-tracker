@@ -43,11 +43,65 @@ export async function rateLimit(identifier: string, options: RateLimitOptions) {
   }
 }
 
-// Utility to get IP from NextRequest
+// Utility to derive the limiter's client key (WR-06): the key must be an
+// address the CLIENT does not control, or the fixed windows are bypassable
+// by header rotation and the Redis keyspace — pinned `noeviction` with a
+// 512 MB ceiling (runbook §3b) — grows without bound under spoofing.
+//
+// What the runtime actually guarantees (verified against next@16's server):
+// Next stamps `x-forwarded-for` from the socket's remoteAddress ONLY when
+// the header is absent, and never sets `x-real-ip`. So on a direct
+// connection the header IS the socket peer (the client sent nothing); a
+// client-supplied value, however, passes through verbatim and is not
+// distinguishable from the stamped one inside a route handler.
+//
+// Resolution (minimal, behavior-compatible — D-04 key semantics preserved
+// for every legitimate client):
+//   - TRUST_PROXY=true: a sanitizing proxy fronts the app and appends to
+//     the forwarding headers, so the RIGHTMOST x-forwarded-for entry (the
+//     one the proxy added) is the real client address; leftmost entries are
+//     client-supplied and spoofable.
+//   - otherwise (today's direct topology): first entry as before — for
+//     direct clients that is the Next-stamped socket peer, so keys are
+//     unchanged, including the runbook's `127.0.0.1` VPS-local bucket.
+//   - any extracted value must still parse as an IP literal: a present-but-
+//     unparseable value collapses into the single shared `unknown` bucket,
+//     so arbitrary strings can never enter a Redis key and the spoofed
+//     keyspace is bounded no matter what is sent.
+// Residual risk (accepted, deferred to Phase 6's S-series trust-proxy
+// work): a direct-connection attacker rotating VALID IP literals still
+// mints fresh counters; closing that requires the proxy-fronted
+// deployment + TRUST_PROXY design, not a code tweak here.
+const IP_LIKE_V4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+const IP_LIKE_V6 = /^[0-9a-f:]+(?:\.[0-9a-f:]+)*$/i;
+
+function normalizeClientAddress(value: string): string | null {
+  const candidate = value.trim().toLowerCase().replace(/^\[|\]$/g, "");
+  if (!candidate || candidate.length > 45) return null;
+  const v4 = IP_LIKE_V4.exec(candidate);
+  if (v4) {
+    return v4.slice(1).every((octet) => Number(octet) <= 255) ? candidate : null;
+  }
+  // IPv6 (including ::ffff: mapped-IPv4): hex/colon shape with one colon.
+  if (candidate.includes(":") && IP_LIKE_V6.test(candidate)) return candidate;
+  return null;
+}
+
+// Utility to get the limiter's client address from a Request.
 export function getIP(req: Request) {
-  return (
-    req.headers.get("x-forwarded-for")?.split(",")[0] ||
-    req.headers.get("x-real-ip") ||
-    "127.0.0.1"
-  );
+  const forwarded = req.headers.get("x-forwarded-for");
+  let candidate: string | null = null;
+  if (forwarded) {
+    const entries = forwarded.split(",");
+    candidate =
+      process.env.TRUST_PROXY === "true"
+        ? entries[entries.length - 1]
+        : entries[0];
+  }
+  if (!candidate) candidate = req.headers.get("x-real-ip");
+  // No forwarding headers at all keeps the historical loopback fallback —
+  // the test harness's header-less requests land here, and on the VPS the
+  // Next server always stamps the header for direct local clients anyway.
+  if (candidate === null) return "127.0.0.1";
+  return normalizeClientAddress(candidate) ?? "unknown";
 }

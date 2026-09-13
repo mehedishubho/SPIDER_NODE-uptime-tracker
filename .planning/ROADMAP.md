@@ -185,7 +185,7 @@ Plans:
   4. Failure injection proves both outage directions: Postgres down → jobs retry (nothing silently lost), the circuit breaker opens and pauses enqueueing, and the backlog cap drops routine checks but never transitions; Redis down → monitoring pauses by design, Postgres stays intact, and in-product staleness ("last checked Xm ago") is visible to users
   5. The check engine enforces SSRF layering (per-redirect-hop private-range denial, scheme allowlist, 2 MB cap, strict 10 s timeout — test cases pass) with OS-level egress rules active on the worker host; an operator can trace one check end-to-end via `monitorId`-correlated structured logs and queue metrics (depth, job age, stalled count); the maintenance job has a dry-run that reports row counts without deleting; the pipeline orders build → backup → migrate → worker (waits readyz) → web → smoke check that produces a synthetic ping row
 
-**Plans**: 4/9 plans executed
+**Plans**: 5/9 plans executed
 
 Plans:
 **Wave 1**
@@ -197,7 +197,7 @@ Plans:
 - [x] 04-02-PLAN.md — Queue topology + priorities/retry-DLQ + claim (D-50 GREATEST catch-up) + scheduler-behind-flag + backlog cap + queue metrics (WRK-02, WRK-03, WRK-06, WRK-10, WRK-12, RES-02, OBS-01)
 - [x] 04-03-PLAN.md — Canonical SSRF pipeline src/lib/ssrf.ts + WRK-05 classification + error_class vocabulary, §23 + D-42 vector tests (SEC-01, WRK-05, DAT-10)
 - [x] 04-04-PLAN.md — Per-monitor Lua locks + Tier 1 §16.1 transition transaction with in-UPDATE uptime_percent (D-35) + byte-parity suite D-36 (WRK-04, DAT-01, DAT-04, DAT-07, DAT-10)
-- [ ] 04-05-PLAN.md — Tier 2 §16.2 Redis staging + RENAMENX guarded flush + write_guards idempotency (DAT-02, DAT-03, DAT-07)
+- [x] 04-05-PLAN.md — Tier 2 §16.2 Redis staging + RENAMENX guarded flush + write_guards idempotency (DAT-02, DAT-03, DAT-07)
 
 **Wave 3** *(blocked on 04-02..04-05)*
 

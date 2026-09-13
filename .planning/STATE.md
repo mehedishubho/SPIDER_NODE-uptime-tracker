@@ -6,14 +6,14 @@ current_phase: 04
 current_phase_name: Monitoring Worker — Build & Dark Launch
 status: executing
 stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-09-13T21:29:38.618Z"
+last_updated: "2026-09-13T21:46:04.502Z"
 last_activity: 2026-09-13
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 36
-  completed_plans: 31
+  completed_plans: 32
   percent: 38
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-13)
 ## Current Position
 
 Phase: 04 (Monitoring Worker — Build & Dark Launch) — EXECUTING
-Plan: 4 of 9
+Plan: 5 of 9
 Status: Ready to execute
 Last activity: 2026-09-13 — Phase 04 execution started
 
@@ -87,6 +87,7 @@ Progress: [████████████████████] 27/27 p
 | Phase 04 P02 | 2 sessions (Task 3 continuation after usage-limit cutoff; this leg ~35 min) | 3 tasks | 11 files |
 | Phase 04 P03 | 987s (~16.5 min, single session) | 2 tasks | 3 files |
 | Phase 04 P04 | 23.5m | 3 tasks | 5 files |
+| Phase 04 P05 | 666s (~11 min, single session) | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -192,6 +193,9 @@ Recent decisions affecting current work:
 - [Phase 04]: 04-03: WRK-05 and DAT-10 NOT marked complete — the classification contract and vocabulary landed here, but WRK-05's successful-jobs exercise (04-06) and DAT-10's recording on pings/incidents (04-04 writers) are the completion legs; only SEC-01 closed (02-03/04-02 false-signal precedent)
 - [Phase 04]: 04-04: D-36 final form — uptime rounding is exact binary extraction (power-of-two ::bigint shift, 2^52 for y>=1 / 2^60 for y<1, then floor((m*100 + 2^(s-1))/2^s)), NOT round(::numeric,2): every round form fails inexact .xx5 ties because PG float8::numeric collapses to the shortest round-trip decimal, landing exactly ON the tie (66.675) while the true expansion sits below; 73,210-ratio sweep byte-identical to legacy JS toFixed(2); never reintroduce round() — both suites pin the shipped form
 - [Phase 04]: 04-04: Tier1Input defined locally with zero imports from 04-03's ssrf module (same-wave no-file-overlap); 04-06's processor joins CheckOutcome and Tier1Input structurally; outbox payload shape (monitorName/monitorUrl/statusCode/responseTimeMs/errorClass/occurredAt/userTimezone/claimEpoch) is what 04-08's relay renders from — extend, never rename
+- [Phase ?]: 04-05: Tier-2 staging is ONE hash stage:{monitorId} (plan key pin) with row-derived deltas - dTotal/dFailed derive from the staged ping:{slot} evidence rows, never a parallel counter field, so counters can never account a check whose evidence row is absent
+- [Phase ?]: 04-05: Redis RENAMENX semantics pinned - source-absent arrives as an ERROR reply (not 0) and is the benign nothing-staged no-op; target-exists (returns 0) under our deterministic batchId is our own pre-crash snapshot and IS applied; plain rename remains forbidden (CR-02)
+- [Phase ?]: 04-05: stageResult accepts UP-class ONLY (throws on DOWN-class; 04-06 routes every non-UP outcome to Tier 1) and the flush job's batchId must be carried in job data, never minted inside the processor
 
 ### Pending Todos
 
@@ -215,6 +219,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-13T21:29:14.661Z
+Last session: 2026-09-13T21:45:36.004Z
 Stopped at: Completed 04-03-PLAN.md
 Resume file: None

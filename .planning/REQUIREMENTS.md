@@ -66,8 +66,8 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 ### Data Correctness
 
 - [x] **DAT-01**: Two-tier persistence: DOWN/RECOVERED/first-check/manual transitions written in one synchronous Postgres transaction (monitor + ping + incident + outbox)
-- [ ] **DAT-02**: Routine-UP aggregation ≤60 s in Redis applied via one guarded atomic UPDATE per monitor (additive counters, `GREATEST` last_checked, response_time monotonicity, never writes `status`)
-- [ ] **DAT-03**: Transactional write guards: guard insert + delta apply in the same Postgres transaction; `ON CONFLICT DO NOTHING` skips re-application (J-2)
+- [x] **DAT-02**: Routine-UP aggregation ≤60 s in Redis applied via one guarded atomic UPDATE per monitor (additive counters, `GREATEST` last_checked, response_time monotonicity, never writes `status`)
+- [x] **DAT-03**: Transactional write guards: guard insert + delta apply in the same Postgres transaction; `ON CONFLICT DO NOTHING` skips re-application (J-2)
 - [x] **DAT-04**: Conditional transition UPDATE (`WHERE status <> target`) plus partial unique index enforcing one ONGOING incident per monitor (D-1)
 - [ ] **DAT-05**: Transactional outbox for transition events; relay job (`FOR UPDATE SKIP LOCKED`, batched) enqueues alerts and marks rows sent (D-2)
 - [ ] **DAT-06**: Incident-keyed alert dedup (`SET NX EX` after confirmed send; retries check first; ≤3 attempts) (D-4)
@@ -230,8 +230,8 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | WRK-13 | Phase 4 | Pending |
 | WRK-14 | Phase 4 | Complete |
 | DAT-01 | Phase 4 | Complete |
-| DAT-02 | Phase 4 | Pending |
-| DAT-03 | Phase 4 | Pending |
+| DAT-02 | Phase 4 | Complete |
+| DAT-03 | Phase 4 | Complete |
 | DAT-04 | Phase 4 | Complete |
 | DAT-05 | Phase 4 | Pending |
 | DAT-06 | Phase 4 | Pending |

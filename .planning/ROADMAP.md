@@ -130,7 +130,6 @@ Plans:
 ### Phase 3: Redis & Drizzle Schema Ownership
 
 **Goal**: Redis serves non-critical work with zero correctness dependence, and the database schema is owned by versioned Drizzle migrations baselined from live DDL, with every worker prerequisite landed and rehearsed against a production snapshot.
-**Mode:** mvp
 **Depends on**: Phase 2
 **Requirements**: RDS-01, RDS-02, RDS-03, DRZ-01, DRZ-02, DRZ-03, DRZ-04, DRZ-05, DRZ-06, DAT-09
 **Success Criteria** (what must be TRUE):

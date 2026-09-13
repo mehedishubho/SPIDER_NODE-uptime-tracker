@@ -146,5 +146,14 @@ No failed truths, no missing/stub artifacts, no broken key links, no blocker ant
 
 ---
 
+## Acknowledged Gaps
+
+Both human-verification items were dispositioned by the operator during UAT (03-UAT.md, 2026-09-12):
+
+1. **SC5 "memory alert at 70% applied" — DEFERRED (option b).** Not waived: application of runbook §3c (dead-man cron + dedicated healthchecks.io check) is forward-tracked to the first real VPS deploy (PROJECT.md → Context, "Redis & schema ownership" bullet; 03-DEPLOY-RECORD deviations #2). The local stand-in topology cannot host the VPS form; the mechanism is fully specified in §3c and must be applied verbatim when that deploy happens.
+2. **Mode tag — RESOLVED (dropped).** The `**Mode:** mvp` line was removed from Phase 3 in ROADMAP.md; this backend-infrastructure phase verifies via standard goal-backward analysis (Phase 2 precedent).
+
+---
+
 _Verified: 2026-09-12T19:15:57Z_
 _Verifier: Claude (gsd-verifier)_

@@ -34,11 +34,38 @@ import type * as schema from "@/db/schema";
 // status='ONGOING') is the physical backstop that keeps the one-ONGOING
 // invariant unviolated even under a concurrent double-insert.
 //
-// uptime_percent (D-35/CR-01): derived IN the same UPDATE with the Pitfall 1
-// cast chain — round((100.0 * up / total)::numeric, 2)::double precision.
-// The two-arg round does NOT exist for double precision (error 42883), and
-// 100.0 stays float-typed so the division is never integer. Parity with the
-// legacy JS rendering is proven by tests/worker/uptime-parity.test.ts (D-36).
+// uptime_percent (D-35/CR-01): derived IN the same UPDATE. The rounding runs
+// on the double's EXACT binary value via a power-of-two integer extraction —
+// no round() call anywhere (see the D-36 adjustment below for why round(),
+// in every form, was rejected).
+//
+// D-36 ADJUSTMENT (the parity suite drove this form, per the documented
+// cast/round lever — the SQL changed, never the test). The legacy JS computes
+// y = ((total - failed) / total) * 100 in IEEE double, then DISPLAYS
+// y.toFixed(2), which rounds y's EXACT binary expansion half-up at the
+// hundredth. Two SQL forms were tried and both failed the 2667/4000 case
+// (y = 66.6749999999999971578..., the closest double BELOW the decimal tie
+// 66.675, so JS shows "66.67"):
+//   - round((100.0*up/total)::numeric, 2): rounds the exact RATIONAL — 66.675
+//     is an exact decimal tie, half-away-from-zero gives 66.68. WRONG.
+//   - round((up::float8/total*100.0::float8)::numeric, 2): PG's float8→numeric
+//     conversion goes through the SHORTEST ROUND-TRIP decimal ("66.675"),
+//     collapsing the sub-tie double exactly onto the tie — 66.68 again.
+//     Proven live: ::text and ::numeric both print "66.675" while the exact
+//     expansion is 66.6749999999999972.
+// The shipped form extracts the double's exact value as an integer instead:
+// multiplying a double by a power of two is EXACT (exponent bump only), and an
+// integral float8 ≤ 2^63 casts to bigint EXACTLY. y*2^52 is integral for every
+// y ≥ 1, y*2^60 for every y ≥ 2^-8 (uptime below 0.005 renders "0.00" with
+// error margin to spare, so the sub-2^-8 region is safe); a two-branch CASE
+// keeps both products inside bigint range for y ∈ [0, 100]. The round-half-up
+// at the hundredth is then pure arbitrary-precision integer arithmetic:
+//   n = floor((m*100 + 2^(s-1)) / 2^s)   with m = (y * 2^s)::bigint
+// which reproduces toFixed(2)'s "nearest, ties to larger n" for positives
+// bit-for-bit, because it sees y's true expansion rather than a decimalized
+// approximation. n/100 back to double is the stored value. Sweep proof:
+// 73,210 ratios (every .xx5 tie for 2^a*5^b totals up to 200,000 plus 3,000
+// random non-terminating ratios) rendered byte-identically to the legacy JS.
 //
 // DAT-07: NO INSERT statement supplies an id — pings/incidents/outbox ids
 // come from the pinned gen_random_uuid() defaults, so an undefined PK can
@@ -106,15 +133,20 @@ VALUES (${input.monitorId}, ${input.targetStatus}, ${input.responseTimeMs}, ${in
  * once (zero rows => skip the incident/outbox steps, IN-04).
  *
  * Beyond the audit text (which predates three 0001 columns), the same UPDATE
- * carries: the D-35 in-UPDATE uptime_percent derivation (cast chain per
- * Pitfall 1), the next_check_at advance (the same on-time form the §14.3
- * claim applies — this transaction IS the schedule slot's write), and
- * consecutive_failures maintenance (schema-reserved column; UP resets, DOWN
- * increments — the N-strike THRESHOLD semantics stay unused, 1-strike DOWN is
- * the pinned characterization behavior).
+ * carries: the D-35 in-UPDATE uptime_percent derivation (the exact-extraction
+ * form the D-36 parity suite mandated — module header above), the
+ * next_check_at advance (the same on-time form the §14.3 claim applies — this
+ * transaction IS the schedule slot's write), and consecutive_failures
+ * maintenance (schema-reserved column; UP resets, DOWN increments — the
+ * N-strike THRESHOLD semantics stay unused, 1-strike DOWN is the pinned
+ * characterization behavior).
  */
 export function transitionUpdateSql(input: Tier1Input): SQL {
   const failedInc = input.targetStatus === "DOWN" ? 1 : 0;
+  // Power-of-two extraction constants (D-36): 2^52 = 4503599627370496 with
+  // half-adder 2^51 = 2251799813685248 covers y >= 1; 2^60 =
+  // 1152921504606846976 with half-adder 2^59 = 576460752303423488 covers
+  // y < 1 exactly down to 2^-8 and safely below that.
   return sql`
 UPDATE monitors
    SET status = ${input.targetStatus},
@@ -122,10 +154,41 @@ UPDATE monitors
        "responseTime" = ${input.responseTimeMs},
        "totalChecks" = "totalChecks" + 1,
        "failedChecks" = "failedChecks" + ${failedInc},
-       "uptimePercent" = round(
-         (100.0 * ("totalChecks" + 1 - ("failedChecks" + ${failedInc}))
-           / ("totalChecks" + 1))::numeric, 2
-       )::double precision,
+       "uptimePercent" = (
+         CASE
+           WHEN (
+             (
+               ("totalChecks" + 1 - ("failedChecks" + ${failedInc}))::double precision
+               / ("totalChecks" + 1)
+             ) * 100.0::double precision >= 1::double precision
+           ) THEN floor(
+             (
+               (
+                 (
+                   (
+                     ("totalChecks" + 1 - ("failedChecks" + ${failedInc}))::double precision
+                     / ("totalChecks" + 1)
+                   ) * 100.0::double precision
+                   * 4503599627370496::double precision
+                 )::bigint
+               )::numeric * 100 + 2251799813685248
+             ) / 4503599627370496
+           )
+           ELSE floor(
+             (
+               (
+                 (
+                   (
+                     ("totalChecks" + 1 - ("failedChecks" + ${failedInc}))::double precision
+                     / ("totalChecks" + 1)
+                   ) * 100.0::double precision
+                   * 1152921504606846976::double precision
+                 )::bigint
+               )::numeric * 100 + 576460752303423488
+             ) / 1152921504606846976
+           )
+         END
+       )::double precision / 100.0::double precision,
        consecutive_failures = CASE WHEN ${failedInc} = 1
                                   THEN consecutive_failures + 1
                                   ELSE 0 END,

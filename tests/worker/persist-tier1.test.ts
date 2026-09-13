@@ -17,9 +17,10 @@ import type { Tier1Input } from "@/worker/persist/tier1";
 // the worker's own globalThis-cached pool (workerDb, max 20).
 //
 // Pins (the four transition paths + idempotency + evidence-first ordering):
-//   1. source form — the cast chain (::numeric before round, ::double
-//      precision after — Pitfall 1), the conditional WHERE, additive
-//      counters, and NO INSERT ever supplies an id (DAT-07)
+//   1. source form — the D-36 exact-extraction round (power-of-two ::bigint
+//      shift + integer floor arithmetic, no round() call anywhere), the
+//      conditional WHERE, additive counters, and NO INSERT ever supplies an
+//      id (DAT-07)
 //   2. PENDING->UP: ping + counters + first_check outbox row, NO incident
 //   3. UP->DOWN: ping + ONGOING incident (cron-parity description) + down
 //      outbox row + failedChecks/consecutiveFailures increment (1-strike)
@@ -164,12 +165,20 @@ describe("Tier 1 transition transaction — §16.1 + D-35 (DAT-01/04)", () => {
       const input = makeInput(1, "DOWN");
       const update = new PgDialect().sqlToQuery(transitionUpdateSql(input)).sql;
 
-      // Pitfall 1: ::numeric BEFORE the two-arg round, ::double precision
-      // after — a bare round(double precision, 2) would throw 42883.
-      expect(update).toContain(")::numeric, 2");
-      expect(update).toMatch(/\)::numeric,\s*2\s*\)\s*::double precision/);
-      // 100.0 stays float-typed so division is never integer.
-      expect(update).toContain("100.0 *");
+      // D-36 exact-extraction form: no round() anywhere (a bare
+      // round(double precision, 2) would throw 42883, and rounding the
+      // decimalized value fails byte parity at 2667/4000). The computed
+      // double's exact value is extracted via power-of-two shifts (::bigint)
+      // and rounded by arbitrary-precision integer floor arithmetic.
+      expect(update).toContain(")::bigint");
+      expect(update).toContain("* 4503599627370496::double precision"); // 2^52 (y >= 1)
+      expect(update).toContain("* 1152921504606846976::double precision"); // 2^60 (y < 1)
+      expect(update).toContain("floor(");
+      // The legacy JS op order is preserved inside: division in double
+      // precision FIRST, * 100.0 after — the y whose exact expansion the
+      // round consumes (proven load-bearing at 2667/4000 = 66.675).
+      expect(update).toContain(")::double precision");
+      expect(update).toContain("* 100.0::double precision");
       // D-1 conditional gate + additive counters + RETURNING.
       expect(update).toContain("AND status <>");
       expect(update).toContain('"isActive"');

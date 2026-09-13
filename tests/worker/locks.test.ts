@@ -170,7 +170,7 @@ describe("per-monitor lock — SET NX EX + owner-only Lua release (WRK-04)", () 
       const handle = await acquireMonitorLock(monitorId, { ttlMs: 250 });
       expect(handle).not.toBeNull();
 
-      const renewal = withLockRenewal(handle, { intervalMs: 60 });
+      const renewal = withLockRenewal(handle!, { intervalMs: 60 });
       try {
         // 900 ms = 3.6x the raw TTL — only renewal explains survival.
         await wait(900);
@@ -218,7 +218,7 @@ describe("per-monitor lock — SET NX EX + owner-only Lua release (WRK-04)", () 
       expect(handle).not.toBeNull();
 
       const losses: Array<{ reason: string; message?: string }> = [];
-      const renewal = withLockRenewal(handle, {
+      const renewal = withLockRenewal(handle!, {
         intervalMs: 60,
         onLoss: (reason, err) => losses.push({ reason, message: err?.message }),
       });

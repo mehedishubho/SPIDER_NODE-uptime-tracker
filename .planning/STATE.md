@@ -6,14 +6,14 @@ current_phase: 04
 current_phase_name: Monitoring Worker — Build & Dark Launch
 status: executing
 stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-09-13T20:58:24.973Z"
+last_updated: "2026-09-13T21:29:38.618Z"
 last_activity: 2026-09-13
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 36
-  completed_plans: 30
+  completed_plans: 31
   percent: 38
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-13)
 ## Current Position
 
 Phase: 04 (Monitoring Worker — Build & Dark Launch) — EXECUTING
-Plan: 3 of 9
+Plan: 4 of 9
 Status: Ready to execute
 Last activity: 2026-09-13 — Phase 04 execution started
 
@@ -86,6 +86,7 @@ Progress: [████████████████████] 27/27 p
 | Phase 4 P1 | ~2 sessions (checkpoint-gated) | 3 tasks | 9 files |
 | Phase 04 P02 | 2 sessions (Task 3 continuation after usage-limit cutoff; this leg ~35 min) | 3 tasks | 11 files |
 | Phase 04 P03 | 987s (~16.5 min, single session) | 2 tasks | 3 files |
+| Phase 04 P04 | 23.5m | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -189,6 +190,8 @@ Recent decisions affecting current work:
 - [Phase 04]: 04-03: connection pinning is structural — one undiciFetch call with dispatcher: agent whose custom connect.lookup answers only from the validateHop-populated map; literal-IP hosts skip DNS so validating the literal IS the pin; unpinned dials fail closed (ESSRF_PIN_VIOLATION -> ssrf_blocked)
 - [Phase 04]: 04-03: undici empirics — a lying-small Content-Length is truncated by undici's parser at the declared length, so the streamed 2 MB cap is proven on a CHUNKED 3 MB body (fixture byte counter frozen below total) and the lying-header case asserts the outcome stays header-derived (D-43)
 - [Phase 04]: 04-03: WRK-05 and DAT-10 NOT marked complete — the classification contract and vocabulary landed here, but WRK-05's successful-jobs exercise (04-06) and DAT-10's recording on pings/incidents (04-04 writers) are the completion legs; only SEC-01 closed (02-03/04-02 false-signal precedent)
+- [Phase 04]: 04-04: D-36 final form — uptime rounding is exact binary extraction (power-of-two ::bigint shift, 2^52 for y>=1 / 2^60 for y<1, then floor((m*100 + 2^(s-1))/2^s)), NOT round(::numeric,2): every round form fails inexact .xx5 ties because PG float8::numeric collapses to the shortest round-trip decimal, landing exactly ON the tie (66.675) while the true expansion sits below; 73,210-ratio sweep byte-identical to legacy JS toFixed(2); never reintroduce round() — both suites pin the shipped form
+- [Phase 04]: 04-04: Tier1Input defined locally with zero imports from 04-03's ssrf module (same-wave no-file-overlap); 04-06's processor joins CheckOutcome and Tier1Input structurally; outbox payload shape (monitorName/monitorUrl/statusCode/responseTimeMs/errorClass/occurredAt/userTimezone/claimEpoch) is what 04-08's relay renders from — extend, never rename
 
 ### Pending Todos
 
@@ -212,6 +215,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-13T20:58:24.966Z
+Last session: 2026-09-13T21:29:14.661Z
 Stopped at: Completed 04-03-PLAN.md
 Resume file: None

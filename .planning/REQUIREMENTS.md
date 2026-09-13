@@ -51,7 +51,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [ ] **WRK-01**: Dedicated worker process (second PM2 app; never inside `next start`) owns all monitoring execution
 - [x] **WRK-02**: BullMQ 6 queue topology (scheduler, checks, db-writes, alerts, maintenance, email) using `upsertJobScheduler` for recurring jobs (legacy repeatables removed in v6)
 - [x] **WRK-03**: Claim-based due-selection: single `FOR UPDATE SKIP LOCKED` transaction advancing `next_check_at`; idempotency key `check:{monitorId}:{next_check_at epoch}`; tick ≤ ½ minimum interval; failed-enqueue compensation (J-1)
-- [ ] **WRK-04**: Per-monitor distributed lock: TTL = timeout + margin, renewal every TTL/3, owner-only Lua compare-and-delete, abort-on-lock-loss (J-3)
+- [x] **WRK-04**: Per-monitor distributed lock: TTL = timeout + margin, renewal every TTL/3, owner-only Lua compare-and-delete, abort-on-lock-loss (J-3)
 - [ ] **WRK-05**: Typed result-vs-error classification: target outcomes (UP/DOWN/timeout/DNS/TLS) are successful jobs; only infra failures throw (J-4)
 - [x] **WRK-06**: Retries with exponential backoff, bounded attempts (3–5), DLQ retention via `removeOnFail` age
 - [ ] **WRK-07**: Graceful shutdown: SIGINT handler + `worker.close()` + PM2 `kill_timeout` ≥ max job duration (~20 s); `stalledInterval`/`maxStalledCount` bounded
@@ -65,16 +65,16 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 
 ### Data Correctness
 
-- [ ] **DAT-01**: Two-tier persistence: DOWN/RECOVERED/first-check/manual transitions written in one synchronous Postgres transaction (monitor + ping + incident + outbox)
+- [x] **DAT-01**: Two-tier persistence: DOWN/RECOVERED/first-check/manual transitions written in one synchronous Postgres transaction (monitor + ping + incident + outbox)
 - [ ] **DAT-02**: Routine-UP aggregation ≤60 s in Redis applied via one guarded atomic UPDATE per monitor (additive counters, `GREATEST` last_checked, response_time monotonicity, never writes `status`)
 - [ ] **DAT-03**: Transactional write guards: guard insert + delta apply in the same Postgres transaction; `ON CONFLICT DO NOTHING` skips re-application (J-2)
-- [ ] **DAT-04**: Conditional transition UPDATE (`WHERE status <> target`) plus partial unique index enforcing one ONGOING incident per monitor (D-1)
+- [x] **DAT-04**: Conditional transition UPDATE (`WHERE status <> target`) plus partial unique index enforcing one ONGOING incident per monitor (D-1)
 - [ ] **DAT-05**: Transactional outbox for transition events; relay job (`FOR UPDATE SKIP LOCKED`, batched) enqueues alerts and marks rows sent (D-2)
 - [ ] **DAT-06**: Incident-keyed alert dedup (`SET NX EX` after confirmed send; retries check first; ≤3 attempts) (D-4)
-- [ ] **DAT-07**: Deterministic ID generation pinned in Drizzle columns; bulk-insert paths verified never to produce `undefined` PKs (D-3)
+- [x] **DAT-07**: Deterministic ID generation pinned in Drizzle columns; bulk-insert paths verified never to produce `undefined` PKs (D-3)
 - [ ] **DAT-08**: Retention deletes batched (looped `LIMIT ~5000`) in the maintenance queue only (D-7)
 - [x] **DAT-09**: Connection budget enforced: web 10 / worker 20 / migration runner 1; shared pool during ORM transition; statement + idle timeouts set; pooled string for web reads, direct for migrations (D-8)
-- [ ] **DAT-10**: `error_class` + status code metadata recorded on pings/incidents (N-5)
+- [x] **DAT-10**: `error_class` + status code metadata recorded on pings/incidents (N-5)
 - [ ] **DAT-11**: Windowed uptime backend behind a flag: per-window columns + nightly recompute from pings; lifetime counters remain the displayed numbers
 
 ### Resilience
@@ -220,7 +220,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | WRK-01 | Phase 4 | Pending |
 | WRK-02 | Phase 4 | Complete |
 | WRK-03 | Phase 4 | Complete |
-| WRK-04 | Phase 4 | Pending |
+| WRK-04 | Phase 4 | Complete |
 | WRK-05 | Phase 4 | Pending |
 | WRK-06 | Phase 4 | Complete |
 | WRK-07 | Phase 4 | Pending |
@@ -229,15 +229,15 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | WRK-12 | Phase 4 | Complete |
 | WRK-13 | Phase 4 | Pending |
 | WRK-14 | Phase 4 | Complete |
-| DAT-01 | Phase 4 | Pending |
+| DAT-01 | Phase 4 | Complete |
 | DAT-02 | Phase 4 | Pending |
 | DAT-03 | Phase 4 | Pending |
-| DAT-04 | Phase 4 | Pending |
+| DAT-04 | Phase 4 | Complete |
 | DAT-05 | Phase 4 | Pending |
 | DAT-06 | Phase 4 | Pending |
-| DAT-07 | Phase 4 | Pending |
+| DAT-07 | Phase 4 | Complete |
 | DAT-08 | Phase 4 | Pending |
-| DAT-10 | Phase 4 | Pending |
+| DAT-10 | Phase 4 | Complete |
 | RES-01 | Phase 4 | Pending |
 | RES-02 | Phase 4 | Complete |
 | RES-03 | Phase 4 | Pending |

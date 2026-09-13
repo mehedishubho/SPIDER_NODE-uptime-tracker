@@ -1,24 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 03-redis-drizzle-schema-ownership
 source: [03-VERIFICATION.md]
 started: 2026-09-12T19:18:48Z
-updated: 2026-09-12T19:18:48Z
+updated: 2026-09-12T19:34:00Z
 ---
 
 ## Current Test
 
-number: 1
-name: Disposition of success-criterion 5's "memory alert at 70%" clause (documented, not applied on any topology)
-expected: |
-  Either (a) formally accept the local-only deviation — an override is added to
-  03-VERIFICATION.md frontmatter: must_have "memory alert at 70% applied", reason
-  "local-only stand-in topology has no systemd cron / healthchecks.io check;
-  mechanism fully specified in runbook §3c for the VPS form; operator ratified
-  N/A-locally at the 03-08 Task 2 checkpoint (03-DEPLOY-RECORD deviations #2)",
-  with accepted_by <name> and accepted_at <ISO date> — or (b) schedule
-  application of §3c at the first real VPS deploy (tracked forward).
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -32,11 +22,16 @@ stand-in release records §3c as "N/A-locally per operator decision"
 expected: A formal decision — (a) recorded override accepting N/A-locally for
 this phase (with accepted_by/accepted_at), or (b) explicit forward scheduling
 at first VPS deploy.
-result: [pending]
+result: pass
+disposition: (b) deferred to first VPS deploy — operator chose to schedule
+application of runbook §3c at the first real VPS deploy rather than record a
+local-only override. Forward-tracked in PROJECT.md → Context ("Redis & schema
+ownership" bullet); §3c procedure remains the authoritative VPS form in
+docs/DEPLOY-RUNBOOK.md. Also recorded in 03-VERIFICATION.md → Acknowledged Gaps.
 
 ### 2. MVP mode bookkeeping
 
-ROADMAP.md marks Phase 3 "Mode: mvp", but the phase goal is not in User Story
+ROADMAP.md marked Phase 3 "Mode: mvp", but the phase goal is not in User Story
 format ("As a …, I want to …, so that …." — fails gsd-tools user-story.validate
 with 3 errors). Phase 2 hit the same condition and proceeded with standard
 goal-backward verification (02-VERIFICATION.md precedent).
@@ -44,14 +39,17 @@ goal-backward verification (02-VERIFICATION.md precedent).
 expected: Either reformat the goal via `/gsd mvp-phase 3` or drop the mvp mode
 tag for this backend-infrastructure phase. Metadata preference only — no
 codebase truth affected.
-result: [pending]
+result: pass
+disposition: tag dropped — `**Mode:** mvp` line removed from Phase 3 in
+ROADMAP.md (2026-09-12); standard goal-backward verification applies, per
+Phase 2 precedent. Recorded in 03-VERIFICATION.md → Acknowledged Gaps.
 
 ## Summary
 
 total: 2
-passed: 0
+passed: 2
 issues: 0
-pending: 2
+pending: 0
 skipped: 0
 blocked: 0
 

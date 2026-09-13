@@ -545,7 +545,11 @@ async function main() {
     run(
       // Postgres server flags go AFTER the image name (container command) —
       // before it, `-c` would be consumed by docker itself (--cpu-shares).
-      `docker run -d --name ${CONTAINER} -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=${DB} -p ${PORT}:5432 ` +
+      // Loopback-only publish (WR-02): the full production dump is restored
+      // BEFORE anonymization runs, so the container must never be reachable
+      // off-host. docker exec and the localhost REHEARSAL_URL below are
+      // unaffected by the 127.0.0.1 bind.
+      `docker run -d --name ${CONTAINER} -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=${DB} -p 127.0.0.1:${PORT}:5432 ` +
         `${IMAGE} -c shared_preload_libraries=pg_stat_statements`,
       { stdio: ["ignore", "inherit", "inherit"] }
     );

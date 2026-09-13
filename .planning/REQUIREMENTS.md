@@ -73,7 +73,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [ ] **DAT-06**: Incident-keyed alert dedup (`SET NX EX` after confirmed send; retries check first; ≤3 attempts) (D-4)
 - [ ] **DAT-07**: Deterministic ID generation pinned in Drizzle columns; bulk-insert paths verified never to produce `undefined` PKs (D-3)
 - [ ] **DAT-08**: Retention deletes batched (looped `LIMIT ~5000`) in the maintenance queue only (D-7)
-- [ ] **DAT-09**: Connection budget enforced: web 10 / worker 20 / migration runner 1; shared pool during ORM transition; statement + idle timeouts set; pooled string for web reads, direct for migrations (D-8)
+- [x] **DAT-09**: Connection budget enforced: web 10 / worker 20 / migration runner 1; shared pool during ORM transition; statement + idle timeouts set; pooled string for web reads, direct for migrations (D-8)
 - [ ] **DAT-10**: `error_class` + status code metadata recorded on pings/incidents (N-5)
 - [ ] **DAT-11**: Windowed uptime backend behind a flag: per-window columns + nightly recompute from pings; lifetime counters remain the displayed numbers
 
@@ -216,7 +216,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | DRZ-04 | Phase 3 | Complete |
 | DRZ-05 | Phase 3 | Complete |
 | DRZ-06 | Phase 3 | Complete |
-| DAT-09 | Phase 3 | Pending |
+| DAT-09 | Phase 3 | Complete |
 | WRK-01 | Phase 4 | Pending |
 | WRK-02 | Phase 4 | Pending |
 | WRK-03 | Phase 4 | Pending |

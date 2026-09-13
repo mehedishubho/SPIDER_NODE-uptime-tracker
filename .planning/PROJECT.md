@@ -50,8 +50,8 @@ Derived scope (audit §24 order — the chosen sequence):
 - [x] Design addenda phase: amend the audit/incorporate all 8 review addenda (§8) — schema (`next_check_at`, `write_guards`, `outbox`, partial unique index on ongoing incidents, ID-generation), scheduler spec (J-1 claims), check job spec (J-3/J-4/S-1), writer specs (J-2/D-1/D-5), resilience spec (J-5/R-1), auth spec (A-1/A-2/A-3), connection budget (D-8), deploy runbook (P-1) — flipping the review verdict to READY before implementation — **done (Phase 01)**
 - [x] Phase 0 foundations: pnpm migration, typecheck gate (`ignoreBuildErrors` off), Vitest + Playwright scaffolding, characterization tests for cron/batcher/API contracts, repo hygiene (remove ngrok binary/log, `.env.example`) — **done (Phase 02)**
 - [x] Theme infrastructure early (`next-themes`, light palette tokens, toggle; no visual redesign) — **done (Phase 02)**
-- [ ] Redis introduction (ioredis, Redis-backed rate limiting + cache; AOF + `noeviction` documented)
-- [ ] Drizzle adoption: baseline from **live DDL** (not schema.prisma), versioned drizzle-kit migrations replacing `db push --accept-data-loss`, empty-diff CI gate, rehearsed against local prod snapshot
+- [x] Redis introduction (ioredis, Redis-backed rate limiting + cache; AOF + `noeviction` documented) — **done (Phase 03)**
+- [x] Drizzle adoption: baseline from **live DDL** (not schema.prisma), versioned drizzle-kit migrations replacing `db push --accept-data-loss`, empty-diff CI gate, rehearsed against local prod snapshot — **done (Phase 03)**
 - [ ] BullMQ + dedicated worker process (PM2 app #2): scheduler with claim-based due-selection, per-monitor locks, idempotency keys, retries/backoff, two-tier persistence, circuit breaker, outbox-based alerting; delete `instrumentation.ts` cron + `CRON_MODE` after overlap-window verification
 - [ ] Thin API routes: manual check → enqueue + poll, Redis rate limits (incl. per-user enqueue limiter), security fixes (S-2 webhook secret, S-3 admin gating, S-4 no stack traces/secrets-in-query, R19/S-1 SSRF validation)
 - [ ] Multi-provider transactional email abstraction (`lib/email`, env-selected provider, queue offload, typed retryable-vs-permanent errors)
@@ -74,7 +74,7 @@ Derived scope (audit §24 order — the chosen sequence):
 ## Context
 
 - **Live production system** with real users, real monitors, and Telegram alerts wired — migration risk is operational, not theoretical.
-- **Deployment:** GitHub Actions → SCP → VPS (`/var/www/uptime-tracker`), PM2 app `uptime-tracker`, port 3007. Postgres is Neon (low connection limits — see D-8 budget). Becomes two PM2 apps (web + worker) with a revised pipeline (P-1 ordering: migrate → restart worker → restart web → smoke-check).
+- **Deployment:** GitHub Actions → SCP → VPS (`/var/www/uptime-tracker`), PM2 app `uptime-tracker`, port 3007 — this is the documented *target* form (runbook). **Ground truth since 03-03: the production dataset lives in the local `spidernode-dev-db` container (port 5454), not Neon** — the "Postgres is Neon" claim was stale (flagged in 03-VERIFICATION); the Phase-03 release ran local-only against it (operator-ratified, 03-DEPLOY-RECORD). Becomes two PM2 apps (web + worker) with a revised pipeline (P-1 ordering: migrate → restart worker → restart web → smoke-check).
 - **No tests, no migration history today:** production schema was built with `prisma db push --accept-data-loss`; live DDL may drift from `schema.prisma` (M-3/D-1) — baseline must come from `pg_dump --schema-only`.
 - **Rehearsal strategy:** local docker-compose Postgres/Redis in dev + CI; restore an anonymized `pg_dump` of production locally to dry-run the Drizzle baseline, auth cutover, and data-diff verification before touching production (D-9). Full `pg_dump` backup immediately before each production cutover (D-10).
 - **Migration discipline:** expand/contract — additive-only migrations during each verification window; no drops/renames until the following release (M-2). Old cron and new worker overlap briefly before deletion (M3); both paths idempotent.
@@ -103,7 +103,8 @@ Derived scope (audit §24 order — the chosen sequence):
 | All 5 product defaults accepted (Q-1 lifetime uptime, Q-2 1-strike DOWN, Q-3 self-host Redis, Q-4 announced re-login, Q-5 enqueue+poll) | Behavior compatibility + lowest operational change during migration | — Pending |
 | v1 spans the full sequence through AI SDK and visual redesign | One coherent arc; AI flagged-off makes it safe to include | — Pending |
 | Telegram-only alerting in v1 | Preserve current behavior; email alert channel is UPGRADE_PLAN phase 7 | — Pending |
-| Local rehearsal with anonymized prod snapshot (no staging infra) | D-9 dry-run requirement met without new infrastructure spend | — Pending |
+| Local rehearsal with anonymized prod snapshot (no staging infra) | D-9 dry-run requirement met without new infrastructure spend | ✓ Done (Phase 03 — rehearsal pipeline + evidence PASS, DRZ-06) |
+| Phase-03 release on operator-ratified local-only stand-in topology (DB `spidernode-dev-db`, dedicated hardened Redis 6391, app via `pnpm start`) | No VPS is live; every applicable runbook directive proven on the stand-in, §3c alert + §3b systemd form forward-tracked to the first real VPS deploy | ✓ Done (03-DEPLOY-RECORD; UAT dispositions 2026-09-12: (b) defer §3c, drop mvp tag) |
 | Keep `monitors.id` as integer serial; keep table/column names | Public status-page URLs and ping/incident FKs depend on them (audit §11.1, M-5) | — Pending |
 
 ## Evolution
@@ -124,4 +125,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-12 after Phase 02 completion (foundations + theme infra verified, UAT 5/5, threats 25/25 closed; Phase 3 next)*
+*Last updated: 2026-09-13 after Phase 03 completion (redis-drizzle-schema-ownership: verification 11/12 + 2 operator dispositions, UAT 2/2, security 24/24 closed; code-review carry-forwards CR-01/WR-01/WR-02/WR-05/WR-06 registered for Phase 4; Phase 4 next)*

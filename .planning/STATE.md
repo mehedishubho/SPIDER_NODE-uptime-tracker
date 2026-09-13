@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 03
-current_phase_name: redis-drizzle-schema-ownership
-status: verifying
-stopped_at: "Completed 03-08-PLAN.md (Phase 3 released: local-only, all proofs green)"
-last_updated: "2026-09-12T18:48:40.769Z"
-last_activity: 2026-09-12
-last_activity_desc: Phase 03 execution started
+current_phase: 4
+current_phase_name: Monitoring Worker — Build & Dark Launch
+status: ready_to_plan
+stopped_at: "Phase 03 complete (verification passed + UAT 2/2 + security 24/24); ready to plan Phase 4"
+last_updated: "2026-09-13T05:21:56.135Z"
+last_activity: 2026-09-13
+last_activity_desc: Phase 03 complete, transitioned to Phase 4
 progress:
   total_phases: 8
   completed_phases: 3
@@ -21,25 +21,25 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-12)
+See: .planning/PROJECT.md (updated 2026-09-13)
 
 **Core value:** Modernize the infrastructure without breaking existing monitoring — never lose or corrupt uptime data, silently stop checking, or lock users out irrecoverably.
-**Current focus:** Phase 03 — redis-drizzle-schema-ownership
+**Current focus:** Phase 4 — Monitoring Worker — Build & Dark Launch
 
 ## Current Position
 
-Phase: 03 (redis-drizzle-schema-ownership) — EXECUTING
-Plan: 8 of 8
-Status: Phase complete — ready for verification
-Last activity: 2026-09-12 — Phase 03 execution started
+Phase: 4 — Monitoring Worker — Build & Dark Launch
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-09-13 — Phase 03 complete, transitioned to Phase 4
 
-Progress: [████████████████████] 19/19 plans (100%)
+Progress: [████████████████████] 27/27 plans (100%)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 19
+- Total plans completed: 27
 - Average duration: —
 - Total execution time: —
 
@@ -49,6 +49,7 @@ Progress: [████████████████████] 19/19 p
 |-------|-------|-------|----------|
 | 01 | 9 | - | - |
 | 2 | 10 | - | - |
+| 03 | 8 | - | - |
 
 **Recent Trend:**
 
@@ -171,6 +172,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 03-07: gate targets docker test DB only (5453), vitest-identical URL resolution + localhost guard; full verify 31s warm, gate adds ~2.4s
 - [Phase 03]: [Phase 03]: 03-08: operator-ratified local-only release topology — DB leg on spidernode-dev-db (03-03 ground truth), dedicated hardened Redis stand-in container, app via pnpm start; VPS-only mechanisms (systemd/cron/healthchecks.io) dispositioned N/A-locally in 03-DEPLOY-RECORD.md
 - [Phase 03]: [Phase 03]: 03-08: RDS-03 + DRZ-02 closed under the ratified topology — every applicable §3b directive proven live (requirepass/loopback/AOF-everysec/512mb/noeviction/restart) and the schema pipeline ran against the real production DB; limiter window survived app restart (6th request 429) AND counter survived Redis restart (AOF)
+- [Phase 03]: verification 2026-09-12 — 11/12 must-haves verified live by gsd-verifier (D-20 suite re-run 5/5, empty pull-diff independently reproduced, 2 migration rows + all prereq DDL confirmed on the production DB, hardened Redis CONFIG checked); the 12th clause (SC5 memory-alert application) dispositioned, not failed
+- [Phase 03]: UAT close 2026-09-12 — operator dispositions: (b) runbook §3c 70%-memory alert application deferred to the first real VPS deploy (forward-tracked in PROJECT.md Context; AR-01 in 03-SECURITY.md); mvp mode tag dropped from Phase 3 (standard goal-backward verification, Phase 2 precedent)
+- [Phase 03]: security closeout 2026-09-12 — 03-SECURITY.md: 24/24 register rows closed at L1/ASVS-1; one conditional accepted risk AR-01 (§3c alert until VPS deploy); code-review findings (03-REVIEW.md: 1 Critical + 6 Warnings) judged non-blocking for phase-03 criteria but carried forward — see Blockers/Concerns
 
 ### Pending Todos
 
@@ -178,8 +182,9 @@ None yet.
 
 ### Blockers/Concerns
 
-- Research flags requiring `--research-phase` during planning: Phase 4 (BullMQ 6 `upsertJobScheduler`, breaker/backlog tuning, PM2 handshake), Phase 7 (social `providerId` casing, token-flow cutover, cookieCache revocation lag), Phase 3 (drizzle-kit journal-stamping, `CREATE INDEX CONCURRENTLY` transaction wrapping)
+- Research flags requiring `--research-phase` during planning: Phase 4 (BullMQ 6 `upsertJobScheduler`, breaker/backlog tuning, PM2 handshake), Phase 7 (social `providerId` casing, token-flow cutover, cookieCache revocation lag) — Phase 3's flags were resolved in 03-RESEARCH.md (Pattern 4 journal/hash verification; D-19 in-transaction indexes)
 - Live production system: every cutover step needs a full `pg_dump` backup and an anonymized-snapshot rehearsal first (D-9/D-10)
+- [Phase 4] Code-review carry-forwards (03-REVIEW.md, committed cf9daeb) are planning inputs, not phase-03 blockers: CR-01 (stale `drizzle/meta/0001_snapshot.json`) + WR-01 (`timestamptz_ops` on boolean `idx_monitors_due` in schema.ts) MUST be repaired before the next `drizzle-kit generate`/migration is authored — otherwise the first generate emits duplicate 0001 DDL; WR-05 (hard-coded journal count 2 in rehearse-migrations.mjs) before Phase 7 rehearsal reuse; WR-02 (rehearsal port binds 0.0.0.0 — PII LAN-reachable) is a one-line fix, fix opportunistically; WR-06 (limiter keys on raw `x-forwarded-for`) pairs with Phase 6's S-series security work. Fix via `/gsd-code-review 03 --fix` before Phase 4 planning
 - [Phase 4/5] Design-debt register (01-VERIFICATION.md): CR-01 (`uptime_percent` has no writer — displayed lifetime uptime would freeze at cutover) and CR-02 (runbook §4a "disable nothing" vs audit M4 ordering) are must-resolve inputs at Phase 4/5 planning, before any plan transcribes §16 or the §4a overlap path; advisory register WR-01..05 / IN-01..07 / RR2-01..03 rides along
 - [Phase 8] WR-02 accepted input: light-mode legibility of unmigrated marketing surfaces + light dashboard/toast polish notes are Phase-8 planning inputs (02-UAT.md Decision Record, 2026-09-12); mixed emerald/rose ternaries flagged for Phase 8 UI-03 review also ride along
 
@@ -193,6 +198,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-12T18:48:32.095Z
-Stopped at: Completed 03-08-PLAN.md (Phase 3 released: local-only, all proofs green)
+Last session: 2026-09-13
+Stopped at: Phase 03 complete, ready to plan Phase 4
 Resume file: None

@@ -1,14 +1,16 @@
 ---
 phase: 03-redis-drizzle-schema-ownership
 verified: 2026-09-12T19:15:57Z
-status: human_needed
+status: passed
 score: 11/12 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
 human_verification:
+
   - test: "Decide the disposition of success-criterion 5's memory-alert clause: 'memory alert at 70%' is DOCUMENTED (runbook §3c, full typed cron + healthchecks.io procedure) but NOT APPLIED on any live topology — the local stand-in release records §3c as 'N/A-locally per operator decision' (03-DEPLOY-RECORD.md deviations #2), and no VPS deploy has happened"
     expected: "Either (a) accept the deviation formally — add an override to this file's frontmatter: must_have 'memory alert at 70% applied', reason 'local-only stand-in topology has no systemd cron / healthchecks.io check; mechanism fully specified in runbook §3c for the VPS form; operator ratified N/A-locally at the 03-08 Task 2 checkpoint (03-DEPLOY-RECORD deviations #2)', accepted_by <name>, accepted_at <ISO> — or (b) schedule application at the first real VPS deploy. Note: the runbook's 'Phase 5 OBS-03 supersedes this mechanism' note mislabels the requirement — REQUIREMENTS.md OBS-03 is outbox-age alerting; the Prometheus export is OBS-05"
     why_human: "The operator's Task-2 ratification is recorded in the DEPLOY-RECORD but is not a formal verification override (no accepted_by/accepted_at); whether it covers waiving the 'applied' half of this clause is a human decision, not a codebase fact"
+
   - test: "Bookkeeping decision: ROADMAP.md marks Phase 3 'Mode: mvp' but the phase goal is not in User Story format ('As a …, I want to …, so that ….' — fails gsd-tools user-story.validate, 3 errors)"
     expected: "Either reformat the goal via /gsd mvp-phase 3 or drop the mvp mode tag for this backend-infrastructure phase; verification proceeded standard goal-backward per Phase 2 precedent (02-VERIFICATION.md, same condition)"
     why_human: "Mode metadata preference; affects future MVP-mode UAT framing only, no codebase truth"

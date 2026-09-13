@@ -87,7 +87,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 
 ### Security
 
-- [ ] **SEC-01**: SSRF layering in the check engine: resolve-then-validate all IPs against a private-range denylist per redirect hop (≤5), scheme allowlist, 2 MB response cap, strict 10 s timeout — with SSRF test cases (S-1)
+- [x] **SEC-01**: SSRF layering in the check engine: resolve-then-validate all IPs against a private-range denylist per redirect hop (≤5), scheme allowlist, 2 MB response cap, strict 10 s timeout — with SSRF test cases (S-1)
 - [ ] **SEC-02**: OS-level egress control on the worker host (deny private ranges; allow 80/443 egress only)
 - [ ] **SEC-03**: Telegram webhook authenticated via `secret_token` (X-Telegram-Bot-Api-Secret-Token header check) (S-2)
 - [ ] **SEC-04**: Admin role via Better Auth admin plugin; feedback listing admin-gated; any queue UI admin-gated + IP allowlist (S-3)
@@ -243,7 +243,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | RES-03 | Phase 4 | Pending |
 | RES-04 | Phase 4 | Pending |
 | RES-05 | Phase 4 | Pending |
-| SEC-01 | Phase 4 | Pending |
+| SEC-01 | Phase 4 | Complete |
 | SEC-02 | Phase 4 | Pending |
 | OBS-01 | Phase 4 | Pending |
 | OBS-02 | Phase 4 | Pending |

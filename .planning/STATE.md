@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: Monitoring Worker — Build & Dark Launch
 status: executing
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-09-13T17:03:26.157Z"
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-09-13T20:35:34.815Z"
 last_activity: 2026-09-13
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 36
-  completed_plans: 28
+  completed_plans: 29
   percent: 38
 ---
 
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-09-13)
 ## Current Position
 
 Phase: 04 (Monitoring Worker — Build & Dark Launch) — EXECUTING
-Plan: 1 of 9
-Status: Executing Phase 04
+Plan: 2 of 9
+Status: Ready to execute
 Last activity: 2026-09-13 — Phase 04 execution started
 
 Progress: [████████████████████] 27/27 plans (100%)
@@ -84,6 +84,7 @@ Progress: [████████████████████] 27/27 p
 | Phase 03 P03-07 | 218 minutes | 2 tasks | 5 files |
 | Phase 03 P08 | ~40 min (checkpoint-gated; local deploy leg 9 min) | 3 tasks | 1 files |
 | Phase 4 P1 | ~2 sessions (checkpoint-gated) | 3 tasks | 9 files |
+| Phase 04 P02 | 2 sessions (Task 3 continuation after usage-limit cutoff; this leg ~35 min) | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -178,6 +179,10 @@ Recent decisions affecting current work:
 - [Phase 03]: security closeout 2026-09-12 — 03-SECURITY.md: 24/24 register rows closed at L1/ASVS-1; one conditional accepted risk AR-01 (§3c alert until VPS deploy); code-review findings (03-REVIEW.md: 1 Critical + 6 Warnings) judged non-blocking for phase-03 criteria but carried forward — see Blockers/Concerns
 - [Phase 04]: 04-01: tsup 8.5.1 locked despite unmaintained status per D-02 — ~15-line verified config surface, bundler is a swappable seam (04-RESEARCH OQ1); operator approved the SUS-by-recency set (bullmq/tsx/undici) against registry pages at the blocking gate
 - [Phase 04]: 04-01: global Read deny rule narrowed from .env.* to secret-bearing variants (.env/.env.local/.env.test) so .env.example stays writable — WORKER_* doc block landed as 18204fc; secret-bearing env files never read
+- [Phase 04]: 04-02: manual-check jobId is check-manual:{monitorId}:{epochMs} (3 segments) — BullMQ 6 rejects 4-segment colon jobIds; 01-08 per-enqueue-unique semantics kept via a monotonic token
+- [Phase 04]: 04-02: every BullMQ depth/age read counts the PRIORITIZED set (metrics gauge AND backlog gate) — bullmq 6.3 files priority-carrying jobs there, all check-lane jobs carry one; wait-only reads make RES-02 untrippable (pinned by real-queue test)
+- [Phase 04]: 04-02: JobSchedulerJson identity is .key (bullmq 6) — optional .id is the delayed job id, absent until materialized; scheduler assertions key on it
+- [Phase 04]: 04-02: OBS-01 and WRK-10 NOT marked complete — only the metrics subset (04-07 completes transition->alert latency) and the flag mechanic (04-09 deploys the dark launch) landed; 02-03/03-02 false-signal precedent
 
 ### Pending Todos
 
@@ -201,6 +206,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-13T17:03:12.616Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-09-13T20:35:34.808Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None

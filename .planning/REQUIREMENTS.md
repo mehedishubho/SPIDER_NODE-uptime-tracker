@@ -49,17 +49,17 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 ### Worker & Orchestration
 
 - [ ] **WRK-01**: Dedicated worker process (second PM2 app; never inside `next start`) owns all monitoring execution
-- [ ] **WRK-02**: BullMQ 6 queue topology (scheduler, checks, db-writes, alerts, maintenance, email) using `upsertJobScheduler` for recurring jobs (legacy repeatables removed in v6)
-- [ ] **WRK-03**: Claim-based due-selection: single `FOR UPDATE SKIP LOCKED` transaction advancing `next_check_at`; idempotency key `check:{monitorId}:{next_check_at epoch}`; tick ≤ ½ minimum interval; failed-enqueue compensation (J-1)
+- [x] **WRK-02**: BullMQ 6 queue topology (scheduler, checks, db-writes, alerts, maintenance, email) using `upsertJobScheduler` for recurring jobs (legacy repeatables removed in v6)
+- [x] **WRK-03**: Claim-based due-selection: single `FOR UPDATE SKIP LOCKED` transaction advancing `next_check_at`; idempotency key `check:{monitorId}:{next_check_at epoch}`; tick ≤ ½ minimum interval; failed-enqueue compensation (J-1)
 - [ ] **WRK-04**: Per-monitor distributed lock: TTL = timeout + margin, renewal every TTL/3, owner-only Lua compare-and-delete, abort-on-lock-loss (J-3)
 - [ ] **WRK-05**: Typed result-vs-error classification: target outcomes (UP/DOWN/timeout/DNS/TLS) are successful jobs; only infra failures throw (J-4)
-- [ ] **WRK-06**: Retries with exponential backoff, bounded attempts (3–5), DLQ retention via `removeOnFail` age
+- [x] **WRK-06**: Retries with exponential backoff, bounded attempts (3–5), DLQ retention via `removeOnFail` age
 - [ ] **WRK-07**: Graceful shutdown: SIGINT handler + `worker.close()` + PM2 `kill_timeout` ≥ max job duration (~20 s); `stalledInterval`/`maxStalledCount` bounded
 - [x] **WRK-08**: Worker health endpoints: `:9090/healthz` (process only) and `/readyz` (Redis + DB ping) gating releases
 - [ ] **WRK-09**: healthchecks.io heartbeat moved to the worker scheduler tick (before any cron deletion)
 - [ ] **WRK-10**: Worker dark launch: deployed with scheduler paused and deploy pipeline rehearsed while nothing depends on it, before cutover
 - [ ] **WRK-11**: Overlap-window cutover: old cron and worker run idempotently together; `instrumentation.ts` cron + `CRON_MODE` deleted only after verification (heartbeat steady, queue depth ≈ 0, alert parity, counter deltas sane)
-- [ ] **WRK-12**: Priority handling for manual checks and monitors in non-UP state (priorities or separate lane) with documented worst-case latency (J-6)
+- [x] **WRK-12**: Priority handling for manual checks and monitors in non-UP state (priorities or separate lane) with documented worst-case latency (J-6)
 - [ ] **WRK-13**: Maintenance jobs support dry-run mode (report row counts without deleting)
 - [x] **WRK-14**: Web and worker share TypeScript from one repo and one build (single package + worker build target, or documented workspace)
 
@@ -80,7 +80,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 ### Resilience
 
 - [ ] **RES-01**: Circuit breaker around Postgres: infra-failure rate threshold → OPEN (queue pause, stop enqueueing) → HALF_OPEN probe → CLOSED (J-5)
-- [ ] **RES-02**: Backlog cap: routine checks droppable at queue depth > ~2× active monitors; transitions never droppable
+- [x] **RES-02**: Backlog cap: routine checks droppable at queue depth > ~2× active monitors; transitions never droppable
 - [ ] **RES-03**: Redis outage = monitoring pause by design (no fallback scheduler); detected via external dead-man's switch; UI surfaces "last checked Xm ago" staleness (R-1)
 - [ ] **RES-04**: Postgres outage produces retryable jobs — no silently lost results; failure-injection tests prove Redis-down leaves Postgres intact and Postgres-down loses nothing
 - [ ] **RES-05**: Redis-restart recovery procedure: schedulers re-upserted at boot, stale locks expire via TTL, next tick re-claims via `next_check_at`
@@ -218,15 +218,15 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | DRZ-06 | Phase 3 | Complete |
 | DAT-09 | Phase 3 | Complete |
 | WRK-01 | Phase 4 | Pending |
-| WRK-02 | Phase 4 | Pending |
-| WRK-03 | Phase 4 | Pending |
+| WRK-02 | Phase 4 | Complete |
+| WRK-03 | Phase 4 | Complete |
 | WRK-04 | Phase 4 | Pending |
 | WRK-05 | Phase 4 | Pending |
-| WRK-06 | Phase 4 | Pending |
+| WRK-06 | Phase 4 | Complete |
 | WRK-07 | Phase 4 | Pending |
 | WRK-08 | Phase 4 | Complete |
 | WRK-10 | Phase 4 | Pending |
-| WRK-12 | Phase 4 | Pending |
+| WRK-12 | Phase 4 | Complete |
 | WRK-13 | Phase 4 | Pending |
 | WRK-14 | Phase 4 | Complete |
 | DAT-01 | Phase 4 | Pending |
@@ -239,7 +239,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | DAT-08 | Phase 4 | Pending |
 | DAT-10 | Phase 4 | Pending |
 | RES-01 | Phase 4 | Pending |
-| RES-02 | Phase 4 | Pending |
+| RES-02 | Phase 4 | Complete |
 | RES-03 | Phase 4 | Pending |
 | RES-04 | Phase 4 | Pending |
 | RES-05 | Phase 4 | Pending |

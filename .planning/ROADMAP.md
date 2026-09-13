@@ -185,8 +185,37 @@ Plans:
   4. Failure injection proves both outage directions: Postgres down → jobs retry (nothing silently lost), the circuit breaker opens and pauses enqueueing, and the backlog cap drops routine checks but never transitions; Redis down → monitoring pauses by design, Postgres stays intact, and in-product staleness ("last checked Xm ago") is visible to users
   5. The check engine enforces SSRF layering (per-redirect-hop private-range denial, scheme allowlist, 2 MB cap, strict 10 s timeout — test cases pass) with OS-level egress rules active on the worker host; an operator can trace one check end-to-end via `monitorId`-correlated structured logs and queue metrics (depth, job age, stalled count); the maintenance job has a dry-run that reports row counts without deleting; the pipeline orders build → backup → migrate → worker (waits readyz) → web → smoke check that produces a synthetic ping row
 
-**Plans**: TBD
-**Research flag**: needs `--research-phase` depth — BullMQ 6 `upsertJobScheduler` semantics, breaker/backlog tuning, PM2 `wait_ready`/`kill_timeout` handshake, overlap gate instrumentation (SUMMARY.md)
+**Plans**: 9 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 04-01-PLAN.md — Worker process boot slice: deps checkpoint (bullmq/pino/undici/tsup/tsx), tsup one-build-two-artifacts, entry/connection/logger/health(:9090)/db pool, boundary gate in verify, PM2 worker stanza (WRK-01, WRK-08, WRK-14, OBS-02, DEP-01)
+
+**Wave 2** *(parallel, no file overlap — all depend on 04-01)*
+
+- [ ] 04-02-PLAN.md — Queue topology + priorities/retry-DLQ + claim (D-50 GREATEST catch-up) + scheduler-behind-flag + backlog cap + queue metrics (WRK-02, WRK-03, WRK-06, WRK-10, WRK-12, RES-02, OBS-01)
+- [ ] 04-03-PLAN.md — Canonical SSRF pipeline src/lib/ssrf.ts + WRK-05 classification + error_class vocabulary, §23 + D-42 vector tests (SEC-01, WRK-05, DAT-10)
+- [ ] 04-04-PLAN.md — Per-monitor Lua locks + Tier 1 §16.1 transition transaction with in-UPDATE uptime_percent (D-35) + byte-parity suite D-36 (WRK-04, DAT-01, DAT-04, DAT-07, DAT-10)
+- [ ] 04-05-PLAN.md — Tier 2 §16.2 Redis staging + RENAMENX guarded flush + write_guards idempotency (DAT-02, DAT-03, DAT-07)
+
+**Wave 3** *(blocked on 04-02..04-05)*
+
+- [ ] 04-06-PLAN.md — Check job processor assembly (lock→SSRF→classify→Tier1/Tier2→flush) + Postgres circuit breaker 5-fail/60s (WRK-01, WRK-05, WRK-12, RES-01)
+
+**Wave 4** *(blocked on 04-06)*
+
+- [ ] 04-07-PLAN.md — Outbox relay with byte-parity Telegram + 7-day dedup + typed FAILED retain, maintenance dry-run + D-37 consistency + batched retention, metrics completion (DAT-05, DAT-06, DAT-08, WRK-13, OBS-01)
+
+**Wave 5** *(blocked on 04-06 + 04-07)*
+
+- [ ] 04-08-PLAN.md — Seven-case resilience injection suite (pnpm test:resilience, real SIGKILL child, outage both directions) + staleness pin D-34 + D-33 dataset (RES-01..05, WRK-07)
+
+**Wave 6** *(final — blocked on 04-08)*
+
+- [ ] 04-09-PLAN.md — Operator scripts (seed/smoke/re-drive/rehearse), runbook amendments (§4a re-seed D-49, worker-form D-23, §10 egress D-17, denylist gate D-40), full deploy-day rehearsal D-32, dark launch + 04-DEPLOY-RECORD (WRK-10, DEP-01, DEP-02, SEC-02)
+
+**Research flag**: needs `--research-phase` depth — BullMQ 6 `upsertJobScheduler` semantics, breaker/backlog tuning, PM2 `wait_ready`/`kill_timeout` handshake, overlap gate instrumentation (SUMMARY.md) — *RESOLVED in 04-RESEARCH.md (all BullMQ 6 behaviors verified against docs.bullmq.io: scheduler idempotence, priority default-0 inversion, stalled defaults 30000/30000/1, pause semantics; PM2 defaults 3000/1600 confirmed; two findings: Postgres round-cast Pitfall 1 + D-50 GREATEST catch-up amendment)*
 
 ### Phase 5: Worker Cutover & Operational Hardening
 
@@ -279,7 +308,7 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | 1. Design Gate — Review Verdict READY | 9/9 | Complete — cycle-2 clean pass ratified 2026-09-09, verdict flipped to READY (RR2-01/02/03 advisory Phase 4/5 design-debt) | 2026-09-09 |
 | 2. Foundations & Theme Infrastructure | 10/10 | Gaps closed (02-10); round-2 verification human_needed — 5 UAT tests pending (02-UAT.md) | - |
 | 3. Redis & Drizzle Schema Ownership | 0/TBD | Not started | - |
-| 4. Monitoring Worker — Build & Dark Launch | 0/TBD | Not started | - |
+| 4. Monitoring Worker — Build & Dark Launch | 0/9 | Planned — research resolved, 9 plans across 6 waves | - |
 | 5. Worker Cutover & Operational Hardening | 0/TBD | Not started | - |
 | 6. Thin API Routes & Email Abstraction | 0/TBD | Not started | - |
 | 7. Better Auth Cutover, Admin Gating & Prisma Removal | 0/TBD | Not started | - |

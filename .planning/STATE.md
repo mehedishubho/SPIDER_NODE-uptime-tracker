@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 4
+current_phase: 04
 current_phase_name: Monitoring Worker — Build & Dark Launch
 status: executing
-stopped_at: Phase 4 context gathered
-last_updated: "2026-09-13T16:08:12.047Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-09-13T17:03:26.157Z"
 last_activity: 2026-09-13
-last_activity_desc: Phase 03 complete, transitioned to Phase 4
+last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 8
   completed_phases: 3
-  total_plans: 27
-  completed_plans: 27
+  total_plans: 36
+  completed_plans: 28
   percent: 38
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-13)
 
 **Core value:** Modernize the infrastructure without breaking existing monitoring — never lose or corrupt uptime data, silently stop checking, or lock users out irrecoverably.
-**Current focus:** Phase 4 — Monitoring Worker — Build & Dark Launch
+**Current focus:** Phase 04 — Monitoring Worker — Build & Dark Launch
 
 ## Current Position
 
-Phase: 4 — Monitoring Worker — Build & Dark Launch
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-09-13 — Phase 03 complete, transitioned to Phase 4
+Phase: 04 (Monitoring Worker — Build & Dark Launch) — EXECUTING
+Plan: 1 of 9
+Status: Executing Phase 04
+Last activity: 2026-09-13 — Phase 04 execution started
 
 Progress: [████████████████████] 27/27 plans (100%)
 
@@ -83,6 +83,7 @@ Progress: [████████████████████] 27/27 p
 | Phase 03 P06 | 474s (~8 min) | 3 tasks | 1 files |
 | Phase 03 P03-07 | 218 minutes | 2 tasks | 5 files |
 | Phase 03 P08 | ~40 min (checkpoint-gated; local deploy leg 9 min) | 3 tasks | 1 files |
+| Phase 4 P1 | ~2 sessions (checkpoint-gated) | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -175,6 +176,8 @@ Recent decisions affecting current work:
 - [Phase 03]: verification 2026-09-12 — 11/12 must-haves verified live by gsd-verifier (D-20 suite re-run 5/5, empty pull-diff independently reproduced, 2 migration rows + all prereq DDL confirmed on the production DB, hardened Redis CONFIG checked); the 12th clause (SC5 memory-alert application) dispositioned, not failed
 - [Phase 03]: UAT close 2026-09-12 — operator dispositions: (b) runbook §3c 70%-memory alert application deferred to the first real VPS deploy (forward-tracked in PROJECT.md Context; AR-01 in 03-SECURITY.md); mvp mode tag dropped from Phase 3 (standard goal-backward verification, Phase 2 precedent)
 - [Phase 03]: security closeout 2026-09-12 — 03-SECURITY.md: 24/24 register rows closed at L1/ASVS-1; one conditional accepted risk AR-01 (§3c alert until VPS deploy); code-review findings (03-REVIEW.md: 1 Critical + 6 Warnings) judged non-blocking for phase-03 criteria but carried forward — see Blockers/Concerns
+- [Phase 04]: 04-01: tsup 8.5.1 locked despite unmaintained status per D-02 — ~15-line verified config surface, bundler is a swappable seam (04-RESEARCH OQ1); operator approved the SUS-by-recency set (bullmq/tsx/undici) against registry pages at the blocking gate
+- [Phase 04]: 04-01: global Read deny rule narrowed from .env.* to secret-bearing variants (.env/.env.local/.env.test) so .env.example stays writable — WORKER_* doc block landed as 18204fc; secret-bearing env files never read
 
 ### Pending Todos
 
@@ -198,6 +201,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-13T06:18:18.449Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-monitoring-worker-build-dark-launch/04-CONTEXT.md
+Last session: 2026-09-13T17:03:12.616Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None

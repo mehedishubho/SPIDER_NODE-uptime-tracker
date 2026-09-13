@@ -55,13 +55,13 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [ ] **WRK-05**: Typed result-vs-error classification: target outcomes (UP/DOWN/timeout/DNS/TLS) are successful jobs; only infra failures throw (J-4)
 - [ ] **WRK-06**: Retries with exponential backoff, bounded attempts (3–5), DLQ retention via `removeOnFail` age
 - [ ] **WRK-07**: Graceful shutdown: SIGINT handler + `worker.close()` + PM2 `kill_timeout` ≥ max job duration (~20 s); `stalledInterval`/`maxStalledCount` bounded
-- [ ] **WRK-08**: Worker health endpoints: `:9090/healthz` (process only) and `/readyz` (Redis + DB ping) gating releases
+- [x] **WRK-08**: Worker health endpoints: `:9090/healthz` (process only) and `/readyz` (Redis + DB ping) gating releases
 - [ ] **WRK-09**: healthchecks.io heartbeat moved to the worker scheduler tick (before any cron deletion)
 - [ ] **WRK-10**: Worker dark launch: deployed with scheduler paused and deploy pipeline rehearsed while nothing depends on it, before cutover
 - [ ] **WRK-11**: Overlap-window cutover: old cron and worker run idempotently together; `instrumentation.ts` cron + `CRON_MODE` deleted only after verification (heartbeat steady, queue depth ≈ 0, alert parity, counter deltas sane)
 - [ ] **WRK-12**: Priority handling for manual checks and monitors in non-UP state (priorities or separate lane) with documented worst-case latency (J-6)
 - [ ] **WRK-13**: Maintenance jobs support dry-run mode (report row counts without deleting)
-- [ ] **WRK-14**: Web and worker share TypeScript from one repo and one build (single package + worker build target, or documented workspace)
+- [x] **WRK-14**: Web and worker share TypeScript from one repo and one build (single package + worker build target, or documented workspace)
 
 ### Data Correctness
 
@@ -224,11 +224,11 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | WRK-05 | Phase 4 | Pending |
 | WRK-06 | Phase 4 | Pending |
 | WRK-07 | Phase 4 | Pending |
-| WRK-08 | Phase 4 | Pending |
+| WRK-08 | Phase 4 | Complete |
 | WRK-10 | Phase 4 | Pending |
 | WRK-12 | Phase 4 | Pending |
 | WRK-13 | Phase 4 | Pending |
-| WRK-14 | Phase 4 | Pending |
+| WRK-14 | Phase 4 | Complete |
 | DAT-01 | Phase 4 | Pending |
 | DAT-02 | Phase 4 | Pending |
 | DAT-03 | Phase 4 | Pending |

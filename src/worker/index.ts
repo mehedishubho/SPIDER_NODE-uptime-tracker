@@ -3,6 +3,8 @@ import { buildLogger } from "./logger";
 import { workerConnection } from "./connection";
 import { workerPgPool } from "./db";
 import { startHealthServer, WORKER_BUILD_SHA, WORKER_BUILD_TS } from "./health";
+import { collectQueueMetrics, workerQueues } from "./queues";
+import { startTickWorker, upsertSchedulersAtBoot } from "./scheduler";
 
 // ---------------------------------------------------------------------------
 // dist/worker.js — the SINGLE worker entry (D-11). All queue workers, the
@@ -73,19 +75,23 @@ async function main(): Promise<void> {
   assertRequiredEnv();
 
   // D-16 dark-launch flag: consumed by the scheduler plan (the upsert is
-  // simply skipped when false — never queue.pause(), which would block
-  // operator smoke enqueues too). Read here so the boot log records the
-  // launch mode from day one.
+  // simply skipped when false — the queue is NEVER paused, because a paused
+  // queue would block operator smoke enqueues too; Pitfall 12). Read here so
+  // the boot log records the launch mode from day one.
   const schedulerEnabled = process.env.WORKER_SCHEDULER_ENABLED === "true";
   const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 9090); // D-13
 
   const redis = workerConnection();
   const pool = workerPgPool;
+  const queues = workerQueues();
 
   const health = await startHealthServer({
     port: healthPort,
     redis,
     pool,
+    // OBS-01: the /metrics.json queue section (per-lane depth, head-waiting
+    // age, stalled count, backlog drop counter) — lazy, collected per scrape.
+    queueMetrics: () => collectQueueMetrics(queues),
     onReady: () => {
       // The PM2 gate (wait_ready) — a DIFFERENT consumer than HTTP /readyz
       // (01-07): the signal must come from the process, not the endpoint.
@@ -109,6 +115,27 @@ async function main(): Promise<void> {
     logger.error(
       { readiness, sha: WORKER_BUILD_SHA, healthPort: health.port },
       "worker boot readiness FAILED — PM2 ready signal NOT sent (wait_ready restarts after listen_timeout)"
+    );
+  }
+
+  // Queue machinery (D-16): consumers ALWAYS live — any enqueued job
+  // exercises the real machinery while dark-launched. Only the RECURRING
+  // schedulers are flag-gated (never queue pausing — Pitfall 12: a paused
+  // queue blocks operator smoke enqueues too).
+  registerDrainable(queues);
+  const tickWorker = startTickWorker();
+  registerDrainable(tickWorker);
+  try {
+    const schedulers = await upsertSchedulersAtBoot({ schedulerEnabled });
+    if (schedulers.upserted.length > 0) {
+      logger.info({ schedulers: schedulers.upserted }, "recurring scheduling ACTIVE");
+    }
+  } catch (err) {
+    // Stay up (04-01 fail-stay-up philosophy): the next boot/restart re-runs
+    // the idempotent upserts, and the heartbeat gap covers the pause.
+    logger.error(
+      { err: err instanceof Error ? err.message : String(err) },
+      "job scheduler upsert FAILED — schedulers re-declare at next boot (RES-05)"
     );
   }
 

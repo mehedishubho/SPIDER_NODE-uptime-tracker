@@ -1,0 +1,286 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import Redis from "ioredis";
+import { Client } from "pg";
+import {
+  claimedCheckJobId,
+  collectQueueMetrics,
+  createWorkerQueues,
+  LANE_PRIORITY,
+  noteStalledEvent,
+  QUEUE_NAMES,
+} from "@/worker/queues";
+import type { WorkerQueueSet } from "@/worker/queues";
+import { resetBacklogDropCount } from "@/worker/backlog";
+import {
+  CHECK_TICK_EVERY_MS,
+  CHECK_TICK_SCHEDULER_ID,
+  MAINTENANCE_CLEANUP_PATTERN,
+  MAINTENANCE_CLEANUP_SCHEDULER_ID,
+  processTick,
+  startTickWorker,
+  upsertSchedulersAtBoot,
+} from "@/worker/scheduler";
+import { startHealthServer } from "@/worker/health";
+
+// ---------------------------------------------------------------------------
+// Scheduler-flag proof suite (WRK-10 / D-16 / RES-05, audit §14.2) against
+// the REAL docker test stack — the flag mechanic and the scheduler
+// convergence are BullMQ/Redis storage semantics, only provable live.
+//
+// Pins:
+//   1. flag false -> ZERO schedulers on BOTH queues, yet the tick-lane
+//      consumer still processes a manually enqueued job (D-16: flag gates
+//      SCHEDULING only — never a paused queue, Pitfall 12)
+//   2. flag true -> exactly one check-tick + one maintenance-cleanup
+//      scheduler; re-upsert is idempotent; after a simulated Redis restart
+//      (flush) the next boot re-declares, still exactly one (RES-05)
+//   3. processTick assigns lanes through the real claim: UP -> priority 10,
+//      non-UP -> priority 1, jobId = check:{monitorId}:{claim-epoch}
+//   4. /metrics.json carries the queue section (per-lane depth, head-waiting
+//      age, stalled counter, backlog drop counter — OBS-01)
+//   5. source form: no queue pausing anywhere in the boot flow; the upsert
+//      templates pin no custom job key (Pitfall 11)
+// ---------------------------------------------------------------------------
+
+let admin: Redis;
+let pg: Client;
+let queues: WorkerQueueSet;
+let testUserId: string;
+
+async function flushQueueKeys(prefix: string): Promise<void> {
+  const keys: string[] = [];
+  let cursor = "0";
+  do {
+    const [next, batch] = await admin.scan(cursor, "MATCH", `${prefix}*`, "COUNT", 100);
+    cursor = next;
+    keys.push(...batch);
+  } while (cursor !== "0");
+  if (keys.length > 0) await admin.del(...keys);
+}
+
+async function seedMonitor(opts: { status: string; nextCheckAt: Date }): Promise<number> {
+  const result = await pg.query(
+    `INSERT INTO monitors (url, name, "userId", status, "isActive", interval, next_check_at, "updatedAt")
+     VALUES ($1, $2, $3, $4, true, 5, $5, now()) RETURNING id`,
+    [
+      "https://example.com",
+      `sched-test-${crypto.randomUUID()}`,
+      testUserId,
+      opts.status,
+      opts.nextCheckAt.toISOString(),
+    ]
+  );
+  return result.rows[0].id as number;
+}
+
+async function fetchNextCheckAt(monitorId: number): Promise<Date> {
+  const result = await pg.query(`SELECT next_check_at FROM monitors WHERE id = $1`, [monitorId]);
+  return new Date(result.rows[0].next_check_at as string);
+}
+
+async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 8_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error("waitFor: condition not met within timeout");
+}
+
+beforeAll(async () => {
+  admin = new Redis(process.env.REDIS_URL!);
+  pg = new Client({ connectionString: process.env.TEST_DATABASE_URL });
+  await pg.connect();
+  await pg.query("TRUNCATE monitors CASCADE");
+  await pg.query("TRUNCATE users CASCADE");
+  const user = await pg.query(
+    `INSERT INTO users (email, "updatedAt") VALUES ($1, now()) RETURNING id`,
+    [`sched-test-${crypto.randomUUID()}@example.test`]
+  );
+  testUserId = user.rows[0].id as string;
+  queues = createWorkerQueues(new Redis(process.env.REDIS_URL!));
+});
+
+afterAll(async () => {
+  // Leave the tables clean for the files that run after this one.
+  await pg.query("TRUNCATE monitors CASCADE");
+  await pg.query("TRUNCATE users CASCADE");
+  await queues.close().catch(() => {});
+  await pg.end();
+  await admin.quit();
+});
+
+beforeEach(async () => {
+  await flushQueueKeys("bull:monitor-scheduler:");
+  await flushQueueKeys("bull:maintenance:");
+  await flushQueueKeys("bull:monitor-checks:");
+  resetBacklogDropCount();
+});
+
+describe("scheduler flag + tick lane (WRK-10 / D-16 / RES-05)", () => {
+  it(
+    "1. flag FALSE: zero schedulers on both queues, yet the tick-lane consumer still processes a manual job (D-16, Pitfall 12)",
+    async () => {
+      const result = await upsertSchedulersAtBoot({ schedulerEnabled: false, queues });
+      expect(result.upserted).toEqual([]);
+      expect(await queues.scheduler.getJobSchedulers()).toEqual([]);
+      expect(await queues.maintenance.getJobSchedulers()).toEqual([]);
+
+      // Consumers stay LIVE: an operator smoke enqueue runs end-to-end.
+      const worker = startTickWorker({ queues });
+      try {
+        const job = await queues.scheduler.add(
+          "check-tick",
+          {},
+          { priority: LANE_PRIORITY.tick, attempts: 1, removeOnComplete: { age: 300 } }
+        );
+        await waitFor(async () => (await job.getState()) === "completed");
+        expect(await job.getState()).toBe("completed");
+      } finally {
+        await worker.close();
+      }
+
+      // The dark-launch invariant: processing consumed the job but created
+      // ZERO recurring schedulers.
+      expect(await queues.scheduler.getJobSchedulers()).toEqual([]);
+    },
+    20_000
+  );
+
+  it(
+    "2. flag TRUE: exactly one check-tick + one maintenance scheduler; idempotent re-upsert; Redis-wipe re-declare stays at one (RES-05)",
+    async () => {
+      await upsertSchedulersAtBoot({ schedulerEnabled: true, queues });
+
+      // JobSchedulerJson's stable identity field is `key` (bullmq 6: the
+      // optional `id` is the delayed job's id, absent until materialized).
+      const tickSchedulers = await queues.scheduler.getJobSchedulers();
+      expect(tickSchedulers).toHaveLength(1);
+      expect(tickSchedulers[0].key).toBe(CHECK_TICK_SCHEDULER_ID);
+      expect(tickSchedulers[0].name).toBe("check-tick");
+      expect(tickSchedulers[0].every).toBe(CHECK_TICK_EVERY_MS);
+
+      const maintenanceSchedulers = await queues.maintenance.getJobSchedulers();
+      expect(maintenanceSchedulers).toHaveLength(1);
+      expect(maintenanceSchedulers[0].key).toBe(MAINTENANCE_CLEANUP_SCHEDULER_ID);
+      expect(maintenanceSchedulers[0].pattern).toBe(MAINTENANCE_CLEANUP_PATTERN);
+
+      // Idempotent: a second boot (concurrent or restart) converges — still
+      // exactly one scheduler per id, at most one delayed job per scheduler.
+      await upsertSchedulersAtBoot({ schedulerEnabled: true, queues });
+      expect(await queues.scheduler.getJobSchedulers()).toHaveLength(1);
+      expect(await queues.maintenance.getJobSchedulers()).toHaveLength(1);
+
+      // RES-05: Redis restarted (schedulers wiped) — the next boot
+      // re-declares, and upsert convergence keeps it at exactly one.
+      await flushQueueKeys("bull:monitor-scheduler:");
+      expect(await queues.scheduler.getJobSchedulers()).toHaveLength(0);
+      await upsertSchedulersAtBoot({ schedulerEnabled: true, queues });
+      const redeclared = await queues.scheduler.getJobSchedulers();
+      expect(redeclared).toHaveLength(1);
+      expect(redeclared[0].key).toBe(CHECK_TICK_SCHEDULER_ID);
+    },
+    20_000
+  );
+
+  it(
+    "3. processTick: claim -> lane assignment UP -> priority 10, non-UP -> priority 1, jobId from the claim epoch",
+    async () => {
+      const upId = await seedMonitor({ status: "UP", nextCheckAt: new Date(Date.now() - 2_000) });
+      const downId = await seedMonitor({ status: "DOWN", nextCheckAt: new Date(Date.now() - 3_000) });
+
+      const result = await processTick({ queues });
+      expect(result.claimed).toBeGreaterThanOrEqual(2);
+      expect(result.enqueued + result.dropped + result.failed).toBe(result.claimed);
+
+      // Read each monitor's just-advanced next_check_at, derive the expected
+      // jobId, and prove the STORED job carries the lane priority.
+      const upJob = await queues.checks.getJob(claimedCheckJobId(upId, await fetchNextCheckAt(upId)));
+      expect(upJob?.opts.priority).toBe(LANE_PRIORITY.routineCheck);
+
+      const downJob = await queues.checks.getJob(claimedCheckJobId(downId, await fetchNextCheckAt(downId)));
+      expect(downJob?.opts.priority).toBe(LANE_PRIORITY.nonUpCheck);
+
+      // Idempotent second tick over the same data: everything is advanced
+      // past now, so nothing new is claimed.
+      const second = await processTick({ queues });
+      expect(second.claimed).toBe(0);
+    },
+    20_000
+  );
+
+  it(
+    "4. /metrics.json carries the queue section: per-lane depth, head-waiting age, stalled counter, backlog drops (OBS-01)",
+    async () => {
+      noteStalledEvent(QUEUE_NAMES.checks); // in-process Worker event counter
+      await queues.checks.add(
+        "check",
+        { monitorId: 1 },
+        { priority: 10, jobId: `metrics-probe-${Date.now()}` }
+      );
+
+      const metricsRedis = new Redis(process.env.REDIS_URL!);
+      const server = await startHealthServer({
+        port: 0,
+        redis: metricsRedis,
+        pool: { query: (text: string) => pg.query(text) },
+        queueMetrics: () => collectQueueMetrics(queues),
+      });
+      try {
+        const res = await fetch(`http://127.0.0.1:${server.port}/metrics.json`);
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as {
+          queues: Record<
+            string,
+            {
+              depth: Record<string, number>;
+              oldestWaitingJobAgeMs: number | null;
+              stalledCount: number;
+            }
+          >;
+          backlogDrops: number;
+        };
+
+        // All six lanes report a gauge.
+        for (const name of Object.values(QUEUE_NAMES)) {
+          expect(body.queues[name]).toBeDefined();
+        }
+
+        const checks = body.queues[QUEUE_NAMES.checks];
+        // The probe job carries priority 10, so BullMQ files it in the
+        // PRIORITIZED set (a priority-carrying job never sits in plain wait)
+        // — the depth gauge must see it there.
+        expect(checks.depth.prioritized).toBeGreaterThanOrEqual(1);
+        expect(checks.depth.wait + checks.depth.prioritized).toBeGreaterThanOrEqual(1);
+        expect(checks.oldestWaitingJobAgeMs).toBeGreaterThanOrEqual(0); // probe is the oldest pending
+        expect(checks.stalledCount).toBeGreaterThanOrEqual(1); // noted above
+        expect(body.backlogDrops).toBe(0); // reset in beforeEach, none dropped
+      } finally {
+        await server.shutdown();
+      }
+    },
+    20_000
+  );
+
+  it(
+    "5. source form: no queue pausing in the boot flow; upsert templates pin no custom job key (Pitfall 11 / Pitfall 12)",
+    () => {
+      const schedulerSource = readFileSync("src/worker/scheduler.ts", "utf8");
+      const indexSource = readFileSync("src/worker/index.ts", "utf8");
+
+      // Pitfall 12: dark launch must gate SCHEDULING, never pause a queue
+      // (a paused queue blocks operator smoke enqueues too).
+      expect(schedulerSource).not.toMatch(/\.pause\s*\(/);
+      expect(indexSource).not.toMatch(/\.pause\s*\(/);
+
+      // Pitfall 11: JobSchedulerTemplateOptions drops job ids — the template
+      // must not attempt to pin one.
+      expect(schedulerSource).not.toMatch(/jobId\s*:/);
+
+      // D-16 wiring: the boot flow reads the flag.
+      expect(indexSource).toContain("WORKER_SCHEDULER_ENABLED");
+    },
+    15_000
+  );
+});

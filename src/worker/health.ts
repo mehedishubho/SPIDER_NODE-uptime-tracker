@@ -21,9 +21,11 @@ import { workerPgPool } from "./db";
 //   GET /readyz       200 when Redis AND Postgres answer, else 503 — with
 //                     per-dependency status in the body.
 //   GET /metrics.json 200 — the D-24/D-25 collector seed: provenance plus
-//                     Redis memory percent from ONE INFO call. Later plans
-//                     extend this object with queue gauges (depth, age,
-//                     stalled, transition->alert latency) — additive shape.
+//                     Redis memory percent from ONE INFO call, and (when a
+//                     queueMetrics provider is registered, 04-02) the queue
+//                     section: per-queue depth, head-waiting age, stalled
+//                     count, and the backlog drop counter (OBS-01). Later
+//                     plans extend the same object further — additive shape.
 //
 // Security (T-04-01): bound to 127.0.0.1 only; payloads carry
 // provenance/status exclusively — no connection strings, tokens, or env
@@ -122,6 +124,12 @@ export interface StartHealthServerOptions {
   redis?: Redis;
   /** Defaults to the worker pool from src/worker/db.ts. */
   pool?: PoolHealthClient;
+  /**
+   * Queue-gauge provider for /metrics.json (OBS-01, 04-02): its resolved
+   * object's keys are merged into the payload (queues, backlogDrops). A
+   * throwing provider degrades to no queue keys — never a 500.
+   */
+  queueMetrics?: () => Promise<unknown>;
   /** Fired ONCE, only when both boot pings pass (WRK-08 two-signal contract). */
   onReady?: () => void;
 }
@@ -172,8 +180,15 @@ export function startHealthServer(options: StartHealthServerOptions = {}): Promi
     }
     if (path === "/metrics.json") {
       const memory = await redisMemorySnapshot(redis);
+      const body: Record<string, unknown> = { ...provenance(), redis: memory };
+      if (options.queueMetrics) {
+        const queueSection = await options.queueMetrics().catch(() => null);
+        if (queueSection && typeof queueSection === "object") {
+          Object.assign(body, queueSection);
+        }
+      }
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ ...provenance(), redis: memory }));
+      res.end(JSON.stringify(body));
       return;
     }
     res.writeHead(404, { "content-type": "application/json" });

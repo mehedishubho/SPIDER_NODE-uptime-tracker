@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 import { workerConnection } from "./connection";
 import { workerDb } from "./db";
 import { buildLogger } from "./logger";
-import { noteBacklogDrop, openBacklogGate } from "./backlog";
+import { backlogDropCount, noteBacklogDrop, openBacklogGate } from "./backlog";
 import type { BacklogGate } from "./backlog";
 
 // ---------------------------------------------------------------------------
@@ -303,4 +303,105 @@ export async function enqueueManualCheck(
   const jobId = manualCheckJobId(monitorId);
   await addCheckJob(queue, monitorId, { priority: LANE_PRIORITY.manualCheck, jobId });
   return { jobId, priority: LANE_PRIORITY.manualCheck };
+}
+
+// ---------------------------------------------------------------------------
+// Queue observability (OBS-01 subset) — the /metrics.json queue section
+// ---------------------------------------------------------------------------
+
+/**
+ * In-process Worker 'stalled' event counters, keyed by queue name. BullMQ
+ * exposes no stalled-set size (stalls are transient re-deliveries, not a
+ * stored set), so the count is of stall events OBSERVED since process start —
+ * the honest per-process signal the health snapshot can carry.
+ */
+const stalledEvents = new Map<string, number>();
+
+/** Called from a Worker's 'stalled' handler; monotonic per process. */
+export function noteStalledEvent(queueName: string): void {
+  stalledEvents.set(queueName, (stalledEvents.get(queueName) ?? 0) + 1);
+}
+
+export function stalledEventCount(queueName: string): number {
+  return stalledEvents.get(queueName) ?? 0;
+}
+
+/** Per-queue gauge surfaced on /metrics.json (OBS-01). */
+export interface QueueGauge {
+  /**
+   * wait+prioritized+delayed+active depth — the backlog gate's own depth
+   * definition. Empirical bullmq 6.3 note: a job carrying `priority` is
+   * filed in the PRIORITIZED set, never plain wait — and every check-lane
+   * enqueue carries one (Pitfall 3) — so a wait-only read would report an
+   * empty check queue while it backs up.
+   */
+  depth: { wait: number; prioritized: number; delayed: number; active: number };
+  /**
+   * Age of the oldest job waiting for a worker. Scanned over bounded head
+   * pages of BOTH the wait set (FIFO — the head IS the oldest) and the
+   * prioritized set (priority-ordered — the oldest can sit anywhere in the
+   * page, so the minimum timestamp wins); null when nothing is pending.
+   */
+  oldestWaitingJobAgeMs: number | null;
+  /** Stall events observed since process start (see noteStalledEvent). */
+  stalledCount: number;
+}
+
+/** The full queue section: one gauge per lane plus the backlog drop counter. */
+export interface QueueMetricsSnapshot {
+  queues: Record<string, QueueGauge>;
+  backlogDrops: number;
+}
+
+/** Bounded head-page size for the oldest-pending age scan (per set). */
+const AGE_SCAN_PAGE = 50;
+
+/**
+ * Collects one gauge per queue lane (depth via getJobCounts, oldest-pending
+ * age via a bounded wait+prioritized head scan) plus the process backlog-drop
+ * counter. A lane whose depth read fails degrades its depths to -1 — visible,
+ * never fatal to the health endpoint (fail-open, same philosophy as the
+ * backlog gate).
+ */
+export async function collectQueueMetrics(queues: WorkerQueueSet): Promise<QueueMetricsSnapshot> {
+  const entries = await Promise.all(
+    (Object.keys(QUEUE_NAMES) as Array<keyof typeof QUEUE_NAMES>).map(async (lane) => {
+      const queue = queues[lane];
+      const name = QUEUE_NAMES[lane];
+      const stalledCount = stalledEventCount(name);
+      try {
+        const counts = await queue.getJobCounts("wait", "prioritized", "delayed", "active");
+        const depth = {
+          wait: counts.wait ?? 0,
+          prioritized: counts.prioritized ?? 0,
+          delayed: counts.delayed ?? 0,
+          active: counts.active ?? 0,
+        };
+        let oldestWaitingJobAgeMs: number | null = null;
+        if (depth.wait + depth.prioritized > 0) {
+          const [waiting, prioritized] = await Promise.all([
+            depth.wait > 0 ? queue.getWaiting(0, AGE_SCAN_PAGE - 1) : Promise.resolve([]),
+            depth.prioritized > 0 ? queue.getPrioritized(0, AGE_SCAN_PAGE - 1) : Promise.resolve([]),
+          ]);
+          const stamps = [...waiting, ...prioritized]
+            .map((job) => job.timestamp)
+            .filter((ts): ts is number => typeof ts === "number");
+          if (stamps.length > 0) {
+            oldestWaitingJobAgeMs = Math.max(0, Date.now() - Math.min(...stamps));
+          }
+        }
+        return [name, { depth, oldestWaitingJobAgeMs, stalledCount }] as const;
+      } catch {
+        return [
+          name,
+          {
+            depth: { wait: -1, prioritized: -1, delayed: -1, active: -1 },
+            oldestWaitingJobAgeMs: null,
+            stalledCount,
+          },
+        ] as const;
+      }
+    })
+  );
+  return { queues: Object.fromEntries(entries), backlogDrops: backlogDropCount() };
 }

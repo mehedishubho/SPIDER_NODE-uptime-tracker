@@ -685,12 +685,20 @@ async function main() {
       nt.afterCount = r.rows[0].count;
     }
 
-    // Bookkeeping proof: stamp wrote 1 row, the runner applied 0001 exactly once.
+    // Bookkeeping proof: the stamp wrote the baseline row and the runner
+    // applied every remaining committed migration exactly once. The expected
+    // count is DERIVED from the committed journal (WR-05), never hard-coded —
+    // this script is reused by every later phase's rehearsal (D-10), so the
+    // first 0002+ migration must not break the proof: 1 stamped baseline +
+    // (entries.length - 1) runner-applied = entries.length rows.
+    const journalEntries = JSON.parse(
+      readFileSync("drizzle/meta/_journal.json", "utf8")
+    ).entries.length;
     const journalRows = (
       await client.query(`SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations`)
     ).rows[0].n;
-    if (journalRows !== 2) {
-      failures.push(`drizzle.__drizzle_migrations has ${journalRows} rows — expected 2 (stamped baseline + runner-applied 0001)`);
+    if (journalRows !== journalEntries) {
+      failures.push(`drizzle.__drizzle_migrations has ${journalRows} rows — expected ${journalEntries} (1 stamped baseline + ${journalEntries - 1} runner-applied from drizzle/meta/_journal.json)`);
     }
 
     // D-19 decision derived from measured index-build timings. 0001 is KNOWN

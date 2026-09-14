@@ -193,21 +193,58 @@ const PG_INFRA_CODES = new Set([
 ]);
 
 /**
- * The pg driver's connection/timeout error class: connect-phase errno codes,
- * the pool's termination/timeout phrases, or a server-sent error shape
- * (severity/routine fields — only a real pg error path produces those).
- * These are infra from the WORKER's Postgres side even where the same errno
- * on the HTTP side would be a target outcome (see the module header's
- * call-context contract).
+ * One cause-chain LEVEL's shape test. A server-sent error shape
+ * (severity/routine fields — only a real pg error path produces those), ANY
+ * socket-errno class from our own Postgres connection, or the driver's
+ * termination/timeout phrases. Per the module header's call-context contract
+ * this classifier only ever sees errors escaping WORKER Postgres paths — a
+ * target website's ECONNREFUSED arrives here never (performCheck returns
+ * those as data) — so an errno code is unambiguous infra REGARDLESS of the
+ * message form: "connect ECONNREFUSED ...", "read ECONNRESET", and pg's
+ * connection-timeout wrapper ("Connection terminated due to connection
+ * timeout", code CONNECTION_TIMEOUT — no errno at all, caught by phrase) all
+ * count (found by the postgres-down resilience injection, plan 04-08).
+ */
+function isPgConnectionFailureLevel(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+  const o = e as { code?: unknown; message?: unknown; severity?: unknown; routine?: unknown };
+  if (typeof o.severity === "string" || typeof o.routine === "string") return true;
+  const code = typeof o.code === "string" ? o.code : "";
+  const message = typeof o.message === "string" ? o.message : "";
+  if (PG_INFRA_CODES.has(code)) {
+    // ENOTFOUND is the ONE code with a target-side twin the WRK-05 pin keeps
+    // out (a checked website's NXDOMAIN reaching this catch is a bug, not a
+    // Postgres outage — pinned in tests/worker/breaker.test.ts): count it
+    // only on OUR connect path, where net.connect reports the DB host as
+    // "connect ENOTFOUND <db-host>:<port>". Every other socket errno thrown
+    // into a worker-DB catch can only be OUR Postgres connection.
+    if (code !== "ENOTFOUND" || /^connect\s/i.test(message)) return true;
+  }
+  if (/connection terminated|timeout expired|socket hang up/i.test(message)) return true;
+  return false;
+}
+
+/**
+ * The pg driver's connection/timeout error class, detected at ANY depth of
+ * the cause chain: drizzle wraps every driver error in a DrizzleQueryError
+ * ("Failed query: ...") whose .cause carries the actual pg error, so a
+ * top-level-only test sees neither an errno nor a severity field and
+ * misclassifies real Postgres outages as target-class — the breaker then
+ * never counts them and never opens (found by the postgres-down resilience
+ * injection, plan 04-08: the worker logged verdict:"target" against a
+ * stopped container for the whole outage window). Bounded 8-deep walk with
+ * a seen-set cycle guard, mirroring rootCause in src/lib/ssrf.ts.
  */
 function isPgConnectionFailure(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
-  const e = err as { code?: unknown; message?: unknown; severity?: unknown; routine?: unknown };
-  if (typeof e.severity === "string" || typeof e.routine === "string") return true;
-  const code = typeof e.code === "string" ? e.code : "";
-  const message = typeof e.message === "string" ? e.message : "";
-  if (PG_INFRA_CODES.has(code) && /^connect\s/i.test(message)) return true;
-  if (/connection terminated unexpectedly|timeout expired/i.test(message)) return true;
+  let current: unknown = err;
+  const seen = new Set<unknown>([current]);
+  for (let depth = 0; depth < 8 && current && typeof current === "object"; depth += 1) {
+    if (isPgConnectionFailureLevel(current)) return true;
+    const cause = (current as { cause?: unknown }).cause;
+    if (cause === undefined || cause === null || seen.has(cause)) break;
+    seen.add(cause);
+    current = cause;
+  }
   return false;
 }
 

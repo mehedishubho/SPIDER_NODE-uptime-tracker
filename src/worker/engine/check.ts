@@ -1,3 +1,4 @@
+import { writeSync } from "node:fs";
 import { sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { JobsOptions } from "bullmq";
@@ -73,6 +74,16 @@ const baseLog = buildLogger();
  * window straddles.
  */
 export const FLUSH_JOB_DELAY_MS = 30_000;
+
+/**
+ * TEST-ONLY crash-checkpoint marker (D-29, plan 04-08 Task 2). Written via
+ * fs.writeSync(1, ...) — a SYNCHRONOUS pipe write — immediately before the
+ * SIGKILL so the marker line is guaranteed to reach the parent's capture ring
+ * even though the process dies mid-flight (pino/sonic-boom buffering would
+ * lose it). Inert unless WORKER_TEST_CRASH_AFTER is set; production boots
+ * never carry that env (pinned by source assertion in the resilience suite).
+ */
+export const WORKER_TEST_CRASH_MARKER = "WORKER_TEST_CRASH";
 
 /** The check job as the processor consumes it (BullMQ Job structural subset). */
 export interface CheckJob {
@@ -273,6 +284,22 @@ async function runCheckJob(job: CheckJob, deps: ProcessCheckDeps): Promise<Check
         },
         db
       );
+      // TEST-ONLY crash checkpoint (D-29 / T-04-30, plan 04-08 Task 2):
+      // WORKER_TEST_CRASH_AFTER=tier1_commit hard-exits the process
+      // immediately AFTER the Tier 1 COMMIT (applyTransition resolved — the
+      // transition is durable in Postgres) and BEFORE the job ack (the
+      // processor return that marks the BullMQ job completed). This is the
+      // kill-mid-job injection seam. Inert unless the env var is set —
+      // production boots never carry it; the resilience suite pins the
+      // env-gate by source assertion. The marker uses writeSync so it lands
+      // in the pipe before the kill.
+      if (process.env.WORKER_TEST_CRASH_AFTER === "tier1_commit") {
+        writeSync(
+          1,
+          `${WORKER_TEST_CRASH_MARKER} monitorId=${monitorId} jobId=${jobId ?? "unknown"} after=tier1_commit\n`
+        );
+        process.kill(process.pid, "SIGKILL");
+      }
       log.info(
         { tier: 1, durationMs: Date.now() - startedAt, ...result },
         "check persisted — Tier 1 transition transaction (§16.1)"

@@ -36,8 +36,16 @@ export default defineConfig({
   test: {
     environment: "node",
     globalSetup: ["./tests/setup/global-setup.ts"],
-    // vitest owns .test.ts; Playwright owns .spec.ts
+    // vitest owns .test.ts; Playwright owns .spec.ts. The resilience
+    // injection cases (tests/resilience/**) are EXCLUDED here on purpose:
+    // they stop/start the docker stack and spawn real worker children, so
+    // they live in the separate `pnpm test:resilience` command OUTSIDE this
+    // suite's verify budget (D-27) and take exclusive stack ownership (D-30).
+    // vitest.config.resilience.ts is their runner. Overriding `exclude`
+    // replaces vitest's defaults, so the default node_modules/dist patterns
+    // are restated.
     include: ["tests/**/*.test.ts"],
+    exclude: ["**/node_modules/**", "**/dist/**", "tests/resilience/**"],
     // Explicit worker env (same value) so the prisma singleton never sees an
     // unrelated ambient value even if a worker's env differs.
     env: {

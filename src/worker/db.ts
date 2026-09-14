@@ -36,6 +36,19 @@ export const workerPgPool =
     idle_in_transaction_session_timeout: 30000, // reap sessions stuck idle inside a transaction
   });
 
+// FAIL-STAY-UP (04-01 philosophy, proven by the resilience suite's
+// postgres-down injection): when Postgres goes away (container stop, admin
+// restart, network drop), every IDLE client in the pool receives a backend
+// termination (e.g. 57P01) and node-postgres re-emits it on the Pool. An
+// unlistened 'error' event on an EventEmitter is a THROW — it would crash
+// the worker process mid-outage, killing the very retry machinery RES-01
+// exists to provide. Log (err.message only — secrets rule) and let the pool
+// replace the dead client on the next acquire; the breaker (breaker.ts)
+// already accounts the resulting query failures.
+workerPgPool.on("error", (err: Error) => {
+  console.error("[worker-db] idle pool client error:", err.message);
+});
+
 if (process.env.NODE_ENV !== "production") globalForWorkerDb.workerPgPool = workerPgPool;
 
 export const workerDb = drizzle({ client: workerPgPool, schema });

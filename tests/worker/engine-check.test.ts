@@ -230,9 +230,17 @@ beforeEach(async () => {
   // monitors CASCADE sweeps pings/incidents/outbox via their FKs.
   await pg.query("TRUNCATE monitors CASCADE");
   await pg.query("TRUNCATE write_guards");
-  await flushKeyPattern("bull:monitor-checks:");
-  await flushKeyPattern("bull:db-writes:");
-  await flushKeyPattern("bull:monitor-scheduler:");
+  // Glob patterns need the trailing '*' — a bare 'bull:monitor-checks:'
+  // matches only a key literally named that (a no-op). The wildcard form
+  // clears job hashes AND the wait/prioritized/delayed/active member sets,
+  // so check jobs left by OTHER suites (queue-gate tests add raw check jobs
+  // without draining them) or by an interrupted run cannot survive into this
+  // suite — captureLane() consumes FIFO, so a stale job would be processed
+  // first as a noop-monitor-missing and hijack nextResult() (found via the
+  // 04-08 verify loop; same fix as the resilience helper's QUEUE_KEY_PATTERNS).
+  await flushKeyPattern("bull:monitor-checks:*");
+  await flushKeyPattern("bull:db-writes:*");
+  await flushKeyPattern("bull:monitor-scheduler:*");
   await flushKeyPattern("*stage:*");
   await flushKeyPattern("lock:check:*");
   resetBreaker();

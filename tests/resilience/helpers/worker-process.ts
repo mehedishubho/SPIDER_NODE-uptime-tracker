@@ -185,6 +185,12 @@ export function caseSuffix(): string {
 
 export async function connectPg(): Promise<Client> {
   const client = new Client({ connectionString: TEST_DATABASE_URL });
+  // When a case stops the db container, every IDLE client's server-side
+  // termination (57P01) is emitted as a Client 'error' event — unlistened,
+  // that is an uncaught exception (crashes a bare node process; vitest flags
+  // the run). These clients are query-only: a dead idle connection surfaces
+  // loudly on the next query, so the no-op listener is the correct shield.
+  client.on("error", () => {});
   await client.connect();
   return client;
 }
@@ -248,14 +254,18 @@ export function ensureStackUp(): void {
 }
 
 const QUEUE_KEY_PATTERNS = [
-  "bull:monitor-scheduler:",
-  "bull:monitor-checks:",
-  "bull:db-writes:",
-  "bull:alerts:",
-  "bull:maintenance:",
-  "bull:email-transactional:",
-  "*stage:*",
-  "flushstage:*",
+  // Glob patterns need the trailing '*' — a bare 'bull:monitor-checks:'
+  // matches only a key literally named that (a no-op). The wildcard form
+  // clears job hashes AND the wait/prioritized/delayed/active/meta member
+  // sets, so a crashed prior run's stale 'active' job cannot leak into the
+  // next case's depth reads (found via a leftover check:51 job hash).
+  "bull:monitor-scheduler:*",
+  "bull:monitor-checks:*",
+  "bull:db-writes:*",
+  "bull:alerts:*",
+  "bull:maintenance:*",
+  "bull:email-transactional:*",
+  "*stage:*", // matches both stage:{monitorId} and flushstage:{batchId}
   "lock:check:*",
   "alert:*",
 ];

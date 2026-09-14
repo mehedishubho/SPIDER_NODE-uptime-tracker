@@ -17,7 +17,8 @@
     "smoke:enqueue": "tsx scripts/enqueue-smoke.mjs",
     "schema:gate": "node scripts/schema-gate.mjs",
     "worker:boundary": "node scripts/check-worker-boundary.mjs",
-    "verify": "docker compose -f docker-compose.test.yml up -d --wait && pnpm lint && pnpm typecheck && pnpm test && pnpm schema:gate && pnpm worker:boundary && pnpm build && pnpm test:e2e"
+    "denylist:diff": "node scripts/check-denylist-diff.mjs",
+    "verify": "docker compose -f docker-compose.test.yml up -d --wait && pnpm lint && pnpm typecheck && pnpm test && pnpm schema:gate && pnpm worker:boundary && pnpm denylist:diff && pnpm build && pnpm test:e2e"
   },
   "packageManager": "pnpm@10.34.5",
   "engines": {

@@ -8,6 +8,7 @@
 > **Amended 2026-09-09 (fix cycle):** §1/§2/§3/§4/§5 amended and §4a added — the Migrate step is phase-conditional (WR-03), the PM2 ready handshake names the process signal (WR-04), the first worker release has its own path (WR-05), and the steady-state budget is stated as ≤ 30 (IN-05 runbook half). §10 added later in the same fix cycle — worker-host egress control, closing RR-01's operator half (S-1 layer 1, mirroring audit §15.4).
 > **Amended 2026-09-11 (Phase 2, plan 02-04):** deployment is fully manual from Phase 2 on — the GitHub-hosted deploy workflow was deleted (D-01), so §3 is rewritten as typed-by-hand steps with `pnpm verify` as the pre-deploy gate (D-02), the build happens on the dev machine and ships as a tarball (D-03), post-deploy verification is typed checks (D-04), Phase 2 runs no schema command (D-05), the generated Prisma client ships in the tarball so the VPS never builds or generates (D-14), and §3a adds the one-time VPS Node 24 + pnpm switch for the operator to run at their next real deploy (D-26). Every workflow-era instruction is gone from this document.
 > **Amended 2026-09-12 (Phase 3, plan 03-06):** the Phase 3 operator path is complete — §3b adds the one-time VPS Redis install + hardening (D-15/D-17/D-18), §3c the Redis 70% memory alert via VPS cron + a dedicated healthchecks.io check (D-16), and §3d the migration-rehearsal procedure (D-10..D-12). §3 step 3's Phase-3 branch is activated (one-time baseline stamp via `scripts/stamp-baseline.mjs`, then the single `pnpm exec drizzle-kit migrate` runner), §3 step 5 gains the limiter-live checks (d)/(e)/(f), and §1's budget now counts the web process's 1 Redis connection.
+> **Amended 2026-09-14 (Phase 4, plan 04-09):** the worker deploy form is real — §4/§4a ordering ACTIVATES per D-23 (build → backup → migrate no-op-when-pending-zero → worker start + `readyz` wait → web restart → smoke in the D-18 enqueue form); §4a gains step 4, the `next_check_at` re-seed typed now for Phase-5 execution (D-49); §10's egress rules are authored as concrete iptables/nftables text with the D-17 first-VPS-deploy disposition; pre-deploy steps gain `pnpm test:resilience` (D-27) and the worker deploy rehearsal `pnpm rehearse:worker` (D-32); §6a documents the synthetic smoke monitor seed values (D-19) and the outbox re-drive procedure (D-46); the dark-launch rollback is stated as stop-the-worker (D-22). The one-list-in-three-statements denylist mandate (engine §15.1 / audit §15.4 / §10) is now machine-enforced by `pnpm denylist:diff` (D-40) in the verify chain.
 
 ---
 
@@ -48,7 +49,7 @@ In every release the migration runs **before** any process restart, and in the t
 
 > **Deployment is fully manual from Phase 2 on (D-03).** No CI, no deploy scripts, no artifact tooling — the operator types every step below, on the dev machine and over SSH. Nothing is assumed beyond `pnpm` on the dev machine, `ssh`/`scp` to reach the VPS, and `pm2` on the VPS. The dev machine builds; the VPS extracts, installs, and reloads. The VPS never builds Next 16 itself (the `--max_old_space_size=2048` flag in the build script exists precisely because small servers run out of memory) and never runs `prisma generate` — the generated client ships inside the tarball (D-14).
 
-> **The pre-deploy gate is `pnpm verify` (D-02).** One typed command runs the whole chain on the dev machine before anything ships: it brings up the throwaway test stack (`docker compose -f docker-compose.test.yml up -d --wait` — containerized Postgres + Redis), then `pnpm lint` → `pnpm typecheck` → `pnpm test` → `pnpm build` → `pnpm test:e2e`. Budget: **≤ 5 minutes warm (D-20)** — if the chain ever grows past that, the budget is defended (cut scope or parallelize), because a 20-minute gate gets skipped. **The gate is only as good as the operator discipline of actually running it before every release (D-02): no CI exists to enforce it (D-01).** A release shipped without a green verify is an unverified release.
+> **The pre-deploy gate is `pnpm verify` (D-02).** One typed command runs the whole chain on the dev machine before anything ships: it brings up the throwaway test stack (`docker compose -f docker-compose.test.yml up -d --wait` — containerized Postgres + Redis), then `pnpm lint` → `pnpm typecheck` → `pnpm test` → `pnpm schema:gate` → `pnpm worker:boundary` → `pnpm denylist:diff` → `pnpm build` → `pnpm test:e2e`. Budget: **≤ 5 minutes warm (D-20)** — if the chain ever grows past that, the budget is defended (cut scope or parallelize), because a 20-minute gate gets skipped. **The gate is only as good as the operator discipline of actually running it before every release (D-02): no CI exists to enforce it (D-01).** A release shipped without a green verify is an unverified release. **Phase 4+ (D-27/D-32, added 2026-09-14): a release that ships or runs the worker additionally runs `pnpm test:resilience`** (the injection suite — what breakage the worker survives; it takes exclusive ownership of the 5453/6390 test stack, so never run it concurrently with `pnpm verify`) **and rehearses the full deploy-day sequence with `pnpm rehearse:worker`** (build → migrate no-op assert → backup → seed → worker + readyz → smoke → both outage injections → SIGINT-drain container leg → evidence file under the phase directory). The rehearsal owns its throwaway stack (ports 5460/6460/9460) and never touches the production stand-ins.
 
 1. **Gate, then build (dev machine).**
    - *Action:* from the release commit, run `pnpm verify` and require green. Then build and pack the release tarball from the repo root (Git Bash or any POSIX-flavored shell on the dev machine):
@@ -262,13 +263,15 @@ The VPS currently runs the app the way it always has: Node loaded via NVM (Ubunt
 
 `uptime-tracker` (web) + `uptime-worker` (worker). The worker restart and `readyz` wait are inserted **before** the web restart — the worker gates the release (D-04/P-1).
 
+> **ACTIVATED 2026-09-14 (D-23, plan 04-09):** this ordering executed for real as the Phase 4 dark launch (see §4a and the phase deploy record) — build, backup, migrate (a no-op exit 0 when zero migrations are pending), worker start + `readyz` wait, web restart, then the smoke check in the D-18 enqueue form. Every subsequent Phase 4+ worker release follows this section unchanged; the first worker registration is §4a.
+
 Health surfaces (worker, port 9090): `GET :9090/healthz` = process alive only. `GET :9090/readyz` = process alive **and** Redis ping passes **and** database ping passes. Only `readyz` passing means the worker can take traffic.
 
 Two distinct readiness signals exist, and PM2 watches only the first: the worker must emit the **PM2 ready signal** — a `process.send('ready')` call — once its Redis and DB pings pass, i.e. exactly when `readyz` would return success. The HTTP `readyz` endpoint remains the operator's gate; the process ready signal is the PM2 gate (§5 `wait_ready`). An implementer who wires only the HTTP server never signals PM2: with `wait_ready` set, PM2 force-restarts the worker after `listen_timeout` on every boot — a crash loop in the process that gates every Phase 4+ release.
 
 1. **Build.**
-   - *Action:* from the release commit, run the same §3 step 1 gate and build on the dev machine (`pnpm verify` green, then `pnpm build`), producing **both** artifacts from one SHA: `.next` (web) and `worker/dist/index.js` (worker). Tag both with the commit SHA.
-   - *Verification:* every gate exits 0; both artifacts exist and carry the same SHA.
+   - *Action:* from the release commit, run the §3 step 1 gate and build on the dev machine (`pnpm verify` green, then — for worker releases — `pnpm test:resilience` green and one `pnpm rehearse:worker` pass per D-27/D-32, then `pnpm build`), producing **both** artifacts from one SHA (D-06): `.next` (web) and `dist/worker.js` (the single worker entry, D-11 — one build runs `next build` and `tsup` together, so the pair cannot diverge; `/healthz` carries the SHA as runtime proof, D-10). Tag both with the commit SHA.
+   - *Verification:* every gate exits 0; both artifacts exist; the worker's `curl -fsS http://127.0.0.1:9090/healthz` reports the same SHA as the release commit (D-10 provenance).
    - *Rollback:* abort the release — nothing has touched production yet.
 2. **Backup.**
    - *Action:* on the VPS, take a full database backup: `pg_dump "$DATABASE_URL" -F c -f /var/backups/uptime/pre-release-<SHA>.dump`. For cutover-adjacent releases, rehearse first — the mechanics are §3d's pipeline (fresh dump → `pnpm rehearse:migrations` → evidence review → abort on mismatch), with the worker restart and `readyz` wait wrapped around the migrate.
@@ -286,9 +289,9 @@ Two distinct readiness signals exist, and PM2 watches only the first: the worker
    - *Action:* deploy the new web tarball to `/var/www/uptime-tracker`, then `pm2 restart uptime-tracker`.
    - *Verification:* `pm2 ls` shows the app `online`; `curl -fsS http://127.0.0.1:3007/login` returns HTTP 200.
    - *Rollback:* restore the previous web tarball and restart; re-verify the 200.
-6. **Smoke check (target form — synthetic check through the queue).**
-   - *Action:* enqueue **one** synthetic check against a known-good target (the dedicated smoke-test monitor), then query the database and assert the new ping row appears for that monitor.
-   - *Verification:* a `pings` row for the synthetic monitor exists with a timestamp after the enqueue, within one check interval. The release counts as good only when this row appears **and** `readyz` stayed green.
+6. **Smoke check (target form — synthetic check through the queue, D-18).**
+   - *Action:* enqueue **one** synthetic check against the dedicated operator-owned smoke monitor (§6a's seeded synthetic monitor) through the SAME manual enqueue path the app uses — `DATABASE_URL=… REDIS_URL=… pnpm smoke:enqueue`. The job rides the check lane at priority 1; a manual job always takes Tier 1, so the **ping row IS the evidence** (a completed smoke proves enqueue → Redis/BullMQ → worker check → Tier-1 transition transaction → Postgres persist). The script resolves the synthetic monitor, enqueues exactly one job, prints its `check-manual:{monitorId}:{epochMs}` jobId, polls for a NEW ping row, and exits non-zero on timeout or a refused enqueue (Postgres breaker OPEN).
+   - *Verification:* `pnpm smoke:enqueue` exits 0 printing the jobId and the new ping row (status/responseTime); `readyz` stayed green throughout. The release counts as good only when both hold.
    - *Rollback:* if no ping row appears (or `readyz` flipped), restore the previous web **and** worker tarballs, restart worker first (`readyz`) then web, and repeat the smoke check. If it still fails, restore the database from the pre-release dump taken in step 2 and escalate.
 
 ---
@@ -297,10 +300,12 @@ Two distinct readiness signals exist, and PM2 watches only the first: the worker
 
 The first release that introduces `uptime-worker` is not a restart: the app does not exist in PM2 yet, there is no previous worker tarball, and the old monitoring path must stay live until the new one has proven continuity (audit M3 — this is the highest-risk release of the milestone). §4 step 4's `pm2 restart` form applies from the **second** worker release onward; this subsection is the complete path for the **first** release only. §4 steps 1–3 (build, backup, migrate) and the §4 step 6 smoke check run unchanged around it.
 
+> **EXECUTED 2026-09-14 as the Phase 4 DARK LAUNCH (D-15/D-16/D-21/D-23, plan 04-09):** the worker went live as a plain process on the operator-ratified local stand-in (spidernode-dev-db + the hardened Redis stand-in + `pnpm start` web — the 03-08 topology) with `WORKER_SCHEDULER_ENABLED=false`. The flag pauses ONLY the scheduler upserts — consumers always live, and `queue.pause` is forbidden — so the worker consumes anything enqueued (the smoke check) while the legacy `instrumentation.ts` cron serves 100% of user monitors exactly as before. **Rollback for the dark launch is: stop the worker process (D-22).** No code-level rollback exists this phase by design — the worker is additive, the cron never stopped, and Phase 5 owns the overlap-verified cutover rehearsal. The PM2 handshake (`wait_ready`/`kill_timeout`) is exercised as configuration in `ecosystem.config.js` only — its live behavior is a first-VPS-deploy consumption point (deploy record disposition).
+
 1. **Register and start the worker — never `pm2 restart`.**
-   - *Action:* deploy the worker artifact, then register the new PM2 app: `pm2 start ecosystem.config.js --only uptime-worker` (or `pm2 startOrReload` — both handle an unregistered app). **Never `pm2 restart uptime-worker`** on the first release: it errors on a name PM2 has never started. The app must emit the PM2 ready signal (`process.send('ready')` after its Redis + DB pings pass — §4/§5).
+   - *Action:* deploy the worker artifact, then register the new PM2 app: `pm2 start ecosystem.config.js --only uptime-worker` (or `pm2 startOrReload` — both handle an unregistered app). **Never `pm2 restart uptime-worker`** on the first release: it errors on a name PM2 has never started. The app must emit the PM2 ready signal (`process.send('ready')` after its Redis + DB pings pass — §4/§5). **Dark-launch posture:** the plain-process stand-in runs `node dist/worker.js` with `WORKER_SCHEDULER_ENABLED=false` in its environment (D-16); readiness is still the two signals — `curl :9090/readyz` 200 for the operator, the process ready signal for PM2 (N/A-locally as a plain process).
    - *Verification:* `pm2 ls` shows `uptime-worker` `online` (not `errored`, not restart-looping); `curl -fsS http://127.0.0.1:9090/readyz` passes; the §4 step 6 synthetic-check smoke passes.
-   - *Rollback:* there is no previous worker tarball on this one release — rollback is **web-only monitoring**: `pm2 delete uptime-worker`. The old `instrumentation.ts` cron path is still live (step 2 keeps it that way), so monitoring never stops.
+   - *Rollback:* there is no previous worker tarball on this one release — rollback is **web-only monitoring**: `pm2 delete uptime-worker` (dark launch: stop the worker process — D-22). The old `instrumentation.ts` cron path is still live (step 2 keeps it that way), so monitoring never stops.
 2. **Overlap window — verify continuity with both paths live (M3).**
    - *Action:* disable nothing. The old `instrumentation.ts` cron **keeps running** while the new worker serves — both paths are idempotent by design, so the overlap only wastes duplicate checks, never corrupts data (audit M3). Hold this window until every item below is green.
    - *Verification:* healthchecks.io heartbeat steady (no `/fail` ping fired); worker queue depth returns to ≈ 0 after the initial drain (Redis/BullMQ metrics); pings still flowing for sampled monitors (fresh `pings` rows appearing under both paths); Telegram alert parity over the window (every DOWN/RECOVERY event alerted exactly once); monitor counter deltas sane (audit M4 — `total_checks`/`failed_checks` advance by ≈ the interval count, no doubling).
@@ -309,6 +314,21 @@ The first release that introduces `uptime-worker` is not a restart: the app does
    - *Action:* only after the overlap window has closed green, ship a follow-up release that deletes the old monitoring path — the `instrumentation.ts` cron registration and `CRON_MODE` (audit §24 step 4). From this release the worker is the sole monitoring path. (The external cron endpoints and `CRON_SECRET` follow their own later retirement path in §9 — they are not deleted here.)
    - *Verification:* one full check cycle with zero cron-route traffic (`/api/cron/*` access logs silent; `CRON_MODE` absent from the environment); the healthchecks.io heartbeat still green, now fired from the worker scheduler tick; §4 step 6 smoke check green.
    - *Rollback:* restore the previous release tarball pair and restart both apps — the previous release still carries the cron path, so web-cron returns; watch one check interval to confirm it is firing.
+4. **Re-seed `next_check_at` BEFORE the scheduler unpause (D-49 — TEXT NOW, execution Phase 5).**
+   - *Action:* **do not run this at the Phase 4 dark launch.** The legacy cron serves the whole dark launch and never advances `next_check_at` — it is stale for every user monitor for the entire window (fresh installs get a backfilled value, but every pre-existing monitor's slot goes progressively stale). Immediately BEFORE Phase 5 unpause of the worker scheduler (removing `WORKER_SCHEDULER_ENABLED=false`), run the re-seed against the DIRECT database URL, in live column names:
+
+     ```sql
+     -- D-49 re-seed (run once, immediately before the Phase 5 scheduler unpause):
+     UPDATE monitors
+        SET next_check_at = LEAST(
+              "lastChecked" + ("interval" * interval '1 minute'),
+              now()         + ("interval" * interval '1 minute'))
+      WHERE "isActive";
+     ```
+
+     `LEAST` bounds the wave: a monitor overdue by hours gets its (past) nominal slot — the claim's D-50 `GREATEST` catch-up advance then handles it as one immediately-due claim — while a monitor checked recently keeps its true next slot. One UPDATE, zero new migrations, forward-only.
+   - *Verification:* the UPDATE reports a row count equal to the active-monitor count; the first scheduler tick after unpause claims a sane wave (no backlog-gate drops in `/metrics.json`), and §4 step 6 smoke stays green.
+   - *Rollback:* no down-path needed — the column is derived scheduling state, not data; re-running the UPDATE (or letting one tick pass) recomputes it. If the unpause itself goes wrong, re-pause (`WORKER_SCHEDULER_ENABLED=false`) — the cron is still live until the §4a step-3 cutover release.
 
 ---
 
@@ -329,6 +349,14 @@ The first release that introduces `uptime-worker` is not a restart: the app does
 ## 6. Smoke check definition (normative)
 
 The target-topology smoke check is: **enqueue one synthetic check against a known-good target and assert the ping row appears in the database.** It proves the full path — web enqueue → Redis/BullMQ → worker check → Postgres persist — in one action. Interim releases (Phases 2–3) have no worker; their post-deploy check is the typed check set in §3 step 5 (from Phase 3 including the Redis limiter-live checks (d)–(f) — D-04). A release is not good until its topology's check passes.
+
+---
+
+## 6a. The synthetic smoke monitor + outbox re-drive (D-19/D-46)
+
+**Seed values (D-19 — applied by `scripts/seed-synthetic.sql` after every migrate on a deploy topology):** the smoke target is an operator-owned monitor, never a user's. Its owner is the sentinel user `spidernode-ops-smoke` (email `ops-smoke@spidernode.internal`, **no telegram binding** — any outbox row its checks produce takes the relay's no-chat skip path, so a smoke can never page a human). The monitor's natural key is (`spidernode-ops-smoke`, `https://example.com/`): IANA's reserved documentation host — stable, publicly reachable, fast. `interval` is 1440 (once a day): `lastChecked` is seeded to `now()` because the legacy cron treats a NULL `lastChecked` as "check immediately", and `next_check_at` is seeded one interval ahead because the worker claim treats NULL as due (NULLS FIRST). The seed is idempotent (ON CONFLICT / WHERE NOT EXISTS) — re-running never resets `lastChecked`. Every Tier-1 smoke check re-advances `lastChecked`, keeping the 24 h quiet window rolling under both engines.
+
+**Re-drive (D-46 — `node scripts/redrive-outbox.mjs [--apply]`):** FAILED outbox rows are derived state (`sent_at IS NULL AND (payload ? '_relayFailure' OR attempts >= 3)`) and are RETAINED for the operator — the relay never revisits them. The re-drive lists them, and only with `--apply` re-marks them PENDING (`attempts = 0`, `_relayFailure` marker removed). **The dedup key is checked BEFORE any re-mark**: the relay writes `alert:{incidentId}:down|recovered` / `alert:{monitorId}:first_check` (TTL 7 d) only after a CONFIRMED send, so a held key means the human already got that alert — the row is reported and skipped, never double-sent. Default is dry-run (zero writes without `--apply`); rows that left the FAILED state concurrently are left untouched (idempotent UPDATE guard).
 
 ---
 
@@ -364,8 +392,50 @@ The target-topology smoke check is: **enqueue one synthetic check against a know
 > **Design rule (S-1 layer 1 / audit §15.4):** the worker host denies outbound connections to the private ranges and allows public-internet egress on ports 80/443 only, with DNS and loopback/VPC-internal Postgres (5432) / Redis (6379) as the sole exceptions. The rule set is applied **once**, when the worker host is first provisioned (§4a step 1), before the worker takes production traffic — it is never part of a routine release.
 
 1. **Apply the host-firewall egress rules.**
-   - *Action:* on the worker host, apply and persist outbound firewall rules that (a) **deny** connections to the private ranges — `10/8`, `172.16/12`, `192.168/16`, `127/8`, `169.254/16`, `0.0.0.0/8`, `::1`, `fc00::/7`, `fe80::/10`, `::ffff:0:0/96`, `64:ff9b::/96` — the identical range list audit §15.4 mirrors from the engine denylist (§15.1 step 4 sub-step 2); (b) **allow** outbound `80/tcp` and `443/tcp` to the public internet; (c) **allow** the exceptions — DNS resolution, and loopback/VPC-internal `5432/tcp` (Postgres) and `6379/tcp` (Redis). Make the rules survive a reboot.
+   - *Action:* on the worker host, apply and persist outbound firewall rules that (a) **deny** connections to the private ranges — `10/8`, `172.16/12`, `192.168/16`, `127/8`, `169.254/16`, `0.0.0.0/8`, `::1`, `fc00::/7`, `fe80::/10`, `::ffff:0:0/96`, `64:ff9b::/96` — the identical range list audit §15.4 mirrors from the engine denylist (§15.1 step 4 sub-step 2); (b) **allow** outbound `80/tcp` and `443/tcp` to the public internet; (c) **allow** the exceptions — DNS resolution, and loopback/VPC-internal `5432/tcp` (Postgres) and `6379/tcp` (Redis). Make the rules survive a reboot. Concrete iptables form (Ubuntu 24.04 — pair with `iptables-persistent`/`netfilter-persistent save`; the nftables equivalent below):
+
+     ```bash
+     # IPv4 — deny the private ranges (the same 6 tokens the engine denylist carries):
+     for cidr in 10/8 172.16/12 192.168/16 127/8 169.254/16 0.0.0.0/8; do
+       iptables -A OUTPUT -d "$cidr" -j REJECT
+     done
+     # IPv6 — deny the private ranges (the remaining 5 tokens):
+     for cidr in ::1 fc00::/7 fe80::/10 ::ffff:0:0/96 64:ff9b::/96; do
+       ip6tables -A OUTPUT -d "$cidr" -j REJECT
+     done
+     # Allow public-internet egress on 80/443 only, plus loopback (worker health
+     # server + local Redis/Postgres on this single-host topology):
+     iptables  -A OUTPUT -p tcp -d 0.0.0.0/0 --dport 80  -j ACCEPT
+     iptables  -A OUTPUT -p tcp -d 0.0.0.0/0 --dport 443 -j ACCEPT
+     iptables  -A OUTPUT -o lo -j ACCEPT
+     ip6tables -A OUTPUT -p tcp -d ::/0 --dport 80  -j ACCEPT
+     ip6tables -A OUTPUT -p tcp -d ::/0 --dport 443 -j ACCEPT
+     ip6tables -A OUTPUT -o lo -j ACCEPT
+     # DNS (resolved via systemd-resolved on loopback — covered by -o lo above;
+     # add an explicit UDP 53 rule only if egress DNS is used):
+     # Final default-deny for everything not matched above:
+     iptables  -A OUTPUT -j REJECT
+     ip6tables -A OUTPUT -j REJECT
+     ```
+
+     nftables equivalent (one table, sets for the deny ranges — same tokens):
+
+     ```bash
+     nft add table inet egress
+     nft add set inet egress deny4 { type ipv4_addr\; flags interval\; }
+     nft add element inet egress deny4 { 10/8, 172.16/12, 192.168/16, 127/8, 169.254/16, 0.0.0.0/8 }
+     nft add set inet egress deny6 { type ipv6_addr\; flags interval\; }
+     nft add element inet egress deny6 { ::1, fc00::/7, fe80::/10, ::ffff:0:0/96, 64:ff9b::/96 }
+     nft add chain inet egress out { type filter hook output priority 0\; policy drop\; }
+     nft add rule inet egress out ip  daddr @deny4 reject
+     nft add rule inet egress out ip6 daddr @deny6 reject
+     nft add rule inet egress out tcp dport { 80, 443 } accept
+     nft add rule inet egress out oif "lo" accept
+     ```
+
    - *Verification:* from the worker host — a `curl` to a public `http://` target and a public `https://` target both succeed; a direct request to a private-range address — any `10.x.x.x`, `172.16.x.x`–`172.31.x.x`, or `192.168.x.x` host, or the link-local metadata canary `http://169.254.169.254/latest/meta-data` — is refused; a request to a public host on a non-80/443 port is refused; and the worker's `curl -fsS http://127.0.0.1:9090/readyz` stays green (the Redis + DB pings inside `readyz` prove the 6379/5432 exceptions work — §4).
    - *Rollback:* remove the rules and re-verify `readyz` stays green. The engine-layer SSRF validation (audit §15.1 step 4) remains enforced either way — the OS egress layer is defense-in-depth, so removing it never disables the primary boundary.
 
-This section is not re-run per release. If the denylist itself ever changes, audit §15.1 step 4 sub-step 2, audit §15.4, and this section must be updated in the same change — the three lists are one list.
+> **D-17 disposition (2026-09-14, plan 04-09):** the concrete rules above are AUTHORED AND VERIFIED AS TEXT ONLY. No SpiderNode worker host has existed to enforce them on yet — the Phase 4 dark launch runs on the local stand-in where no OS egress filter applies, and SEC-02's completion rides the **first VPS worker deploy**: at that deploy the operator types the command block, runs the verification probes live, and records the results in the deploy record. Until then this section's enforcement status is "text-ready, unenforced" — the engine denylist (src/lib/ssrf.ts) remains the enforced boundary.
+
+This section is not re-run per release. If the denylist itself ever changes, audit §15.1 step 4 sub-step 2, audit §15.4, and this section must be updated in the same change — the three lists are one list, and `pnpm denylist:diff` (in the `pnpm verify` chain since plan 04-09, D-40) fails the verify on any drift between the engine export and this section.

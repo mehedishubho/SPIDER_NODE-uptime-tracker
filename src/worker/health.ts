@@ -24,8 +24,12 @@ import { workerPgPool } from "./db";
 //                     Redis memory percent from ONE INFO call, and (when a
 //                     queueMetrics provider is registered, 04-02) the queue
 //                     section: per-queue depth, head-waiting age, stalled
-//                     count, and the backlog drop counter (OBS-01). Later
-//                     plans extend the same object further — additive shape.
+//                     count, and the backlog drop counter (OBS-01); and (when
+//                     an outboxMetrics provider is registered, 04-07) the
+//                     outbox section: unsent + FAILED counts and the
+//                     transition-to-alert latency distribution (D-24/D-25/
+//                     D-44). Later plans extend the same object further —
+//                     additive shape.
 //
 // Security (T-04-01): bound to 127.0.0.1 only; payloads carry
 // provenance/status exclusively — no connection strings, tokens, or env
@@ -130,6 +134,14 @@ export interface StartHealthServerOptions {
    * throwing provider degrades to no queue keys — never a 500.
    */
   queueMetrics?: () => Promise<unknown>;
+  /**
+   * Outbox-gauge provider for /metrics.json (OBS-01 completion, 04-07 /
+   * D-24/D-25/D-44): unsent + FAILED counts and the transition-to-alert
+   * latency distribution (created_at -> sent_at deltas). Merged the same
+   * additive way as queueMetrics; a throwing provider degrades to no outbox
+   * keys — never a 500.
+   */
+  outboxMetrics?: () => Promise<unknown>;
   /** Fired ONCE, only when both boot pings pass (WRK-08 two-signal contract). */
   onReady?: () => void;
 }
@@ -185,6 +197,12 @@ export function startHealthServer(options: StartHealthServerOptions = {}): Promi
         const queueSection = await options.queueMetrics().catch(() => null);
         if (queueSection && typeof queueSection === "object") {
           Object.assign(body, queueSection);
+        }
+      }
+      if (options.outboxMetrics) {
+        const outboxSection = await options.outboxMetrics().catch(() => null);
+        if (outboxSection && typeof outboxSection === "object") {
+          Object.assign(body, outboxSection);
         }
       }
       res.writeHead(200, { "content-type": "application/json" });

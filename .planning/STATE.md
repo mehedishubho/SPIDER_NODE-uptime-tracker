@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: Monitoring Worker — Build & Dark Launch
 status: executing
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-09-14T05:21:51.165Z"
+stopped_at: Completed 04-07-PLAN.md
+last_updated: "2026-09-14T05:56:03.698Z"
 last_activity: 2026-09-13
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 36
-  completed_plans: 33
+  completed_plans: 34
   percent: 38
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-13)
 ## Current Position
 
 Phase: 04 (Monitoring Worker — Build & Dark Launch) — EXECUTING
-Plan: 6 of 9
+Plan: 7 of 9
 Status: Ready to execute
 Last activity: 2026-09-13 — Phase 04 execution started
 
@@ -89,6 +89,7 @@ Progress: [████████████████████] 27/27 p
 | Phase 04 P04 | 23.5m | 3 tasks | 5 files |
 | Phase 04 P05 | 666s (~11 min, single session) | 2 tasks | 2 files |
 | Phase 04 P06 | 900s (~15 min, single session) | 2 tasks | 5 files |
+| Phase 04 P07 | 1285s | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -197,6 +198,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 04-05: Tier-2 staging is ONE hash stage:{monitorId} (plan key pin) with row-derived deltas - dTotal/dFailed derive from the staged ping:{slot} evidence rows, never a parallel counter field, so counters can never account a check whose evidence row is absent
 - [Phase ?]: 04-05: Redis RENAMENX semantics pinned - source-absent arrives as an ERROR reply (not 0) and is the benign nothing-staged no-op; target-exists (returns 0) under our deterministic batchId is our own pre-crash snapshot and IS applied; plain rename remains forbidden (CR-02)
 - [Phase ?]: 04-05: stageResult accepts UP-class ONLY (throws on DOWN-class; 04-06 routes every non-UP outcome to Tier 1) and the flush job's batchId must be carried in job data, never minted inside the processor
+- [Phase ?]: 04-07: relay claims per-row with FOR UPDATE SKIP LOCKED (batch 50, 5s cadence) instead of the audit's whole-batch lock — a synchronously-sending relay cannot hold a batch lock across Telegram I/O; concurrent passes partition rows without double-sends
+- [Phase ?]: 04-07: outbox FAILED is a zero-migration derived state (payload ? '_relayFailure' jsonb marker OR attempts>=3); attempts counts failed sends only, so permanent 400/401/403 failures stop below the cap and fail-twice-then-succeed records exactly 2 (D-44/D-45)
+- [Phase ?]: 04-07: maintenance dry-run is the DEFAULT (absent flag = zero writes); retention scope is cleanup-logic parity (pings 30d, RESOLVED incidents 90d) with write_guards >7d reported but never deleted (deferred); D-37 audit recomputes uptime_percent with the writers' D-36 expression in absolute form
 
 ### Pending Todos
 
@@ -220,6 +224,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-14T05:21:51.159Z
-Stopped at: Completed 04-03-PLAN.md
+Last session: 2026-09-14T05:56:03.692Z
+Stopped at: Completed 04-07-PLAN.md
 Resume file: None

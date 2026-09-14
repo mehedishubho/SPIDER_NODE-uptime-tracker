@@ -60,7 +60,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [ ] **WRK-10**: Worker dark launch: deployed with scheduler paused and deploy pipeline rehearsed while nothing depends on it, before cutover
 - [ ] **WRK-11**: Overlap-window cutover: old cron and worker run idempotently together; `instrumentation.ts` cron + `CRON_MODE` deleted only after verification (heartbeat steady, queue depth ≈ 0, alert parity, counter deltas sane)
 - [x] **WRK-12**: Priority handling for manual checks and monitors in non-UP state (priorities or separate lane) with documented worst-case latency (J-6)
-- [ ] **WRK-13**: Maintenance jobs support dry-run mode (report row counts without deleting)
+- [x] **WRK-13**: Maintenance jobs support dry-run mode (report row counts without deleting)
 - [x] **WRK-14**: Web and worker share TypeScript from one repo and one build (single package + worker build target, or documented workspace)
 
 ### Data Correctness
@@ -69,10 +69,10 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [x] **DAT-02**: Routine-UP aggregation ≤60 s in Redis applied via one guarded atomic UPDATE per monitor (additive counters, `GREATEST` last_checked, response_time monotonicity, never writes `status`)
 - [x] **DAT-03**: Transactional write guards: guard insert + delta apply in the same Postgres transaction; `ON CONFLICT DO NOTHING` skips re-application (J-2)
 - [x] **DAT-04**: Conditional transition UPDATE (`WHERE status <> target`) plus partial unique index enforcing one ONGOING incident per monitor (D-1)
-- [ ] **DAT-05**: Transactional outbox for transition events; relay job (`FOR UPDATE SKIP LOCKED`, batched) enqueues alerts and marks rows sent (D-2)
-- [ ] **DAT-06**: Incident-keyed alert dedup (`SET NX EX` after confirmed send; retries check first; ≤3 attempts) (D-4)
+- [x] **DAT-05**: Transactional outbox for transition events; relay job (`FOR UPDATE SKIP LOCKED`, batched) enqueues alerts and marks rows sent (D-2)
+- [x] **DAT-06**: Incident-keyed alert dedup (`SET NX EX` after confirmed send; retries check first; ≤3 attempts) (D-4)
 - [x] **DAT-07**: Deterministic ID generation pinned in Drizzle columns; bulk-insert paths verified never to produce `undefined` PKs (D-3)
-- [ ] **DAT-08**: Retention deletes batched (looped `LIMIT ~5000`) in the maintenance queue only (D-7)
+- [x] **DAT-08**: Retention deletes batched (looped `LIMIT ~5000`) in the maintenance queue only (D-7)
 - [x] **DAT-09**: Connection budget enforced: web 10 / worker 20 / migration runner 1; shared pool during ORM transition; statement + idle timeouts set; pooled string for web reads, direct for migrations (D-8)
 - [x] **DAT-10**: `error_class` + status code metadata recorded on pings/incidents (N-5)
 - [ ] **DAT-11**: Windowed uptime backend behind a flag: per-window columns + nightly recompute from pings; lifetime counters remain the displayed numbers
@@ -121,7 +121,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 
 ### Observability
 
-- [ ] **OBS-01**: Queue metrics exported: depth per queue, job age (not just depth), stalled count, transition→alert latency, Redis memory %
+- [x] **OBS-01**: Queue metrics exported: depth per queue, job age (not just depth), stalled count, transition→alert latency, Redis memory %
 - [ ] **OBS-02**: Structured logs with `monitorId` correlation across scheduler → check → persist → alert
 - [ ] **OBS-03**: Outbox-age alerting (rows older than N seconds page the operator)
 - [ ] **OBS-04**: Bull Board queue inspection behind admin auth + IP allowlist
@@ -227,16 +227,16 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | WRK-08 | Phase 4 | Complete |
 | WRK-10 | Phase 4 | Pending |
 | WRK-12 | Phase 4 | Complete |
-| WRK-13 | Phase 4 | Pending |
+| WRK-13 | Phase 4 | Complete |
 | WRK-14 | Phase 4 | Complete |
 | DAT-01 | Phase 4 | Complete |
 | DAT-02 | Phase 4 | Complete |
 | DAT-03 | Phase 4 | Complete |
 | DAT-04 | Phase 4 | Complete |
-| DAT-05 | Phase 4 | Pending |
-| DAT-06 | Phase 4 | Pending |
+| DAT-05 | Phase 4 | Complete |
+| DAT-06 | Phase 4 | Complete |
 | DAT-07 | Phase 4 | Complete |
-| DAT-08 | Phase 4 | Pending |
+| DAT-08 | Phase 4 | Complete |
 | DAT-10 | Phase 4 | Complete |
 | RES-01 | Phase 4 | Complete |
 | RES-02 | Phase 4 | Complete |
@@ -245,7 +245,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | RES-05 | Phase 4 | Pending |
 | SEC-01 | Phase 4 | Complete |
 | SEC-02 | Phase 4 | Pending |
-| OBS-01 | Phase 4 | Pending |
+| OBS-01 | Phase 4 | Complete |
 | OBS-02 | Phase 4 | Pending |
 | DEP-01 | Phase 4 | Pending |
 | DEP-02 | Phase 4 | Pending |

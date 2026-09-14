@@ -185,7 +185,7 @@ Plans:
   4. Failure injection proves both outage directions: Postgres down → jobs retry (nothing silently lost), the circuit breaker opens and pauses enqueueing, and the backlog cap drops routine checks but never transitions; Redis down → monitoring pauses by design, Postgres stays intact, and in-product staleness ("last checked Xm ago") is visible to users
   5. The check engine enforces SSRF layering (per-redirect-hop private-range denial, scheme allowlist, 2 MB cap, strict 10 s timeout — test cases pass) with OS-level egress rules active on the worker host; an operator can trace one check end-to-end via `monitorId`-correlated structured logs and queue metrics (depth, job age, stalled count); the maintenance job has a dry-run that reports row counts without deleting; the pipeline orders build → backup → migrate → worker (waits readyz) → web → smoke check that produces a synthetic ping row
 
-**Plans**: 6/9 plans executed
+**Plans**: 7/9 plans executed
 
 Plans:
 **Wave 1**
@@ -205,7 +205,7 @@ Plans:
 
 **Wave 4** *(blocked on 04-06)*
 
-- [ ] 04-07-PLAN.md — Outbox relay with byte-parity Telegram + 7-day dedup + typed FAILED retain, maintenance dry-run + D-37 consistency + batched retention, metrics completion (DAT-05, DAT-06, DAT-08, WRK-13, OBS-01)
+- [x] 04-07-PLAN.md — Outbox relay with byte-parity Telegram + 7-day dedup + typed FAILED retain, maintenance dry-run + D-37 consistency + batched retention, metrics completion (DAT-05, DAT-06, DAT-08, WRK-13, OBS-01)
 
 **Wave 5** *(blocked on 04-06 + 04-07)*
 

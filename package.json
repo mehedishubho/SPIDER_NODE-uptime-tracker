@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:resilience": "docker compose -f docker-compose.test.yml up -d --wait && pnpm exec tsup && vitest run --config vitest.config.resilience.ts",
     "rehearse:migrations": "node scripts/rehearse-migrations.mjs",
     "schema:gate": "node scripts/schema-gate.mjs",
     "worker:boundary": "node scripts/check-worker-boundary.mjs",

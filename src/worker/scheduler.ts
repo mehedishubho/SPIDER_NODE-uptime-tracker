@@ -7,6 +7,7 @@ import type { BacklogGate } from "./backlog";
 import { enqueueClaimedCheck, LANE_PRIORITY, noteStalledEvent, QUEUE_NAMES, workerQueues } from "./queues";
 import type { WorkerQueueSet } from "./queues";
 import { FLUSH_CADENCE_MS } from "./persist/tier2";
+import { RELAY_PASS_EVERY_MS } from "./persist/outbox";
 
 // ---------------------------------------------------------------------------
 // The scheduler lane (WRK-10 / D-16, audit §14.2): the tick processor, the
@@ -49,6 +50,17 @@ export const MAINTENANCE_CLEANUP_PATTERN = "15 3 * * *";
  * lane cannot run.
  */
 export const FLUSH_SWEEP_SCHEDULER_ID = "tier2-flush-sweep";
+/**
+ * The outbox relay pass cadence driver (04-07): rides the ALERTS lane — the
+ * lane whose consumer (startAlertsLaneWorker -> processRelayJob) owns the
+ * relay. Documented Rule-2 deviation: 04-07's plan places the 5 s relay
+ * cadence on processRelayJob but lists no scheduler for it and keeps
+ * scheduler.ts out of its files_modified — without a driver, outbox rows sit
+ * unsent until a manual enqueue. The alerts lane had no scheduler and no
+ * pinned scheduler count in the flag suite, so the upsert lands here on the
+ * correct lane behind the same D-16 lever as every recurring scheduler.
+ */
+export const OUTBOX_RELAY_SCHEDULER_ID = "relay-pass";
 
 export interface TickResult {
   claimed: number;
@@ -213,10 +225,31 @@ export async function upsertSchedulersAtBoot(opts: {
     }
   );
 
+  // The outbox relay pass: every RELAY_PASS_EVERY_MS (5 s) on the alerts
+  // lane (see OUTBOX_RELAY_SCHEDULER_ID above). removeOnComplete carries a
+  // count cap as well as the age — a 5 s cadence would otherwise accumulate
+  // ~720 completed-job keys per hour against Pitfall 6's lazy eviction.
+  await queues.alerts.upsertJobScheduler(
+    OUTBOX_RELAY_SCHEDULER_ID,
+    { every: RELAY_PASS_EVERY_MS },
+    {
+      name: "relay-pass",
+      data: {},
+      opts: {
+        priority: LANE_PRIORITY.relayPass,
+        attempts: 5,
+        backoff: { type: "exponential", delay: 5000 },
+        removeOnComplete: { age: 3600, count: 100 },
+        removeOnFail: { age: 604800 },
+      },
+    }
+  );
+
   const upserted = [
     { queue: QUEUE_NAMES.scheduler, schedulerId: CHECK_TICK_SCHEDULER_ID },
     { queue: QUEUE_NAMES.maintenance, schedulerId: MAINTENANCE_CLEANUP_SCHEDULER_ID },
     { queue: QUEUE_NAMES.dbWrites, schedulerId: FLUSH_SWEEP_SCHEDULER_ID },
+    { queue: QUEUE_NAMES.alerts, schedulerId: OUTBOX_RELAY_SCHEDULER_ID },
   ];
   log.info({ upserted }, "job schedulers upserted (idempotent — safe at every boot)");
   return { upserted };

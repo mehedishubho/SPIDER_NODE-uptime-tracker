@@ -466,6 +466,18 @@ export const CHECK_LANE_CONCURRENCY = 10;
 /** §14.1 db-writes-lane concurrency: 5 guarded flushes in flight. */
 export const DB_WRITES_LANE_CONCURRENCY = 5;
 
+/**
+ * §14.1 alerts-lane concurrency: 1 — one relay pass at a time. The pass
+ * self-spaces via the 5 s scheduler cadence, and processRelayJob's per-row
+ * FOR UPDATE SKIP LOCKED claim is what guards multi-PROCESS overlap; a single
+ * pass at a time per process keeps the stalled-checker's 30 s lockDuration
+ * comfortably above a 50-row batch of Telegram sends.
+ */
+export const ALERTS_LANE_CONCURRENCY = 1;
+
+/** §14.1 maintenance-lane concurrency: 1 — D-7: bulk deletes never parallelize. */
+export const MAINTENANCE_LANE_CONCURRENCY = 1;
+
 /** A lane job as consumers see it (BullMQ Job structural subset). */
 export interface LaneJob {
   id?: string;
@@ -527,4 +539,61 @@ export function startDbWritesLaneWorker(
   opts: { concurrency?: number } = {}
 ): LaneWorkerHandle {
   return startLaneWorker(QUEUE_NAMES.dbWrites, processor, opts.concurrency ?? DB_WRITES_LANE_CONCURRENCY);
+}
+
+/**
+ * Starts the alerts-lane consumer — the outbox relay pass (04-07's
+ * processRelayJob, driven by the relay-pass scheduler or any manual enqueue).
+ * ALWAYS runs regardless of the D-16 flag (consumers live during dark launch).
+ */
+export function startAlertsLaneWorker(
+  processor: LaneProcessor,
+  opts: { concurrency?: number } = {}
+): LaneWorkerHandle {
+  return startLaneWorker(QUEUE_NAMES.alerts, processor, opts.concurrency ?? ALERTS_LANE_CONCURRENCY);
+}
+
+/**
+ * Starts the maintenance-lane consumer — dry-run reports and batched
+ * retention deletes (04-07's processMaintenanceJob). Concurrency 1 (D-7).
+ */
+export function startMaintenanceLaneWorker(
+  processor: LaneProcessor,
+  opts: { concurrency?: number } = {}
+): LaneWorkerHandle {
+  return startLaneWorker(QUEUE_NAMES.maintenance, processor, opts.concurrency ?? MAINTENANCE_LANE_CONCURRENCY);
+}
+
+// ---------------------------------------------------------------------------
+// Maintenance enqueue (WRK-13 / D-16)
+// ---------------------------------------------------------------------------
+
+/** What the maintenance enqueue path needs from the queue (injectable). */
+export interface MaintenanceQueueClient {
+  add(name: string, data: unknown, opts?: JobsOptions): Promise<unknown>;
+}
+
+/** Maintenance job options — mirrors the maintenance-cleanup scheduler template. */
+export const MAINTENANCE_JOB_OPTIONS = {
+  priority: LANE_PRIORITY.maintenance,
+  attempts: 5,
+  backoff: { type: "exponential", delay: 5000 },
+  removeOnComplete: { age: 86400 },
+  removeOnFail: { age: 604800 },
+} as const;
+
+/**
+ * Manually enqueues one maintenance job (WRK-13). Works REGARDLESS of
+ * WORKER_SCHEDULER_ENABLED (D-16): the flag gates the recurring scheduler
+ * upserts only — the operator can enqueue a dry-run audit (or a real run)
+ * during dark launch, and the always-live lane consumer processes it.
+ */
+export async function enqueueMaintenance(
+  opts: { dryRun: boolean },
+  deps: { maintenanceQueue?: MaintenanceQueueClient } = {}
+): Promise<{ dryRun: boolean; priority: number; job: unknown }> {
+  const queue = deps.maintenanceQueue ?? workerQueues().maintenance;
+  const job = await queue.add("cleanup", { dryRun: opts.dryRun }, { ...MAINTENANCE_JOB_OPTIONS });
+  log.info({ dryRun: opts.dryRun, priority: LANE_PRIORITY.maintenance }, "maintenance job enqueued (manual path, D-16)");
+  return { dryRun: opts.dryRun, priority: LANE_PRIORITY.maintenance, job };
 }

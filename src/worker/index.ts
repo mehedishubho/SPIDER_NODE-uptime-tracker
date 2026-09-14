@@ -4,9 +4,11 @@ import { workerConnection } from "./connection";
 import { workerPgPool } from "./db";
 import { startHealthServer, WORKER_BUILD_SHA, WORKER_BUILD_TS } from "./health";
 import { collectQueueMetrics, workerQueues } from "./queues";
-import { startCheckLaneWorker, startDbWritesLaneWorker } from "./queues";
+import { startAlertsLaneWorker, startCheckLaneWorker, startDbWritesLaneWorker, startMaintenanceLaneWorker } from "./queues";
 import { startTickWorker, upsertSchedulersAtBoot } from "./scheduler";
 import { fromLaneJob, makeFlushProcessor, processCheckJob } from "./engine/check";
+import { collectOutboxMetrics, processRelayJob } from "./persist/outbox";
+import { processMaintenanceJob } from "./maintenance";
 import { state as breakerState } from "./breaker";
 
 // ---------------------------------------------------------------------------
@@ -23,10 +25,10 @@ import { state as breakerState } from "./breaker";
 // ready signal is what triggers the restart after listen_timeout.
 //
 // Shutdown (WRK-07, handler level): SIGINT and SIGTERM share one drain
-// path — close the health server, await every registered drainable (empty
-// for now), end the worker pool, quit Redis, exit 0. PM2 kill_timeout
-// 20000 (D-20, ecosystem.config.js) bounds how long this may take before
-// SIGKILL.
+// path — close the health server, await every registered drainable (queues,
+// lane workers, the tick worker), end the worker pool, quit Redis, exit 0.
+// PM2 kill_timeout 20000 (D-20, ecosystem.config.js) bounds how long this
+// may take before SIGKILL.
 // ---------------------------------------------------------------------------
 
 const logger = buildLogger();
@@ -95,9 +97,14 @@ async function main(): Promise<void> {
     // OBS-01: the /metrics.json queue section (per-lane depth, head-waiting
     // age, stalled count, backlog drop counter) plus the Postgres breaker's
     // in-process state (RES-01 — CLOSED/OPEN/HALF_OPEN, consecutive-failure
-    // count, openSince; trivially local, no extra collector needed) — lazy,
-    // collected per scrape.
-    queueMetrics: async () => ({ ...(await collectQueueMetrics(queues)), breaker: breakerState() }),
+    // count, openSince; trivially local, no extra collector needed) plus the
+    // outbox section (04-07 — unsent + FAILED counts and the
+    // transition-to-alert latency distribution) — lazy, collected per scrape.
+    queueMetrics: async () => ({
+      ...(await collectQueueMetrics(queues)),
+      breaker: breakerState(),
+      outbox: await collectOutboxMetrics(),
+    }),
     onReady: () => {
       // The PM2 gate (wait_ready) — a DIFFERENT consumer than HTTP /readyz
       // (01-07): the signal must come from the process, not the endpoint.
@@ -138,6 +145,13 @@ async function main(): Promise<void> {
   registerDrainable(checkLaneWorker);
   const dbWritesWorker = startDbWritesLaneWorker(makeFlushProcessor());
   registerDrainable(dbWritesWorker);
+  // 04-07: the alerts lane consumes the outbox relay pass (SKIP LOCKED batch
+  // claim -> byte-parity render -> send -> dedup/mark); the maintenance lane
+  // consumes dry-run reports and batched retention deletes (concurrency 1).
+  const alertsWorker = startAlertsLaneWorker((job) => processRelayJob(job));
+  registerDrainable(alertsWorker);
+  const maintenanceWorker = startMaintenanceLaneWorker((job) => processMaintenanceJob(job));
+  registerDrainable(maintenanceWorker);
   try {
     const schedulers = await upsertSchedulersAtBoot({ schedulerEnabled });
     if (schedulers.upserted.length > 0) {

@@ -1,4 +1,4 @@
-import { Queue } from "bullmq";
+import { Queue, Worker } from "bullmq";
 import type { JobsOptions } from "bullmq";
 import type IORedis from "ioredis";
 import { sql } from "drizzle-orm";
@@ -7,6 +7,7 @@ import { workerDb } from "./db";
 import { buildLogger } from "./logger";
 import { backlogDropCount, noteBacklogDrop, openBacklogGate } from "./backlog";
 import type { BacklogGate } from "./backlog";
+import { BREAKER_GATE_MARKER, BreakerOpenError, canEnqueue } from "./breaker";
 
 // ---------------------------------------------------------------------------
 // Six-lane BullMQ 6 queue topology (WRK-02, audit §14.1 D-12) over ONE shared
@@ -183,6 +184,17 @@ export function manualCheckJobId(monitorId: number, nowMs: number = Date.now()):
   return `check-manual:${monitorId}:${lastManualToken}`;
 }
 
+/**
+ * Tier-2 flush job id: `flush:{monitorId}:{passEpochMs}` — exactly 3 colon
+ * segments (BullMQ 6's mandatory shape). The batchId `{epochMs}:{monitorId}`
+ * contains its OWN colon, so embedding it wholesale would build a rejected
+ * 4-segment id; it rides job DATA instead (04-06 resolution of the plan's
+ * flush:{monitorId}:{batchId} form — see enqueueFlushJob in engine/check.ts).
+ */
+export function flushJobId(monitorId: number, passEpochMs: number): string {
+  return `flush:${monitorId}:${passEpochMs}`;
+}
+
 // ---------------------------------------------------------------------------
 // Enqueue helpers
 // ---------------------------------------------------------------------------
@@ -190,7 +202,8 @@ export function manualCheckJobId(monitorId: number, nowMs: number = Date.now()):
 /**
  * The ONLY door to the check queue: enqueues a check job and REFUSES to run
  * without an explicit priority (Pitfall 3 — unpriorized jobs would dequeue
- * before every prioritized lane, inverting J-6).
+ * before every prioritized lane, inverting J-6), and refuses LOUDLY while the
+ * Postgres breaker is OPEN (RES-01 — the enqueue-side gate, Pattern 6).
  */
 export async function addCheckJob(
   queue: CheckQueueClient,
@@ -202,6 +215,13 @@ export async function addCheckJob(
       "[worker-queues] refusing to enqueue a check job without an explicit priority — " +
         "BullMQ default-0 processes unprioritized jobs BEFORE prioritized ones (Pitfall 3 / WRK-12)"
     );
+  }
+  if (!(await canEnqueue())) {
+    log.warn(
+      { monitorId, jobId: opts.jobId, marker: BREAKER_GATE_MARKER },
+      "check enqueue refused — Postgres breaker OPEN (RES-01, enqueue-side gate)"
+    );
+    throw new BreakerOpenError(`check job ${opts.jobId}`);
   }
   return queue.add("check", { monitorId }, {
     ...CHECK_JOB_OPTIONS,
@@ -235,6 +255,8 @@ export interface CheckEnqueueOutcome {
   priority: number;
   /** true when the backlog gate dropped a routine enqueue (RES-02). */
   dropped: boolean;
+  /** true when the Postgres breaker gate skipped this enqueue (RES-01). */
+  breakerGated?: boolean;
 }
 
 /**
@@ -252,6 +274,18 @@ export async function enqueueClaimedCheck(
   const priority = routine ? LANE_PRIORITY.routineCheck : LANE_PRIORITY.nonUpCheck;
   const jobId = claimedCheckJobId(row.id, row.nextCheckAt);
   const queue = deps.checksQueue ?? workerQueues().checks;
+
+  // Breaker gate BEFORE any add(): a refusal is a SKIP, not a failed enqueue
+  // — deliberately NO J-1 rollback (§14.4 posture: claims stay advanced; the
+  // next tick re-claims naturally once Postgres recovers, and a rollback
+  // storm against a dead database would only add write pressure).
+  if (!(await canEnqueue())) {
+    log.warn(
+      { monitorId: row.id, jobId, marker: BREAKER_GATE_MARKER },
+      "claimed-check enqueue skipped — Postgres breaker OPEN, claims stay advanced (RES-01 / §14.4)"
+    );
+    return { jobId, priority, dropped: true, breakerGated: true };
+  }
 
   if (routine) {
     const gate = deps.gate ?? openBacklogGate({ checksQueue: queue });
@@ -300,6 +334,17 @@ export async function enqueueManualCheck(
   deps: { checksQueue?: CheckQueueClient } = {}
 ): Promise<{ jobId: string; priority: number }> {
   const queue = deps.checksQueue ?? workerQueues().checks;
+  // Breaker gate FIRST (before minting a jobId): manual enqueues must FAIL
+  // LOUDLY — the API route maps BreakerOpenError to a 503 "try again", which
+  // is the honest answer while Postgres is down (a queued manual check would
+  // outlive the poll window anyway).
+  if (!(await canEnqueue())) {
+    log.warn(
+      { monitorId, marker: BREAKER_GATE_MARKER },
+      "manual-check enqueue refused — Postgres breaker OPEN (API maps BreakerOpenError to 503)"
+    );
+    throw new BreakerOpenError(`manual check for monitor ${monitorId}`);
+  }
   const jobId = manualCheckJobId(monitorId);
   await addCheckJob(queue, monitorId, { priority: LANE_PRIORITY.manualCheck, jobId });
   return { jobId, priority: LANE_PRIORITY.manualCheck };
@@ -404,4 +449,82 @@ export async function collectQueueMetrics(queues: WorkerQueueSet): Promise<Queue
     })
   );
   return { queues: Object.fromEntries(entries), backlogDrops: backlogDropCount() };
+}
+
+// ---------------------------------------------------------------------------
+// Lane workers (WRK-01 — registered by src/worker/index.ts at boot). Each lane
+// owns ONE blocking worker connection (§25 budget: 1 producer + N blocking
+// workers per process, one per lane) and pins the stalled config explicitly:
+// lockDuration/stalledInterval 30000 with maxStalledCount 1 — a stalled job is
+// redelivered AT LEAST ONCE, which every persistence layer here is built to
+// absorb (write guards, RENAMENX, conditional transitions).
+// ---------------------------------------------------------------------------
+
+/** §14.1 check-lane concurrency: 10 checks in flight per worker process. */
+export const CHECK_LANE_CONCURRENCY = 10;
+
+/** §14.1 db-writes-lane concurrency: 5 guarded flushes in flight. */
+export const DB_WRITES_LANE_CONCURRENCY = 5;
+
+/** A lane job as consumers see it (BullMQ Job structural subset). */
+export interface LaneJob {
+  id?: string;
+  name: string;
+  data: unknown;
+}
+
+/** A lane consumer — index.ts wires the engine processors in here. */
+export type LaneProcessor = (job: LaneJob) => Promise<unknown>;
+
+/** What the boot flow needs to drain the lane (WRK-07 drainable). */
+export interface LaneWorkerHandle {
+  close(): Promise<void>;
+}
+
+function startLaneWorker(
+  queueName: string,
+  processor: LaneProcessor,
+  concurrency: number
+): LaneWorkerHandle {
+  const worker = new Worker(queueName, async (job) => processor({ id: job.id, name: job.name, data: job.data }), {
+    // The blocking worker connection — dedicated, owned and closed by BullMQ.
+    connection: workerConnection(),
+    concurrency,
+    lockDuration: 30_000,
+    stalledInterval: 30_000,
+    maxStalledCount: 1,
+  });
+  worker.on("stalled", (jobId) => {
+    noteStalledEvent(queueName);
+    log.warn({ jobId, queueName }, "lane job stalled — redelivered at-least-once (idempotent persistence absorbs it)");
+  });
+  worker.on("error", (err) => {
+    log.error({ queueName, err: err.message }, "lane worker error");
+  });
+  return {
+    close: () => worker.close(),
+  };
+}
+
+/**
+ * Starts the check-lane consumer (WRK-01). ALWAYS runs regardless of the
+ * D-16 flag — dark launch keeps consumers live for operator smoke enqueues;
+ * only the recurring schedulers are gated (never queue.pause, Pitfall 12).
+ */
+export function startCheckLaneWorker(
+  processor: LaneProcessor,
+  opts: { concurrency?: number } = {}
+): LaneWorkerHandle {
+  return startLaneWorker(QUEUE_NAMES.checks, processor, opts.concurrency ?? CHECK_LANE_CONCURRENCY);
+}
+
+/**
+ * Starts the dbWrites-lane consumer — the Tier-2 flush jobs and the
+ * flush-sweep scheduler tick land here (name dispatch inside the processor).
+ */
+export function startDbWritesLaneWorker(
+  processor: LaneProcessor,
+  opts: { concurrency?: number } = {}
+): LaneWorkerHandle {
+  return startLaneWorker(QUEUE_NAMES.dbWrites, processor, opts.concurrency ?? DB_WRITES_LANE_CONCURRENCY);
 }

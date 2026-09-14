@@ -6,6 +6,7 @@ import { openBacklogGate } from "./backlog";
 import type { BacklogGate } from "./backlog";
 import { enqueueClaimedCheck, LANE_PRIORITY, noteStalledEvent, QUEUE_NAMES, workerQueues } from "./queues";
 import type { WorkerQueueSet } from "./queues";
+import { FLUSH_CADENCE_MS } from "./persist/tier2";
 
 // ---------------------------------------------------------------------------
 // The scheduler lane (WRK-10 / D-16, audit §14.2): the tick processor, the
@@ -37,6 +38,17 @@ export const CHECK_TICK_SCHEDULER_ID = "check-tick";
 /** Daily off-peak maintenance window (03:15 UTC, §14.1 maintenance lane). */
 export const MAINTENANCE_CLEANUP_SCHEDULER_ID = "maintenance-cleanup";
 export const MAINTENANCE_CLEANUP_PATTERN = "15 3 * * *";
+/**
+ * Tier-2 straggler sweep (§16.2 cadence driver): rides the DBWRITES lane —
+ * the lane whose consumer owns flush dispatch — every FLUSH_CADENCE_MS, so
+ * staged routine-UP batches whose flush job was breaker-gated (or lost to a
+ * crash between staging and enqueue) still land inside the ≤60 s window.
+ * Documented Rule-3 deviation: the plan's prose said "maintenance tick", but
+ * the maintenance lane has no consumer until 04-07 and its scheduler count
+ * is pinned at exactly one by the flag suite — a sweep on a consumer-less
+ * lane cannot run.
+ */
+export const FLUSH_SWEEP_SCHEDULER_ID = "tier2-flush-sweep";
 
 export interface TickResult {
   claimed: number;
@@ -181,9 +193,30 @@ export async function upsertSchedulersAtBoot(opts: {
     }
   );
 
+  // The Tier-2 straggler sweep: every FLUSH_CADENCE_MS on the dbWrites lane
+  // (see FLUSH_SWEEP_SCHEDULER_ID above for why dbWrites, not maintenance).
+  // Same D-16 lever as every other recurring scheduler — zero autonomous
+  // activity while dark-launched.
+  await queues.dbWrites.upsertJobScheduler(
+    FLUSH_SWEEP_SCHEDULER_ID,
+    { every: FLUSH_CADENCE_MS },
+    {
+      name: "flush-sweep",
+      data: {},
+      opts: {
+        priority: LANE_PRIORITY.dbWrites,
+        attempts: 5,
+        backoff: { type: "exponential", delay: 5000 },
+        removeOnComplete: { age: 3600 },
+        removeOnFail: { age: 604800 },
+      },
+    }
+  );
+
   const upserted = [
     { queue: QUEUE_NAMES.scheduler, schedulerId: CHECK_TICK_SCHEDULER_ID },
     { queue: QUEUE_NAMES.maintenance, schedulerId: MAINTENANCE_CLEANUP_SCHEDULER_ID },
+    { queue: QUEUE_NAMES.dbWrites, schedulerId: FLUSH_SWEEP_SCHEDULER_ID },
   ];
   log.info({ upserted }, "job schedulers upserted (idempotent — safe at every boot)");
   return { upserted };

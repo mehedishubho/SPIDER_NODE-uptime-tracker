@@ -4,7 +4,10 @@ import { workerConnection } from "./connection";
 import { workerPgPool } from "./db";
 import { startHealthServer, WORKER_BUILD_SHA, WORKER_BUILD_TS } from "./health";
 import { collectQueueMetrics, workerQueues } from "./queues";
+import { startCheckLaneWorker, startDbWritesLaneWorker } from "./queues";
 import { startTickWorker, upsertSchedulersAtBoot } from "./scheduler";
+import { fromLaneJob, makeFlushProcessor, processCheckJob } from "./engine/check";
+import { state as breakerState } from "./breaker";
 
 // ---------------------------------------------------------------------------
 // dist/worker.js — the SINGLE worker entry (D-11). All queue workers, the
@@ -90,8 +93,11 @@ async function main(): Promise<void> {
     redis,
     pool,
     // OBS-01: the /metrics.json queue section (per-lane depth, head-waiting
-    // age, stalled count, backlog drop counter) — lazy, collected per scrape.
-    queueMetrics: () => collectQueueMetrics(queues),
+    // age, stalled count, backlog drop counter) plus the Postgres breaker's
+    // in-process state (RES-01 — CLOSED/OPEN/HALF_OPEN, consecutive-failure
+    // count, openSince; trivially local, no extra collector needed) — lazy,
+    // collected per scrape.
+    queueMetrics: async () => ({ ...(await collectQueueMetrics(queues)), breaker: breakerState() }),
     onReady: () => {
       // The PM2 gate (wait_ready) — a DIFFERENT consumer than HTTP /readyz
       // (01-07): the signal must come from the process, not the endpoint.
@@ -125,6 +131,13 @@ async function main(): Promise<void> {
   registerDrainable(queues);
   const tickWorker = startTickWorker();
   registerDrainable(tickWorker);
+  // WRK-01: the check lane consumes monitor checks (SSRF fetch -> WRK-05
+  // classification -> Tier 1/Tier 2 persistence); the dbWrites lane consumes
+  // the Tier-2 guarded flush jobs and the flush-sweep scheduler tick.
+  const checkLaneWorker = startCheckLaneWorker((job) => processCheckJob(fromLaneJob(job)));
+  registerDrainable(checkLaneWorker);
+  const dbWritesWorker = startDbWritesLaneWorker(makeFlushProcessor());
+  registerDrainable(dbWritesWorker);
   try {
     const schedulers = await upsertSchedulersAtBoot({ schedulerEnabled });
     if (schedulers.upserted.length > 0) {

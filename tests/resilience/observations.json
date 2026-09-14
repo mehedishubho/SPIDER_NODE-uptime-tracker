@@ -120,6 +120,15 @@
         "closedRecoveryMs": 60188,
         "jobsRetriedNotLost": 3,
         "recordedAt": "2026-09-14T12:50:19.084Z"
+      },
+      {
+        "enqueueToOpenMs": 2255,
+        "consecutiveFailuresAtOpen": 6,
+        "outageToRecoveredMs": 6212,
+        "openWindowMs": 60000,
+        "closedRecoveryMs": 60088,
+        "jobsRetriedNotLost": 3,
+        "recordedAt": "2026-09-14T12:56:32.502Z"
       }
     ],
     "kill-mid-job": [
@@ -159,5 +168,5 @@
       }
     ]
   },
-  "generatedAt": "2026-09-14T12:51:43.257Z"
+  "generatedAt": "2026-09-14T12:56:32.502Z"
 }

@@ -54,7 +54,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [x] **WRK-04**: Per-monitor distributed lock: TTL = timeout + margin, renewal every TTL/3, owner-only Lua compare-and-delete, abort-on-lock-loss (J-3)
 - [x] **WRK-05**: Typed result-vs-error classification: target outcomes (UP/DOWN/timeout/DNS/TLS) are successful jobs; only infra failures throw (J-4)
 - [x] **WRK-06**: Retries with exponential backoff, bounded attempts (3–5), DLQ retention via `removeOnFail` age
-- [ ] **WRK-07**: Graceful shutdown: SIGINT handler + `worker.close()` + PM2 `kill_timeout` ≥ max job duration (~20 s); `stalledInterval`/`maxStalledCount` bounded
+- [x] **WRK-07**: Graceful shutdown: SIGINT handler + `worker.close()` + PM2 `kill_timeout` ≥ max job duration (~20 s); `stalledInterval`/`maxStalledCount` bounded
 - [x] **WRK-08**: Worker health endpoints: `:9090/healthz` (process only) and `/readyz` (Redis + DB ping) gating releases
 - [ ] **WRK-09**: healthchecks.io heartbeat moved to the worker scheduler tick (before any cron deletion)
 - [ ] **WRK-10**: Worker dark launch: deployed with scheduler paused and deploy pipeline rehearsed while nothing depends on it, before cutover
@@ -81,9 +81,9 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 
 - [x] **RES-01**: Circuit breaker around Postgres: infra-failure rate threshold → OPEN (queue pause, stop enqueueing) → HALF_OPEN probe → CLOSED (J-5)
 - [x] **RES-02**: Backlog cap: routine checks droppable at queue depth > ~2× active monitors; transitions never droppable
-- [ ] **RES-03**: Redis outage = monitoring pause by design (no fallback scheduler); detected via external dead-man's switch; UI surfaces "last checked Xm ago" staleness (R-1)
-- [ ] **RES-04**: Postgres outage produces retryable jobs — no silently lost results; failure-injection tests prove Redis-down leaves Postgres intact and Postgres-down loses nothing
-- [ ] **RES-05**: Redis-restart recovery procedure: schedulers re-upserted at boot, stale locks expire via TTL, next tick re-claims via `next_check_at`
+- [x] **RES-03**: Redis outage = monitoring pause by design (no fallback scheduler); detected via external dead-man's switch; UI surfaces "last checked Xm ago" staleness (R-1)
+- [x] **RES-04**: Postgres outage produces retryable jobs — no silently lost results; failure-injection tests prove Redis-down leaves Postgres intact and Postgres-down loses nothing
+- [x] **RES-05**: Redis-restart recovery procedure: schedulers re-upserted at boot, stale locks expire via TTL, next tick re-claims via `next_check_at`
 
 ### Security
 
@@ -223,7 +223,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | WRK-04 | Phase 4 | Complete |
 | WRK-05 | Phase 4 | Complete |
 | WRK-06 | Phase 4 | Complete |
-| WRK-07 | Phase 4 | Pending |
+| WRK-07 | Phase 4 | Complete |
 | WRK-08 | Phase 4 | Complete |
 | WRK-10 | Phase 4 | Pending |
 | WRK-12 | Phase 4 | Complete |
@@ -240,9 +240,9 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | DAT-10 | Phase 4 | Complete |
 | RES-01 | Phase 4 | Complete |
 | RES-02 | Phase 4 | Complete |
-| RES-03 | Phase 4 | Pending |
-| RES-04 | Phase 4 | Pending |
-| RES-05 | Phase 4 | Pending |
+| RES-03 | Phase 4 | Complete |
+| RES-04 | Phase 4 | Complete |
+| RES-05 | Phase 4 | Complete |
 | SEC-01 | Phase 4 | Complete |
 | SEC-02 | Phase 4 | Pending |
 | OBS-01 | Phase 4 | Complete |

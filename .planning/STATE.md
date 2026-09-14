@@ -5,8 +5,8 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: Monitoring Worker — Build & Dark Launch
 status: executing
-stopped_at: Completed 04-07-PLAN.md
-last_updated: "2026-09-14T05:56:03.698Z"
+stopped_at: Completed 04-08-PLAN.md
+last_updated: "2026-09-14T13:20:00.000Z"
 last_activity: 2026-09-13
 last_activity_desc: Phase 04 execution started
 progress:
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-13)
 ## Current Position
 
 Phase: 04 (Monitoring Worker — Build & Dark Launch) — EXECUTING
-Plan: 7 of 9
+Plan: 8 of 9
 Status: Ready to execute
 Last activity: 2026-09-13 — Phase 04 execution started
 
@@ -90,6 +90,7 @@ Progress: [████████████████████] 27/27 p
 | Phase 04 P05 | 666s (~11 min, single session) | 2 tasks | 2 files |
 | Phase 04 P06 | 900s (~15 min, single session) | 2 tasks | 5 files |
 | Phase 04 P07 | 1285s | 2 tasks | 8 files |
+| Phase 04 P08 | 2 sessions (Task 2-3 continuation after usage-limit cutoff; this leg ~75 min incl. two Rule-1 production fixes) | 3 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -201,6 +202,12 @@ Recent decisions affecting current work:
 - [Phase ?]: 04-07: relay claims per-row with FOR UPDATE SKIP LOCKED (batch 50, 5s cadence) instead of the audit's whole-batch lock — a synchronously-sending relay cannot hold a batch lock across Telegram I/O; concurrent passes partition rows without double-sends
 - [Phase ?]: 04-07: outbox FAILED is a zero-migration derived state (payload ? '_relayFailure' jsonb marker OR attempts>=3); attempts counts failed sends only, so permanent 400/401/403 failures stop below the cap and fail-twice-then-succeed records exactly 2 (D-44/D-45)
 - [Phase ?]: 04-07: maintenance dry-run is the DEFAULT (absent flag = zero writes); retention scope is cleanup-logic parity (pings 30d, RESOLVED incidents 90d) with write_guards >7d reported but never deleted (deferred); D-37 audit recomputes uptime_percent with the writers' D-36 expression in absolute form
+- [Phase 04]: 04-08: resilience suite lives OUTSIDE pnpm verify as pnpm test:resilience (D-27) — vitest.config.ts excludes tests/resilience/**; verify = what the code does, test:resilience = what breakage it survives (D-31)
+- [Phase 04]: 04-08: check.ts TEST-ONLY seams — env-gated WORKER_TEST_CRASH_AFTER=tier1_commit SIGKILL hook (D-29, inert without the env) + checkpoints.beforeReverify (deterministic lock-loss injection); both source-pinned by the cases (T-04-30)
+- [Phase 04]: 04-08: breaker pg-classification is cause-chain-aware — drizzle's DrizzleQueryError hides the pg error at the top level; errno-class socket codes classify infra on the worker-DB call-context regardless of message form, EXCEPT ENOTFOUND (connect-message-gated — the WRK-05 target-NXDOMAIN pin holds)
+- [Phase 04]: 04-08: two production defects found+fixed by injection — worker CRASHED on unlistened Pool 'error' (idle-client 57P01 termination) during a Postgres outage; breaker NEVER opened (cause-chain blindness) — both pinned green in unit + injection suites
+- [Phase 04]: 04-08: test Redis runs redis:8-alpine STOCK (restart state indeterminate by design) — redis-restart proves the RES-05 recovery contract (boot re-upsert + TTL expiry + next_check_at re-claim), not persistence invariants the image cannot give
+- [Phase 04]: 04-08: D-34 dispositioned, not built — no relative "Xm ago" surface exists; the staleness pin asserts the raw toLocaleTimeString surface + "Never" ternary on Dashboard/MonitorDetails/PublicStatus
 
 ### Pending Todos
 
@@ -224,6 +231,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-14T05:56:03.692Z
-Stopped at: Completed 04-07-PLAN.md
+Last session: 2026-09-14T13:20:00.000Z
+Stopped at: Completed 04-08-PLAN.md
 Resume file: None

@@ -48,11 +48,11 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 
 ### Worker & Orchestration
 
-- [ ] **WRK-01**: Dedicated worker process (second PM2 app; never inside `next start`) owns all monitoring execution
+- [x] **WRK-01**: Dedicated worker process (second PM2 app; never inside `next start`) owns all monitoring execution
 - [x] **WRK-02**: BullMQ 6 queue topology (scheduler, checks, db-writes, alerts, maintenance, email) using `upsertJobScheduler` for recurring jobs (legacy repeatables removed in v6)
 - [x] **WRK-03**: Claim-based due-selection: single `FOR UPDATE SKIP LOCKED` transaction advancing `next_check_at`; idempotency key `check:{monitorId}:{next_check_at epoch}`; tick ≤ ½ minimum interval; failed-enqueue compensation (J-1)
 - [x] **WRK-04**: Per-monitor distributed lock: TTL = timeout + margin, renewal every TTL/3, owner-only Lua compare-and-delete, abort-on-lock-loss (J-3)
-- [ ] **WRK-05**: Typed result-vs-error classification: target outcomes (UP/DOWN/timeout/DNS/TLS) are successful jobs; only infra failures throw (J-4)
+- [x] **WRK-05**: Typed result-vs-error classification: target outcomes (UP/DOWN/timeout/DNS/TLS) are successful jobs; only infra failures throw (J-4)
 - [x] **WRK-06**: Retries with exponential backoff, bounded attempts (3–5), DLQ retention via `removeOnFail` age
 - [ ] **WRK-07**: Graceful shutdown: SIGINT handler + `worker.close()` + PM2 `kill_timeout` ≥ max job duration (~20 s); `stalledInterval`/`maxStalledCount` bounded
 - [x] **WRK-08**: Worker health endpoints: `:9090/healthz` (process only) and `/readyz` (Redis + DB ping) gating releases
@@ -79,7 +79,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 
 ### Resilience
 
-- [ ] **RES-01**: Circuit breaker around Postgres: infra-failure rate threshold → OPEN (queue pause, stop enqueueing) → HALF_OPEN probe → CLOSED (J-5)
+- [x] **RES-01**: Circuit breaker around Postgres: infra-failure rate threshold → OPEN (queue pause, stop enqueueing) → HALF_OPEN probe → CLOSED (J-5)
 - [x] **RES-02**: Backlog cap: routine checks droppable at queue depth > ~2× active monitors; transitions never droppable
 - [ ] **RES-03**: Redis outage = monitoring pause by design (no fallback scheduler); detected via external dead-man's switch; UI surfaces "last checked Xm ago" staleness (R-1)
 - [ ] **RES-04**: Postgres outage produces retryable jobs — no silently lost results; failure-injection tests prove Redis-down leaves Postgres intact and Postgres-down loses nothing
@@ -217,11 +217,11 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | DRZ-05 | Phase 3 | Complete |
 | DRZ-06 | Phase 3 | Complete |
 | DAT-09 | Phase 3 | Complete |
-| WRK-01 | Phase 4 | Pending |
+| WRK-01 | Phase 4 | Complete |
 | WRK-02 | Phase 4 | Complete |
 | WRK-03 | Phase 4 | Complete |
 | WRK-04 | Phase 4 | Complete |
-| WRK-05 | Phase 4 | Pending |
+| WRK-05 | Phase 4 | Complete |
 | WRK-06 | Phase 4 | Complete |
 | WRK-07 | Phase 4 | Pending |
 | WRK-08 | Phase 4 | Complete |
@@ -238,7 +238,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | DAT-07 | Phase 4 | Complete |
 | DAT-08 | Phase 4 | Pending |
 | DAT-10 | Phase 4 | Complete |
-| RES-01 | Phase 4 | Pending |
+| RES-01 | Phase 4 | Complete |
 | RES-02 | Phase 4 | Complete |
 | RES-03 | Phase 4 | Pending |
 | RES-04 | Phase 4 | Pending |

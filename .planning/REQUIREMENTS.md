@@ -88,7 +88,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 ### Security
 
 - [x] **SEC-01**: SSRF layering in the check engine: resolve-then-validate all IPs against a private-range denylist per redirect hop (≤5), scheme allowlist, 2 MB response cap, strict 10 s timeout — with SSRF test cases (S-1)
-- [ ] **SEC-02**: OS-level egress control on the worker host (deny private ranges; allow 80/443 egress only)
+- [x] **SEC-02**: OS-level egress control on the worker host (deny private ranges; allow 80/443 egress only)
 - [ ] **SEC-03**: Telegram webhook authenticated via `secret_token` (X-Telegram-Bot-Api-Secret-Token header check) (S-2)
 - [ ] **SEC-04**: Admin role via Better Auth admin plugin; feedback listing admin-gated; any queue UI admin-gated + IP allowlist (S-3)
 - [ ] **SEC-05**: Per-user enqueue rate limiter on the manual-check endpoint
@@ -122,7 +122,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 ### Observability
 
 - [x] **OBS-01**: Queue metrics exported: depth per queue, job age (not just depth), stalled count, transition→alert latency, Redis memory %
-- [ ] **OBS-02**: Structured logs with `monitorId` correlation across scheduler → check → persist → alert
+- [x] **OBS-02**: Structured logs with `monitorId` correlation across scheduler → check → persist → alert
 - [ ] **OBS-03**: Outbox-age alerting (rows older than N seconds page the operator)
 - [ ] **OBS-04**: Bull Board queue inspection behind admin auth + IP allowlist
 - [ ] **OBS-05**: Prometheus export (BullMQ telemetry + custom gauges) with optional dashboard
@@ -244,9 +244,9 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | RES-04 | Phase 4 | Complete |
 | RES-05 | Phase 4 | Complete |
 | SEC-01 | Phase 4 | Complete |
-| SEC-02 | Phase 4 | Pending |
+| SEC-02 | Phase 4 | Complete |
 | OBS-01 | Phase 4 | Complete |
-| OBS-02 | Phase 4 | Pending |
+| OBS-02 | Phase 4 | Complete |
 | DEP-01 | Phase 4 | Complete |
 | DEP-02 | Phase 4 | Complete |
 | WRK-09 | Phase 5 | Pending |

@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 04
-current_phase_name: Monitoring Worker — Build & Dark Launch
-status: executing
+current_phase: 5
+current_phase_name: Worker Cutover & Operational Hardening
+status: planning
 stopped_at: Completed 04-09-PLAN.md
-last_updated: "2026-09-14T17:46:52.985Z"
-last_activity: 2026-09-13
-last_activity_desc: Phase 04 execution started
+last_updated: "2026-09-14T18:36:26.947Z"
+last_activity: 2026-09-14
+last_activity_desc: Phase 4 complete, transitioned to Phase 5
 progress:
   total_phases: 8
   completed_phases: 4
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-09-13)
 
 ## Current Position
 
-Phase: 04 (Monitoring Worker — Build & Dark Launch) — EXECUTING
-Plan: 9 of 9
+Phase: 5 — Worker Cutover & Operational Hardening
+Plan: Not started
 Status: Phase 4 complete — operator-approved dark launch (Task 4, 2026-09-14); Phase 5 planning next
-Last activity: 2026-09-13 — Phase 04 execution started
+Last activity: 2026-09-14 — Phase 4 complete, transitioned to Phase 5
 
 Progress: [████████████████████] 36/36 plans (100%)
 
@@ -39,7 +39,7 @@ Progress: [████████████████████] 36/36 p
 
 **Velocity:**
 
-- Total plans completed: 27
+- Total plans completed: 36
 - Average duration: —
 - Total execution time: —
 
@@ -50,6 +50,7 @@ Progress: [████████████████████] 36/36 p
 | 01 | 9 | - | - |
 | 2 | 10 | - | - |
 | 03 | 8 | - | - |
+| 4 | 9 | - | - |
 
 **Recent Trend:**
 
@@ -210,6 +211,7 @@ Recent decisions affecting current work:
 - [Phase 04]: 04-08: test Redis runs redis:8-alpine STOCK (restart state indeterminate by design) — redis-restart proves the RES-05 recovery contract (boot re-upsert + TTL expiry + next_check_at re-claim), not persistence invariants the image cannot give
 - [Phase 04]: 04-08: D-34 dispositioned, not built — no relative "Xm ago" surface exists; the staleness pin asserts the raw toLocaleTimeString surface + "Never" ternary on Dashboard/MonitorDetails/PublicStatus
 - [Phase 04]: 04-09: dark launch approved by operator 2026-09-14 — worker live zero-schedulers ~4h, cron 100%, smoke PASS; fail-loud smoke contract validated by a wrong-env attempt; SEC-02 left pending by D-17 disposition (OS egress enforced at first VPS deploy)
+- [Phase ?]: [Phase 04]: verification + UAT close 2026-09-15 — 11/12 must-haves verified live; 12th clause (SEC-02 OS egress) ACCEPTED as formal override (operator mehedishubho, mirrors 03 AR-01; REQUIREMENTS stays Pending until first VPS deploy); mvp tag dropped (Phase 3 precedent); OBS-02 kept Pending until Phase 5 scheduler-on; REVIEW 9af088a 0C/5W/3I advisory (WR-01 heartbeat = Phase 5 WRK-09 input)
 
 ### Pending Todos
 

@@ -57,7 +57,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [x] **WRK-07**: Graceful shutdown: SIGINT handler + `worker.close()` + PM2 `kill_timeout` ≥ max job duration (~20 s); `stalledInterval`/`maxStalledCount` bounded
 - [x] **WRK-08**: Worker health endpoints: `:9090/healthz` (process only) and `/readyz` (Redis + DB ping) gating releases
 - [ ] **WRK-09**: healthchecks.io heartbeat moved to the worker scheduler tick (before any cron deletion)
-- [ ] **WRK-10**: Worker dark launch: deployed with scheduler paused and deploy pipeline rehearsed while nothing depends on it, before cutover
+- [x] **WRK-10**: Worker dark launch: deployed with scheduler paused and deploy pipeline rehearsed while nothing depends on it, before cutover
 - [ ] **WRK-11**: Overlap-window cutover: old cron and worker run idempotently together; `instrumentation.ts` cron + `CRON_MODE` deleted only after verification (heartbeat steady, queue depth ≈ 0, alert parity, counter deltas sane)
 - [x] **WRK-12**: Priority handling for manual checks and monitors in non-UP state (priorities or separate lane) with documented worst-case latency (J-6)
 - [x] **WRK-13**: Maintenance jobs support dry-run mode (report row counts without deleting)
@@ -145,8 +145,8 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 
 ### Deployment
 
-- [ ] **DEP-01**: Two PM2 apps (web + worker) built and versioned from one SHA; `kill_timeout` ≥ max job duration; crash-loop visibility configured
-- [ ] **DEP-02**: Deploy ordering: build → backup (`pg_dump`) → migrate (single runner) → restart worker (waits `readyz`) → restart web → smoke-check (synthetic check → ping row appears)
+- [x] **DEP-01**: Two PM2 apps (web + worker) built and versioned from one SHA; `kill_timeout` ≥ max job duration; crash-loop visibility configured
+- [x] **DEP-02**: Deploy ordering: build → backup (`pg_dump`) → migrate (single runner) → restart worker (waits `readyz`) → restart web → smoke-check (synthetic check → ping row appears)
 - [ ] **DEP-03**: Rollback story: previous tarball retained; expand/contract discipline (additive-only migrations during verification windows; drops deferred to a following release)
 - [x] **DEP-04**: CI gates on PRs: lint → typecheck → unit/integration → build; deploy only from `main` after green
 - [ ] **DEP-05**: Environment transition complete: `REDIS_URL`, `EMAIL_PROVIDER`, `BETTER_AUTH_*` added; `NEXTAUTH_*`, `CRON_MODE` retired; `.env.example` kept current
@@ -225,7 +225,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | WRK-06 | Phase 4 | Complete |
 | WRK-07 | Phase 4 | Complete |
 | WRK-08 | Phase 4 | Complete |
-| WRK-10 | Phase 4 | Pending |
+| WRK-10 | Phase 4 | Complete |
 | WRK-12 | Phase 4 | Complete |
 | WRK-13 | Phase 4 | Complete |
 | WRK-14 | Phase 4 | Complete |
@@ -247,8 +247,8 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | SEC-02 | Phase 4 | Pending |
 | OBS-01 | Phase 4 | Complete |
 | OBS-02 | Phase 4 | Pending |
-| DEP-01 | Phase 4 | Pending |
-| DEP-02 | Phase 4 | Pending |
+| DEP-01 | Phase 4 | Complete |
+| DEP-02 | Phase 4 | Complete |
 | WRK-09 | Phase 5 | Pending |
 | WRK-11 | Phase 5 | Pending |
 | DEP-03 | Phase 5 | Pending |

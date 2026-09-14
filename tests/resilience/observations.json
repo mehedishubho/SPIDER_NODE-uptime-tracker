@@ -18,6 +18,15 @@
         "pingsAfterRecovery": 1,
         "totalChecksAfterRecovery": 1,
         "recordedAt": "2026-09-14T12:51:43.257Z"
+      },
+      {
+        "injection": "admin DEL at checkpoints.beforeReverify",
+        "abortedWithZeroWrites": true,
+        "abortOutcome": "aborted-lock-lost",
+        "jobMsToAbort": 14,
+        "pingsAfterRecovery": 1,
+        "totalChecksAfterRecovery": 1,
+        "recordedAt": "2026-09-14T13:46:57.396Z"
       }
     ],
     "backlog-flood": [
@@ -40,6 +49,16 @@
         "transitionAdmittedAtDepth": 9,
         "transitionCompletedMs": 537,
         "recordedAt": "2026-09-14T12:51:40.047Z"
+      },
+      {
+        "floodedDepth": 8,
+        "activeMonitors": 3,
+        "cap": 6,
+        "droppedRoutineEnqueues": 1,
+        "backlogDropCounter": 1,
+        "transitionAdmittedAtDepth": 9,
+        "transitionCompletedMs": 544,
+        "recordedAt": "2026-09-14T13:46:56.123Z"
       }
     ],
     "redis-restart": [
@@ -60,6 +79,15 @@
         "pingsResumed": true,
         "tickSchedulersAfterReboot": 1,
         "recordedAt": "2026-09-14T12:51:38.188Z"
+      },
+      {
+        "persistence": "redis:8-alpine stock config (RDB default save points, no AOF/volume) — restart state indeterminate by design",
+        "redisRestartMs": 567,
+        "staleLockTtlExpiryMs": 15116,
+        "bootToSchedulerReupsertMs": 322,
+        "pingsResumed": true,
+        "tickSchedulersAfterReboot": 1,
+        "recordedAt": "2026-09-14T13:46:52.576Z"
       }
     ],
     "duplicate-delivery": [
@@ -80,6 +108,15 @@
         "enqueueToCompletedMs": 213,
         "jobId": "check:60:1789390361",
         "recordedAt": "2026-09-14T12:51:41.890Z"
+      },
+      {
+        "enqueueAttempts": 2,
+        "admittedJobs": 1,
+        "pings": 1,
+        "totalChecks": 1,
+        "enqueueToCompletedMs": 209,
+        "jobId": "check:13:1789393674",
+        "recordedAt": "2026-09-14T13:46:54.331Z"
       }
     ],
     "redis-down": [
@@ -100,6 +137,15 @@
         "recoveryLatencyMs": 43890,
         "postgresIntact": true,
         "recordedAt": "2026-09-14T12:51:04.870Z"
+      },
+      {
+        "pausedWindowMs": 40000,
+        "pingsBefore": 2,
+        "pingsDuringPause": 0,
+        "readyzDuringOutage": "hung",
+        "recoveryLatencyMs": 69561,
+        "postgresIntact": true,
+        "recordedAt": "2026-09-14T13:46:20.769Z"
       }
     ],
     "postgres-down": [
@@ -129,6 +175,15 @@
         "closedRecoveryMs": 60088,
         "jobsRetriedNotLost": 3,
         "recordedAt": "2026-09-14T12:56:32.502Z"
+      },
+      {
+        "enqueueToOpenMs": 2271,
+        "consecutiveFailuresAtOpen": 6,
+        "outageToRecoveredMs": 6252,
+        "openWindowMs": 60000,
+        "closedRecoveryMs": 60210,
+        "jobsRetriedNotLost": 3,
+        "recordedAt": "2026-09-14T13:45:09.280Z"
       }
     ],
     "kill-mid-job": [
@@ -165,8 +220,25 @@
         "pingsAfterRedelivery": 2,
         "totalChecksAfterRedelivery": 1,
         "recordedAt": "2026-09-14T12:49:14.552Z"
+      },
+      {
+        "crashHook": "tier1_commit",
+        "enqueueToCrashMs": 203,
+        "committedAtCrash": {
+          "status": "DOWN",
+          "totalChecks": 1,
+          "failedChecks": 1,
+          "pings": 1,
+          "incidents": 1,
+          "ongoingIncidents": 1,
+          "outbox": 1
+        },
+        "stallRedeliveryMs": 60411,
+        "pingsAfterRedelivery": 2,
+        "totalChecksAfterRedelivery": 1,
+        "recordedAt": "2026-09-14T13:44:04.578Z"
       }
     ]
   },
-  "generatedAt": "2026-09-14T12:56:32.502Z"
+  "generatedAt": "2026-09-14T13:46:57.396Z"
 }

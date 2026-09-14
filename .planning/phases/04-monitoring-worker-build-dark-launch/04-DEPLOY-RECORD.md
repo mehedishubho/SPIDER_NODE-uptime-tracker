@@ -133,4 +133,27 @@ The stand-in web had been down since 2026-09-12; `lastChecked` was stale at T0, 
 
 ## Verdict
 
-**GREEN — the dark launch was boring, exactly as designed.** Worker live with zero scheduler state, `readyz` green, cron serving 100% of user checks across a web restart, smoke ping row evidenced end-to-end, same-SHA one-build pair, zero new migrations, rollback one stop away. The steady state is left running for the operator checkpoint (Task 4).
+**GREEN — the dark launch was boring, exactly as designed.** Worker live with zero scheduler state, `readyz` green, cron serving 100% of user checks across a web restart, smoke ping row evidenced end-to-end, same-SHA one-build pair, zero new migrations, rollback one stop away. The steady state is left running for the operator checkpoint (Task 4) — **approved 2026-09-14, see the Task 4 section below**.
+
+## Task 4 — operator approval (2026-09-14, ~17:35Z)
+
+**APPROVED.** The operator typed "approved" at ~17:35Z after the six verification checks below ran — the `/readyz` curl personally by the operator, the rest by the orchestrator with the operator observing. The steady state held unattended for ~3.7 h of continuous worker uptime between the executor's close (Task 3) and this gate. Per the plan's Task 4 `<done>`: the operator approved the dark-launch state and the deploy record; **Phase 4 closes with WRK-10/DEP-01/DEP-02 evidenced**.
+
+### The six checks, as verified
+
+| # | Check | Observed |
+|---|---|---|
+| 1 | `/readyz` — worker alive and ready (operator-run curl) | 200 `{"ok":true,"redis":{"ok":true},"db":{"ok":true}}` |
+| 2 | `/metrics.json` — scheduler genuinely paused, queues empty | sha `9f667e2`; ALL six lanes (monitor-scheduler, monitor-checks, db-writes, alerts, maintenance, email-transactional) depth 0; `oldestWaitingJobAgeMs` null; `stalledCount` 0; zero scheduler activity; outbox 0 unsent / 0 failed |
+| 3 | Cron still serving users | monitor id=2 "Test": `lastChecked` 2026-09-14 17:29:00 — age 2m43s at query time; cron serving continuously across the ~3.7 h worker uptime |
+| 4 | Smoke evidence (see fail-loud note below) | explicit-env invocation **PASS**: ping row `68f9bbc0-7047-45d9-b181-9b53f24a1065`, status UP, responseTime 178 ms, `createdAt` 2026-09-14 17:34:29.751Z, jobId `check-manual:3:1789407269546`; worker log shows the Tier-1 line (durationMs 200, `applied: false` — correct: the smoke monitor was already UP from the Task-3 smoke, so this is the evidence-only duplicate-safe path per DAT-04 — evidence ping recorded, transition effects gated to once) |
+| 5 | Same-SHA provenance | the single `pnpm build` produced `.next` + `dist/worker.js` from `9f667e2`; SHA embedded in the bundle (grep count = 1) and reported by `/healthz` |
+| 6 | Deploy record review | N/A-locally dispositions (PM2 handshake, OS egress, systemd) confirmed to carry first-VPS-deploy consumption points; rollback = stop the worker (D-22) |
+
+### Fail-loud smoke observation (valuable operator evidence)
+
+The FIRST smoke invocation (ambient env) **failed loud**, exactly as the script's contract demands: the local `.env` `REDIS_URL` points at the TEST stack (port 6390), so the job `check-manual:3:1789407121712` was stranded there and the script exited 1 after its 60 s ping-row timeout. This validates both (a) the fail-loud contract — no ping row within the timeout, no exit 0 — and (b) the script's documented warning to never rely on ambient env alone when you mean a specific stack. The root cause was the invocation (ambient env picked up the test stack), not a deployment defect; the stray test-stack job key was deleted afterwards. The SECOND invocation, with explicit `REDIS_URL` (6391 stand-in) + `DATABASE_URL` (5454 stand-in), **passed** — evidence in check 4.
+
+### Phase close
+
+Phase 4 closes with **WRK-10 / DEP-01 / DEP-02 evidenced and operator-approved**. **SEC-02 remains pending by disposition** (D-17): the OS egress rules exist as verified text (runbook §10, machine-gated by D-40) with enforcement forward-tracked to the first VPS worker deploy — disposition 3 above; the requirement closes there.

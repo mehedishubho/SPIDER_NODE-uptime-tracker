@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: Monitoring Worker — Build & Dark Launch
 status: executing
-stopped_at: Completed 04-08-PLAN.md
-last_updated: "2026-09-14T13:20:00.000Z"
+stopped_at: Completed 04-09-PLAN.md
+last_updated: "2026-09-14T17:46:52.985Z"
 last_activity: 2026-09-13
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 8
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 36
-  completed_plans: 34
-  percent: 38
+  completed_plans: 36
+  percent: 50
 ---
 
 # Project State
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-09-13)
 ## Current Position
 
 Phase: 04 (Monitoring Worker — Build & Dark Launch) — EXECUTING
-Plan: 8 of 9
-Status: Ready to execute
+Plan: 9 of 9
+Status: Phase 4 complete — operator-approved dark launch (Task 4, 2026-09-14); Phase 5 planning next
 Last activity: 2026-09-13 — Phase 04 execution started
 
-Progress: [████████████████████] 27/27 plans (100%)
+Progress: [████████████████████] 36/36 plans (100%)
 
 ## Performance Metrics
 
@@ -91,6 +91,7 @@ Progress: [████████████████████] 27/27 p
 | Phase 04 P06 | 900s (~15 min, single session) | 2 tasks | 5 files |
 | Phase 04 P07 | 1285s | 2 tasks | 8 files |
 | Phase 04 P08 | 2 sessions (Task 2-3 continuation after usage-limit cutoff; this leg ~75 min incl. two Rule-1 production fixes) | 3 tasks | 14 files |
+| Phase 04 P09 | 1h5m + closeout continuation (Task 4 operator approval 2026-09-14) | 4 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -208,6 +209,7 @@ Recent decisions affecting current work:
 - [Phase 04]: 04-08: two production defects found+fixed by injection — worker CRASHED on unlistened Pool 'error' (idle-client 57P01 termination) during a Postgres outage; breaker NEVER opened (cause-chain blindness) — both pinned green in unit + injection suites
 - [Phase 04]: 04-08: test Redis runs redis:8-alpine STOCK (restart state indeterminate by design) — redis-restart proves the RES-05 recovery contract (boot re-upsert + TTL expiry + next_check_at re-claim), not persistence invariants the image cannot give
 - [Phase 04]: 04-08: D-34 dispositioned, not built — no relative "Xm ago" surface exists; the staleness pin asserts the raw toLocaleTimeString surface + "Never" ternary on Dashboard/MonitorDetails/PublicStatus
+- [Phase 04]: 04-09: dark launch approved by operator 2026-09-14 — worker live zero-schedulers ~4h, cron 100%, smoke PASS; fail-loud smoke contract validated by a wrong-env attempt; SEC-02 left pending by D-17 disposition (OS egress enforced at first VPS deploy)
 
 ### Pending Todos
 
@@ -231,6 +233,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-14T13:20:00.000Z
-Stopped at: Completed 04-08-PLAN.md
+Last session: 2026-09-14T17:46:46.522Z
+Stopped at: Completed 04-09-PLAN.md
 Resume file: None

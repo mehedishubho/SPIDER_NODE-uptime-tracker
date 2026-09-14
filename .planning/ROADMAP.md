@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Design Gate — Review Verdict READY** - All 8 review addenda incorporated, §9 checklist resolved, verdict flipped NOT READY → READY before any code — **complete 2026-09-09: cycle-2 re-review clean pass (zero blocking findings) human-ratified, verdict flipped to READY per D-16; RR2-01/02/03 recorded as advisory Phase 4/5 design-debt (01-09)**
 - [x] **Phase 2: Foundations & Theme Infrastructure** - pnpm, CI gates, characterization tests on real Postgres/Redis; theme tokens land with zero behavior change — *round-2 verification 2026-09-12: both gaps independently confirmed closed (02-10), human_needed — 5 manual UAT tests pending (02-UAT.md)* (completed 2026-09-12)
 - [x] **Phase 3: Redis & Drizzle Schema Ownership** - Redis with no correctness dependence; live-DDL Drizzle baseline plus worker schema addenda, rehearsed on a prod snapshot (completed 2026-09-12)
-- [ ] **Phase 4: Monitoring Worker — Build & Dark Launch** - Dedicated worker owns all monitoring on idempotent, resilient BullMQ machinery; dark-launched while cron still serves users
+- [x] **Phase 4: Monitoring Worker — Build & Dark Launch** - Dedicated worker owns all monitoring on idempotent, resilient BullMQ machinery; dark-launched while cron still serves users (completed 2026-09-14)
 - [ ] **Phase 5: Worker Cutover & Operational Hardening** - Gated overlap cutover deletes the cron; heartbeat moves, observability, env transition, rehearsed rollback
 - [ ] **Phase 6: Thin API Routes & Email Abstraction** - Web becomes an enqueue-only producer; security fixes at the new boundary; email queued off the request path
 - [ ] **Phase 7: Better Auth Cutover, Admin Gating & Prisma Removal** - Canary-gated auth cutover onto existing tables; admin roles gate feedback and queue UI; Prisma deleted
@@ -185,7 +185,7 @@ Plans:
   4. Failure injection proves both outage directions: Postgres down → jobs retry (nothing silently lost), the circuit breaker opens and pauses enqueueing, and the backlog cap drops routine checks but never transitions; Redis down → monitoring pauses by design, Postgres stays intact, and in-product staleness ("last checked Xm ago") is visible to users
   5. The check engine enforces SSRF layering (per-redirect-hop private-range denial, scheme allowlist, 2 MB cap, strict 10 s timeout — test cases pass) with OS-level egress rules active on the worker host; an operator can trace one check end-to-end via `monitorId`-correlated structured logs and queue metrics (depth, job age, stalled count); the maintenance job has a dry-run that reports row counts without deleting; the pipeline orders build → backup → migrate → worker (waits readyz) → web → smoke check that produces a synthetic ping row
 
-**Plans**: 8/9 plans executed
+**Plans**: 9/9 plans complete
 
 Plans:
 **Wave 1**
@@ -213,7 +213,7 @@ Plans:
 
 **Wave 6** *(final — blocked on 04-08)*
 
-- [ ] 04-09-PLAN.md — Operator scripts (seed/smoke/re-drive/rehearse), runbook amendments (§4a re-seed D-49, worker-form D-23, §10 egress D-17, denylist gate D-40), full deploy-day rehearsal D-32, dark launch + 04-DEPLOY-RECORD (WRK-10, DEP-01, DEP-02, SEC-02)
+- [x] 04-09-PLAN.md — Operator scripts (seed/smoke/re-drive/rehearse), runbook amendments (§4a re-seed D-49, worker-form D-23, §10 egress D-17, denylist gate D-40), full deploy-day rehearsal D-32, dark launch + 04-DEPLOY-RECORD (WRK-10, DEP-01, DEP-02, SEC-02)
 
 **Research flag**: needs `--research-phase` depth — BullMQ 6 `upsertJobScheduler` semantics, breaker/backlog tuning, PM2 `wait_ready`/`kill_timeout` handshake, overlap gate instrumentation (SUMMARY.md) — *RESOLVED in 04-RESEARCH.md (all BullMQ 6 behaviors verified against docs.bullmq.io: scheduler idempotence, priority default-0 inversion, stalled defaults 30000/30000/1, pause semantics; PM2 defaults 3000/1600 confirmed; two findings: Postgres round-cast Pitfall 1 + D-50 GREATEST catch-up amendment)*
 

@@ -12,7 +12,7 @@ provides:
   - "scripts/redrive-outbox.mjs — D-46 operator re-drive for FAILED outbox rows (dry-run default, dedup-before-remark)"
   - "scripts/seed-synthetic.sql + scripts/check-denylist-diff.mjs — D-19 seed and the D-40 denylist drift gate (in pnpm verify)"
   - "04-DEPLOY-RECORD.md — the executed dark launch with evidence, N/A-locally dispositions, D-33 pointer, rollback story"
-  - "The live dark-launch steady state: worker running with zero schedulers, cron serving 100% of user checks (Task 4 operator gate pending)"
+  - "The live dark-launch steady state: worker running with zero schedulers, cron serving 100% of user checks (Task 4 operator gate APPROVED 2026-09-14 ~17:35Z — Phase 4 closed)"
 affects:
   - docs/DEPLOY-RUNBOOK.md (§3/§4/§4a/§6a/§10 amendments)
   - package.json (rehearse:worker / smoke:enqueue / denylist:diff scripts; verify chain)
@@ -57,7 +57,7 @@ status: complete
 
 **Task 3 — the dark launch executed (commit `858e1b9`):** on the 03-08 stand-in per the amended §4/§4a ordering — test:resilience 7/7 (235.85s, D-33 dataset regenerated); one-SHA build at `9f667e2` (.next + dist/worker.js, SHA embedded); pg_dump backup (28,192 B, pg_restore --list 0); migrate no-op with journal 2→2 asserted; seed applied twice (idempotent); worker up as a plain process (`WORKER_SCHEDULER_ENABLED=false`, `readyz` 200 first poll); web restart continuity proven across batcher flush boundaries (T1 lastChecked 13:59 / T2 14:14, pings 236→245→258 with exact tick accounting); smoke at 14:01:30Z — jobId `check-manual:3:1789394490276`, Tier-1 persist 121ms, ping `62ff7108…` UP 97ms; zero-scheduler proven directly in Redis (delayed zset 0, repeat hash absent, only meta/stalled-check bookkeeping); same-SHA provenance on both health surfaces; steady state LEFT RUNNING for the operator gate; `04-DEPLOY-RECORD.md` written mirroring the 03-08 pattern (evidence pointers, N/A-locally dispositions with VPS consumption points, D-33 summary, D-22 rollback record), automated keyword+drizzle verify green, schema:gate corroborated.
 
-**Task 4 — blocking operator checkpoint (NOT executed, by design):** human-verify gate; the executor stopped and returned the structured checkpoint state (steady state left running: worker `:9090` readyz green, web `:3007` 200, cron advancing).
+**Task 4 — operator confirmation of the boring dark launch (gate CLOSED):** blocking human-verify gate resolved by the operator typing "approved" at 2026-09-14 ~17:35Z, after the six checks ran against the steady state held live for ~3.7 h: `/readyz` 200 (operator-run curl); `/metrics.json` all six lanes depth 0, zero scheduler activity, outbox 0/0, sha `9f667e2`; monitor id=2 `lastChecked` advancing (age 2m43s at query); smoke PASS on the explicit-env invocation (ping `68f9bbc0…` UP 178ms, jobId `check-manual:3:1789407269546`, Tier-1 `applied:false` — the correct duplicate-safe evidence path per DAT-04); same-SHA one-build provenance; deploy record dispositions reviewed. The first, ambient-env smoke invocation failed loud (job stranded on the 6390 test stack, 60s timeout, exit 1) — validating the script's fail-loud contract, an invocation error not a deployment defect (full account in the DEPLOY-RECORD's Task 4 section). Recorded by the continuation agent in `04-DEPLOY-RECORD.md`.
 
 ## Deviations from Plan
 
@@ -122,4 +122,4 @@ None. No new network surface: the health server already binds 127.0.0.1; all new
 
 ## Self-Check: PASSED
 
-Verified after SUMMARY creation: all 7 created files exist on disk; commits `70060e5`, `9f667e2`, `858e1b9` present in `git log`; Task 4 intentionally not executed (blocking human gate).
+Verified after SUMMARY creation: all 7 created files exist on disk; commits `70060e5`, `9f667e2`, `858e1b9` present in `git log`; Task 4 initially not executed (blocking human gate) — subsequently executed via operator approval 2026-09-14 ~17:35Z, with the continuation agent recording the approval in `04-DEPLOY-RECORD.md` and amending this SUMMARY.

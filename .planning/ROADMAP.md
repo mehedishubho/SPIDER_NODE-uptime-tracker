@@ -174,7 +174,6 @@ Plans:
 ### Phase 4: Monitoring Worker — Build & Dark Launch
 
 **Goal**: All monitoring execution runs in a dedicated worker process on durable, idempotent, resilient BullMQ machinery — built, failure-injection-tested, and dark-launched while the existing cron still serves every user.
-**Mode:** mvp
 **Depends on**: Phase 3
 **Requirements**: WRK-01, WRK-02, WRK-03, WRK-04, WRK-05, WRK-06, WRK-07, WRK-08, WRK-10, WRK-12, WRK-13, WRK-14, DAT-01, DAT-02, DAT-03, DAT-04, DAT-05, DAT-06, DAT-07, DAT-08, DAT-10, RES-01, RES-02, RES-03, RES-04, RES-05, SEC-01, SEC-02, OBS-01, OBS-02, DEP-01, DEP-02
 **Success Criteria** (what must be TRUE):

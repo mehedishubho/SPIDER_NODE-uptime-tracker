@@ -1,10 +1,15 @@
 ---
 phase: 04-monitoring-worker-build-dark-launch
 verified: 2026-09-14T18:27:24Z
-status: human_needed
+status: passed
 score: 11/12 must-haves verified
 behavior_unverified: 0
-overrides_applied: 0
+overrides_applied: 1
+overrides:
+  - must_have: "OS-level egress rules active on the worker host"
+    reason: "No worker host exists on the operator-ratified local stand-in topology (03-08); the deliverable possible this phase — concrete iptables/nftables rules in runbook §10, machine-enforced set-equality with the engine denylist by the D-40 gate in pnpm verify — is delivered and verified green; enforcement is a first-VPS-worker-deploy consumption point recorded in 04-DEPLOY-RECORD.md disposition 3 and REQUIREMENTS.md honestly tracks SEC-02 as Pending"
+    accepted_by: mehedishubho
+    accepted_at: 2026-09-15T00:30:00Z
 human_verification:
   - test: "Decide the disposition of SC5's SEC-02 clause: 'OS-level egress rules active on the worker host'"
     expected: "Either (a) accept the documented deferral formally — add an override to this file's frontmatter: must_have 'OS-level egress rules active on the worker host', reason 'No worker host exists on the operator-ratified local stand-in topology (03-08); the deliverable possible this phase — concrete iptables/nftables rules in runbook §10, machine-enforced set-equality with the engine denylist by the D-40 gate in pnpm verify — is delivered and verified green; enforcement is a first-VPS-worker-deploy consumption point recorded in 04-DEPLOY-RECORD.md disposition 3 and REQUIREMENTS.md honestly tracks SEC-02 as Pending', accepted_by <name>, accepted_at <ISO> — or (b) hold SEC-02 open (as REQUIREMENTS.md does today) until the first VPS deploy applies and probes §10. No code action is possible or required this phase."

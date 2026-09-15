@@ -30,6 +30,10 @@ import { workerPgPool } from "./db";
 //                     transition-to-alert latency distribution (D-24/D-25/
 //                     D-44). Later plans extend the same object further —
 //                     additive shape.
+//   GET /metrics     200 — the Prometheus text exposition (OBS-05, D-26),
+//                     served from the injected registry (05-03's
+//                     createMetricsRegistry) with its contentType; without a
+//                     registry the surface is absent (404).
 //
 // Security (T-04-01): bound to 127.0.0.1 only; payloads carry
 // provenance/status exclusively — no connection strings, tokens, or env
@@ -147,6 +151,14 @@ export interface StartHealthServerOptions {
    * keys — never a 500.
    */
   outboxMetrics?: () => Promise<unknown>;
+  /**
+   * Prometheus registry for /metrics (OBS-05, D-26): structural on purpose —
+   * a contentType string plus an async metrics() body — so this module stays
+   * free of the package import (the queueMetrics/outboxMetrics
+   * provider-injection precedent). 05-03's createMetricsRegistry returns
+   * exactly this shape; without it the /metrics surface is absent (404).
+   */
+  metricsRegistry?: { contentType: string; metrics(): Promise<string> };
   /** Fired ONCE, only when both boot pings pass (WRK-08 two-signal contract). */
   onReady?: () => void;
 }
@@ -212,6 +224,16 @@ export function startHealthServer(options: StartHealthServerOptions = {}): Promi
       }
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify(body));
+      return;
+    }
+    if (path === "/metrics" && options.metricsRegistry) {
+      // OBS-05 (D-26): the Prometheus text exposition from the injected
+      // registry — sibling of /metrics.json on the same handler, inside the
+      // same never-500 wrapper (collector failures degrade to absent gauge
+      // samples inside the registry, never to a failed scrape).
+      const exposition = await options.metricsRegistry.metrics();
+      res.writeHead(200, { "content-type": options.metricsRegistry.contentType });
+      res.end(exposition);
       return;
     }
     res.writeHead(404, { "content-type": "application/json" });

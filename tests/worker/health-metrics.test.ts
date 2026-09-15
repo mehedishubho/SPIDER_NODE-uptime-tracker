@@ -98,6 +98,8 @@ function sampleValue(body: string, prefix: string): number {
 
 let server: HealthServer;
 const createdClients: Redis[] = [];
+/** The factory's delegation target — restored in beforeEach after the degrade case replaces it. */
+let realQueueCollector: typeof collectQueueMetrics;
 
 function trackClient(client: Redis): Redis {
   createdClients.push(client);
@@ -105,6 +107,7 @@ function trackClient(client: Redis): Redis {
 }
 
 beforeAll(async () => {
+  realQueueCollector = vi.mocked(collectQueueMetrics).getMockImplementation()!;
   const queues = fakeQueueSet({
     checks: {
       depth: { wait: 2, prioritized: 1, delayed: 0, active: 1 },
@@ -133,10 +136,9 @@ beforeEach(() => {
   vi.mocked(collectOutboxMetrics).mockImplementation(
     async () => OUTBOX_FIXTURE as Awaited<ReturnType<typeof collectOutboxMetrics>>
   );
-  // mockClear (not reset): the factory's delegation to the REAL collector is
-  // the standing implementation the happy-path cases need — only call history
-  // resets. collectOutboxMetrics gets a fixture implementation instead.
-  vi.mocked(collectQueueMetrics).mockClear();
+  // Restore the REAL-collector delegation after any standing rejection the
+  // degrade case installed (mockClear alone does not bring it back).
+  vi.mocked(collectQueueMetrics).mockReset().mockImplementation(realQueueCollector);
 });
 
 afterEach(() => {
@@ -225,10 +227,11 @@ describe("worker /metrics Prometheus exposition (OBS-05, D-26)", () => {
     const healthyBody = await healthy.text();
     expect(() => sampleValue(healthyBody, "spidernode_outbox_unsent ")).not.toThrow();
 
-    // Flip BOTH collectors to reject — the only way past their internal
-    // swallows — and scrape again.
-    vi.mocked(collectQueueMetrics).mockRejectedValueOnce(new Error("collector boom"));
-    vi.mocked(collectOutboxMetrics).mockRejectedValueOnce(new Error("collector boom"));
+    // Flip BOTH collectors to standing rejections — the only way past their
+    // internal swallows, and every family's collect() must see the failure
+    // (beforeEach restores the real delegation afterward).
+    vi.mocked(collectQueueMetrics).mockRejectedValue(new Error("collector boom"));
+    vi.mocked(collectOutboxMetrics).mockRejectedValue(new Error("collector boom"));
     const degraded = await fetch(`http://127.0.0.1:${server.port}/metrics`);
     expect(degraded.status).toBe(200); // never-fail-the-surface
     const body = await degraded.text();

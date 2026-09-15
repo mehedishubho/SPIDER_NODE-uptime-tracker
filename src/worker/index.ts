@@ -10,6 +10,7 @@ import { fromLaneJob, makeFlushProcessor, processCheckJob } from "./engine/check
 import { collectOutboxMetrics, processRelayJob } from "./persist/outbox";
 import { processMaintenanceJob } from "./maintenance";
 import { state as breakerState } from "./breaker";
+import { createMetricsRegistry } from "./metrics";
 
 // ---------------------------------------------------------------------------
 // dist/worker.js — the SINGLE worker entry (D-11). All queue workers, the
@@ -90,10 +91,17 @@ async function main(): Promise<void> {
   const pool = workerPgPool;
   const queues = workerQueues();
 
+  // OBS-05 (D-26): the /metrics Prometheus exposition, built from the
+  // ALREADY-CREATED redis client and queue set — no new long-lived
+  // connections for metrics (§25 budget); gauges wrap the existing
+  // collectors at scrape time only.
+  const metricsRegistry = createMetricsRegistry({ queues, redis });
+
   const health = await startHealthServer({
     port: healthPort,
     redis,
     pool,
+    metricsRegistry,
     // OBS-01: the /metrics.json queue section (per-lane depth, head-waiting
     // age, stalled count, backlog drop counter) plus the Postgres breaker's
     // in-process state (RES-01 — CLOSED/OPEN/HALF_OPEN, consecutive-failure

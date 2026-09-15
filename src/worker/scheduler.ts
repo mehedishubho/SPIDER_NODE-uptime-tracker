@@ -7,7 +7,9 @@ import type { BacklogGate } from "./backlog";
 import { enqueueClaimedCheck, LANE_PRIORITY, noteStalledEvent, QUEUE_NAMES, workerQueues } from "./queues";
 import type { WorkerQueueSet } from "./queues";
 import { FLUSH_CADENCE_MS } from "./persist/tier2";
-import { RELAY_PASS_EVERY_MS } from "./persist/outbox";
+import { collectOutboxMetrics, RELAY_PASS_EVERY_MS } from "./persist/outbox";
+import type { OutboxMetricsSnapshot } from "./persist/outbox";
+import { redisMemorySnapshot } from "./health";
 
 // ---------------------------------------------------------------------------
 // The scheduler lane (WRK-10 / D-16, audit §14.2): the tick processor, the
@@ -101,6 +103,125 @@ async function pingDeadMan(base: string | undefined, fail = false): Promise<void
   }
 }
 
+// ---------------------------------------------------------------------------
+// Conditional dead-man checks (OBS-03 / D-23 / D-24): the outbox-age and
+// Redis-memory checks ride the same tick AFTER the heartbeat. Both read their
+// gauge through an injectable provider (04-08 TEST-ONLY-seam discipline) and
+// reuse pingDeadMan — one ping per check per tick, all errors swallowed.
+// ---------------------------------------------------------------------------
+
+/** D-23: outbox-age page threshold — 90 s (band 60-120 s, research OQ1). */
+export const OUTBOX_AGE_ALERT_THRESHOLD_SECONDS = 90;
+/** D-24: Redis memory alert percent (runbook §3c's 70% marker, worker-side). */
+export const MEMORY_ALERT_PERCENT = 70;
+
+/**
+ * Crossing marker for the outbox-age check (per-process module state). At the
+ * threshold crossing exactly ONE /fail fires, then silence — repeated pings
+ * over threshold would both trip the 5/min cap (Pitfall 3) and defeat the
+ * dead-man semantics (silence is what pages through the 5-minute grace,
+ * D-25). A restart re-pings from the CURRENT state: a still-backed-up outbox
+ * crosses again on the first post-restart tick, so no persistence is needed.
+ */
+let outboxAgeOverThreshold = false;
+
+/** The Redis memory snapshot shape redisMemorySnapshot (health.ts) returns. */
+export interface MemorySnapshot {
+  usedMemoryBytes: number | null;
+  maxMemoryBytes: number | null;
+  memoryPercent: number | null;
+}
+
+export interface TickDeps {
+  batchSize?: number;
+  queues?: WorkerQueueSet;
+  /**
+   * TEST-ONLY seam (04-08 discipline): outbox metrics provider. Defaults to
+   * the real collectOutboxMetrics (05-01's oldestUnsentSeconds gauge — the
+   * ping decision and /metrics.json read the same collector, never a second
+   * query path).
+   */
+  outboxMetrics?: () => Promise<OutboxMetricsSnapshot>;
+  /**
+   * TEST-ONLY seam: Redis memory snapshot provider. Default route: ONE INFO
+   * call on the queue set's SHARED producer connection (workerQueues()
+   * .connection) — §25's budget holds by construction (zero new connections;
+   * the production boot creates the queue set before the first tick, so the
+   * handle already exists). A deps.queues fake never reaches this default:
+   * tests that set WORKER_MEMORY_HC_PING_URL inject the provider instead.
+   */
+  memorySnapshot?: () => Promise<MemorySnapshot>;
+}
+
+/**
+ * The conditional checks' read-and-decide body. Runs AFTER the heartbeat ping
+ * on every completed tick. Never throws and never lets a read failure reach
+ * the tick-level catch (a broken gauge must not masquerade as a tick failure
+ * and trigger the heartbeat /fail — the never-fail-the-surface pattern);
+ * read failures degrade visibly through the warn markers below.
+ */
+async function pingConditionalDeadMans(deps: TickDeps): Promise<void> {
+  // OUTBOX AGE (OBS-03 / D-23): ping only while the oldest unsent non-FAILED
+  // row is younger than the threshold. null = nothing unsent = healthy.
+  const outboxUrl = process.env.WORKER_OUTBOX_HC_PING_URL;
+  if (outboxUrl) {
+    try {
+      const snap = await (deps.outboxMetrics ?? collectOutboxMetrics)();
+      const oldest = snap.oldestUnsentSeconds;
+      if (oldest !== null && oldest < 0) {
+        // -1 sentinel: the collector's query failed. Withhold the ping —
+        // silence fails toward detection (the 5-minute grace absorbs one
+        // transient read failure; a sustained one SHOULD page) — and log so
+        // the degradation is visible.
+        log.warn(
+          { oldestUnsentSeconds: oldest },
+          "OUTBOX_METRICS_READ_FAILED — outbox-age ping withheld this tick (OBS-03)"
+        );
+      } else if (oldest !== null && oldest >= OUTBOX_AGE_ALERT_THRESHOLD_SECONDS) {
+        if (!outboxAgeOverThreshold) {
+          outboxAgeOverThreshold = true;
+          // The single crossing marker (D-23): an explicit /fail beats waiting
+          // out the grace when we KNOW the outbox is backed up.
+          await pingDeadMan(outboxUrl, true);
+        }
+        // Already over threshold: silence — the grace pages (D-25).
+      } else {
+        // Healthy (or recovered): resume success pings, re-arm the marker.
+        outboxAgeOverThreshold = false;
+        await pingDeadMan(outboxUrl, false);
+      }
+    } catch (err) {
+      log.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        "OUTBOX_METRICS_READ_FAILED — outbox-age ping withheld this tick (OBS-03)"
+      );
+    }
+  }
+
+  // REDIS MEMORY (D-24): ping only while usage stays under MEMORY_ALERT_PERCENT.
+  // No crossing /fail — D-24/D-25 define silence + the 30-minute grace as the
+  // memory page (long grace avoids flapping on transient spikes).
+  const memoryUrl = process.env.WORKER_MEMORY_HC_PING_URL;
+  if (memoryUrl) {
+    try {
+      const snap = await (deps.memorySnapshot ?? defaultMemorySnapshot)();
+      // null = unknown-but-healthy (e.g. maxmemory unset): ping.
+      if (snap.memoryPercent === null || snap.memoryPercent < MEMORY_ALERT_PERCENT) {
+        await pingDeadMan(memoryUrl, false);
+      }
+    } catch (err) {
+      log.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        "MEMORY_SNAPSHOT_READ_FAILED — memory ping withheld this tick (D-24)"
+      );
+    }
+  }
+}
+
+/** See TickDeps.memorySnapshot for why this route keeps the §25 budget. */
+const defaultMemorySnapshot = (): Promise<MemorySnapshot> =>
+  redisMemorySnapshot(workerQueues().connection);
+
 /**
  * One tick (§14.2 steps 2-4): claim due monitors atomically, then enqueue one
  * check per claimed row through the backlog-gated helper — lane assignment
@@ -111,7 +232,7 @@ async function pingDeadMan(base: string | undefined, fail = false): Promise<void
  * tick — J-1 compensation (the rollback) already ran inside the helper.
  */
 export async function processTick(
-  deps: { batchSize?: number; queues?: WorkerQueueSet } = {}
+  deps: TickDeps = {}
 ): Promise<TickResult> {
   try {
     const queues = deps.queues ?? workerQueues();
@@ -151,6 +272,11 @@ export async function processTick(
     // failure) are DELIBERATE J-5 skips that self-heal at the next due slot —
     // they never trigger /fail.
     await pingDeadMan(process.env.WORKER_HC_PING_URL, result.failed > 0);
+
+    // The conditional checks (OBS-03/D-23 outbox age, D-24 memory) ride the
+    // same completed tick after the heartbeat — same one-ping-per-check
+    // discipline, same failure isolation (never-fail-the-surface).
+    await pingConditionalDeadMans(deps);
 
     return result;
   } catch (err) {

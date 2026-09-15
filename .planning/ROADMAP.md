@@ -229,12 +229,12 @@ Plans:
   3. Operators see trouble before users do: outbox-age alerting fires when rows exceed the threshold, and Prometheus exports queue depth/age, stalled count, transition→alert latency, and Redis memory
   4. Rollback is rehearsed: restoring the previous tarball returns the prior release cleanly, expand/contract discipline holds (no drops or renames inside verification windows), and the environment transition is complete (`REDIS_URL`, `EMAIL_PROVIDER`, `BETTER_AUTH_*` documented; `NEXTAUTH_*`/`CRON_MODE` retired or on a dated retirement path in `.env.example`)
 
-**Plans**: 9/9 planned
+**Plans**: 1/9 plans executed
 
 Plans:
 **Wave 1** *(parallel, no file overlap)*
 
-- [ ] 05-01-PLAN.md — D-29 WR-02..05 fix pack (breaker-skip/claim-posture/send-timeout/UTC-clock) + OBS-03 oldest-unsent-age collector (WRK-11, OBS-03)
+- [x] 05-01-PLAN.md — D-29 WR-02..05 fix pack (breaker-skip/claim-posture/send-timeout/UTC-clock) + OBS-03 oldest-unsent-age collector (WRK-11, OBS-03)
 - [ ] 05-04-PLAN.md — Add-release doc wave: audit §M4 gated-window amendment (D-08), runbook §3c/§4a/§9 (D-24/D-38 + choreography), .env.example dated transition map (D-39/D-40) (DEP-05, WRK-11)
 
 **Wave 2** *(blocked on 05-01; parallel, no file overlap)*

@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 5
-current_phase_name: Worker Cutover & Operational Hardening
+current_phase: 05
+current_phase_name: worker-cutover-operational-hardening
 status: executing
-stopped_at: Phase 5 context gathered
-last_updated: "2026-09-15T08:46:16.220Z"
-last_activity: 2026-09-14
-last_activity_desc: Phase 4 complete, transitioned to Phase 5
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-09-15T13:39:02.286Z"
+last_activity: 2026-09-15
+last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 8
   completed_phases: 4
-  total_plans: 36
-  completed_plans: 36
+  total_plans: 45
+  completed_plans: 37
   percent: 50
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-13)
 
 **Core value:** Modernize the infrastructure without breaking existing monitoring — never lose or corrupt uptime data, silently stop checking, or lock users out irrecoverably.
-**Current focus:** Phase 04 — Monitoring Worker — Build & Dark Launch
+**Current focus:** Phase 05 — worker-cutover-operational-hardening
 
 ## Current Position
 
-Phase: 5 — Worker Cutover & Operational Hardening
-Plan: Not started
+Phase: 05 (worker-cutover-operational-hardening) — EXECUTING
+Plan: 2 of 9
 Status: Ready to execute
-Last activity: 2026-09-14 — Phase 4 complete, transitioned to Phase 5
+Last activity: 2026-09-15 — Phase 05 execution started
 
 Progress: [████████████████████] 36/36 plans (100%)
 
@@ -93,6 +93,7 @@ Progress: [████████████████████] 36/36 p
 | Phase 04 P07 | 1285s | 2 tasks | 8 files |
 | Phase 04 P08 | 2 sessions (Task 2-3 continuation after usage-limit cutoff; this leg ~75 min incl. two Rule-1 production fixes) | 3 tasks | 14 files |
 | Phase 04 P09 | 1h5m + closeout continuation (Task 4 operator approval 2026-09-14) | 4 tasks | 9 files |
+| Phase 05 P01 | ~11 min active (resumed session) | 4 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -212,6 +213,11 @@ Recent decisions affecting current work:
 - [Phase 04]: 04-08: D-34 dispositioned, not built — no relative "Xm ago" surface exists; the staleness pin asserts the raw toLocaleTimeString surface + "Never" ternary on Dashboard/MonitorDetails/PublicStatus
 - [Phase 04]: 04-09: dark launch approved by operator 2026-09-14 — worker live zero-schedulers ~4h, cron 100%, smoke PASS; fail-loud smoke contract validated by a wrong-env attempt; SEC-02 left pending by D-17 disposition (OS egress enforced at first VPS deploy)
 - [Phase ?]: [Phase 04]: verification + UAT close 2026-09-15 — 11/12 must-haves verified live; 12th clause (SEC-02 OS egress) ACCEPTED as formal override (operator mehedishubho, mirrors 03 AR-01; REQUIREMENTS stays Pending until first VPS deploy); mvp tag dropped (Phase 3 precedent); OBS-02 kept Pending until Phase 5 scheduler-on; REVIEW 9af088a 0C/5W/3I advisory (WR-01 heartbeat = Phase 5 WRK-09 input)
+- [Phase 05]: 05-01: WR-05 pin is behavioral + source-form — docker stand-in already spells UTC, so the options-pin assertion is what makes drift fail loudly
+- [Phase 05]: 05-01: rollbackFailedClaim deleted — audit §14.4 claims-advanced is the only behavior (breaker refusal incl. WR-02 TOCTOU is a SKIP)
+- [Phase 05]: 05-01: oldestUnsentSeconds convention — null when nothing unsent (queue-gauge precedent), -1 on query failure
+- [Phase 05]: 05-01: WR-04 audit conclusion — Telegram send was the only internet-path await in the relay transaction; 10s AbortSignal bounds it, local PG/Redis awaits reaped by the 30s idle cap
+- [Phase 05]: 05-01: WRK-11/OBS-03 deliberately left Pending — this plan lands their inputs only (WRK-11 completes at 05-08 window, OBS-03 at 05-02 dead-man)
 
 ### Pending Todos
 
@@ -235,6 +241,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-14T20:32:12.941Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-worker-cutover-operational-hardening/05-CONTEXT.md
+Last session: 2026-09-15T13:39:02.279Z
+Stopped at: Completed 05-01-PLAN.md
+Resume file: None

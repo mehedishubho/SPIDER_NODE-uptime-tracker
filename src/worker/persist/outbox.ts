@@ -230,6 +230,18 @@ export const telegramSend: TelegramSendFn = async (chatId, message) => {
     headers: {
       "Content-Type": "application/json",
     },
+    // WR-04 (D-29): the relay awaits this exchange INSIDE the row's FOR
+    // UPDATE transaction, and the worker pool reaps sessions idle in a
+    // transaction at 30 s (idle_in_transaction_session_timeout). undici's
+    // default headers/body timeout is ~300 s — a black-holed
+    // api.telegram.org connection would blow past the cap, kill the session
+    // mid-send, and freeze the attempts accounting (every failure
+    // transaction rolls back, so a stall repeats forever). Aborting at 10 s
+    // keeps the exchange well under the cap; the abort surfaces in the
+    // relay's existing transient-failure handling (D-45: timeout is not in
+    // the permanent enumeration — env/token issues aside, the next pass
+    // retries with attempts advanced).
+    signal: AbortSignal.timeout(10_000),
     body: JSON.stringify({
       chat_id: chatId,
       text: message,
@@ -448,6 +460,16 @@ export async function processRelayJob(job: RelayLaneJob, deps: RelayDeps = {}): 
 
   for (const candidate of candidates) {
     const rowLog = logger; // bindings below stay ids-only (T-04-28: no URLs/bodies)
+    // WR-04 transaction-scope audit (D-29): the ONLY internet-path await
+    // inside this FOR UPDATE transaction is the Telegram send — bounded at
+    // 10 s by telegramSend's AbortSignal, the one await class that could
+    // resolve AFTER the 30 s idle_in_transaction cap and poison the attempts
+    // accounting is closed. The remaining awaits cannot stall past the cap
+    // unboundedly: the tx.execute statements are local-socket Postgres calls
+    // under statement_timeout, and the dedup-key Redis reads target the
+    // co-located Redis (connection loss fails fast; a pathological socket
+    // black-hole is itself reaped by the 30 s idle cap — session killed,
+    // row lock released, BullMQ backoff retries the pass).
     const outcome = await db.transaction(async (tx) => {
       const claimed = (await tx.execute(claimRowSql(candidate.id))).rows as unknown as Array<{
         id: string;
@@ -639,6 +661,16 @@ export interface OutboxMetricsSnapshot {
   failed: number;
   /** Transition-to-alert latency: sent_at - created_at deltas (D-25). */
   latency: OutboxLatencyGauge;
+  /**
+   * OBS-03 (05-01, Pitfall 7): age in seconds of the OLDEST unsent
+   * non-FAILED row — the outbox-health dead-man threshold's input (05-02)
+   * and the Prometheus gauge's (05-03). null when nothing is unsent (the
+   * queue gauge's oldestWaitingJobAgeMs convention); -1 on query failure
+   * (visible, never fatal — the degradation pattern below). created_at is
+   * timestamptz, so now() - created_at is clock-safe under the WR-05 UTC
+   * pool pin.
+   */
+  oldestUnsentSeconds: number | null;
 }
 
 function percentile(sorted: number[], p: number): number | null {
@@ -648,9 +680,11 @@ function percentile(sorted: number[], p: number): number | null {
 }
 
 /**
- * Collects the outbox gauges from ONE counts query plus ONE bounded latency
- * sample (the 100 most recently sent rows' created_at -> sent_at deltas).
- * Failures map to -1 depths (visible, never fatal to the health endpoint).
+ * Collects the outbox gauges from ONE counts query plus TWO bounded samples:
+ * the latency distribution (the 100 most recently sent rows' created_at ->
+ * sent_at deltas, D-25) and the oldest-unsent age (OBS-03's single-row
+ * sibling read). Failures map to -1 depths (visible, never fatal to the
+ * health endpoint).
  */
 export async function collectOutboxMetrics(db: WorkerDb = workerDb): Promise<OutboxMetricsSnapshot> {
   try {
@@ -676,6 +710,20 @@ SELECT (EXTRACT(EPOCH FROM (sent_at - created_at)) * 1000.0)::double precision A
     ).rows as unknown as Array<{ ms: number }>;
     const sorted = latencyRows.map((r) => r.ms).sort((a, b) => a - b);
 
+    // OBS-03 (Pitfall 7): a bounded sibling read over the SAME unsent
+    // non-FAILED set the counts query defines — one row, riding the same
+    // pattern as the latency sample above.
+    const oldestRows = (
+      await db.execute(sql`
+SELECT EXTRACT(EPOCH FROM (now() - created_at))::double precision AS oldest_s
+  FROM outbox
+ WHERE sent_at IS NULL
+   AND attempts < ${RELAY_MAX_ATTEMPTS}
+   AND NOT (payload ? ${RELAY_FAILURE_KEY}::text)
+ ORDER BY created_at ASC
+ LIMIT 1`)
+    ).rows as unknown as Array<{ oldest_s: number | null }>;
+
     return {
       unsent: counts[0]?.unsent ?? 0,
       failed: counts[0]?.failed ?? 0,
@@ -686,12 +734,14 @@ SELECT (EXTRACT(EPOCH FROM (sent_at - created_at)) * 1000.0)::double precision A
         p95Ms: percentile(sorted, 95),
         maxMs: sorted.length > 0 ? Math.round(sorted[sorted.length - 1]) : null,
       },
+      oldestUnsentSeconds: oldestRows.length > 0 && oldestRows[0].oldest_s !== null ? oldestRows[0].oldest_s : null,
     };
   } catch {
     return {
       unsent: -1,
       failed: -1,
       latency: { sample: 0, avgMs: null, p50Ms: null, p95Ms: null, maxMs: null },
+      oldestUnsentSeconds: -1,
     };
   }
 }

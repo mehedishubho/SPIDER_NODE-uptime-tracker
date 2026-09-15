@@ -6,14 +6,14 @@ current_phase: 05
 current_phase_name: worker-cutover-operational-hardening
 status: executing
 stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-09-15T14:38:26.357Z"
+last_updated: "2026-09-15T20:13:20.632Z"
 last_activity: 2026-09-15
 last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 45
-  completed_plans: 40
+  completed_plans: 41
   percent: 50
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-13)
 ## Current Position
 
 Phase: 05 (worker-cutover-operational-hardening) — EXECUTING
-Plan: 5 of 9
+Plan: 6 of 9
 Status: Ready to execute
 Last activity: 2026-09-15 — Phase 05 execution started
 
@@ -97,6 +97,7 @@ Progress: [████████████████████] 36/36 p
 | Phase 5 P4 | ~8 min (494s) | 3 tasks | 4 files |
 | Phase 05 P02 | 547s (~9 min, single session) | 3 tasks | 4 files |
 | Phase 05 P03 | ~14 min (single session) | 3 tasks | 6 files |
+| Phase 05 P05 | 20min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -232,6 +233,11 @@ Recent decisions affecting current work:
 - [Phase 05]: 05-03: /metrics stays 404 without an injected registry; health.ts takes the registry STRUCTURALLY (contentType + async metrics()) so the module stays package-free
 - [Phase 05]: 05-03: @prometheus-io/client 0.16.1 legitimacy cleared (official org repo, prombot/nexucis/juliusv maintainers, no install scripts) under the plan-review-approved exact pin; deprecated prom-client never installed
 - [Phase 05]: 05-03: OBS-05 deliberately left Pending — export surface + family contract landed, but 05-05's throwaway scraper (D-27) and window gate-2 consumption are the proof legs (05-01/05-02 false-signal precedent)
+- [Phase ?]: 05-05: counters-baseline.json mechanism — gate 4's D-02 total_count delta needs a window-open baseline (--capture-baseline); lifetime reconcile is polluted by retention
+- [Phase ?]: 05-05: gate 3 — duplicate relay rows per incident event FAIL; zero-alert cron-originated incidents and extraTransientAlerts listed for disposition, not failed (D-05)
+- [Phase ?]: 05-05: check-cron-remnants.mjs ships INERT (advisory) — verify-leg wiring + dep removal belong to the 05-09 deletion release; this plan touches no package.json
+- [Phase ?]: 05-05: gate-cutover degrades DB-backed gates to FAIL-with-reason on unreachable DB (never crashes); gate 1 without key/cache degrades to manual-evidence instructions
+- [Phase ?]: 05-05: WRK-11/OBS-05 stay Pending — proof is the live >=4h window evidence 05-08 captures (false-signal precedent)
 
 ### Pending Todos
 
@@ -255,6 +261,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-15T14:38:26.351Z
+Last session: 2026-09-15T20:11:45.734Z
 Stopped at: Completed 05-03-PLAN.md
 Resume file: None

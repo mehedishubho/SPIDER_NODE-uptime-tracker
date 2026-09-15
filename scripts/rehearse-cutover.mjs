@@ -753,7 +753,7 @@ async function legRestore(dumpPath) {
 
 function legSweep() {
   console.log("[sweep] egress-neutral guard over the stand-in env (D-30)...");
-  const { violations } = runSweepGuard(); // fails loud on any real channel
+  runSweepGuard(); // fails loud on any real channel
   saveState((s) => {
     s.legs = { ...s.legs, sweep: { status: "ok", violations: 0 } };
   });
@@ -1244,7 +1244,7 @@ function writeEnqueueDriver() {
       "  const { jobId } = await queues.enqueueManualCheck(monitorId);",
       "  console.log(JSON.stringify({ ok: true, jobId }));",
       "} finally {",
-      "  try { (await import('../../src/worker/queues.ts')).disposeWorkerQueues(); } catch {}", // eslint-disable-line no-empty
+      "  try { (await import('../../src/worker/queues.ts')).disposeWorkerQueues(); } catch {}",
       "}",
       "",
     ].join("\n"),
@@ -1681,7 +1681,7 @@ async function legGates(state) {
 // Leg: drill — runbook §4a step 6 abort drill (D-06/D-15 mechanics)
 // ---------------------------------------------------------------------------
 
-async function legDrill(state) {
+async function legDrill() {
   console.log("[drill] abort drill: re-pause -> cron auto-resume -> re-unpause (D-06)...");
   const nodeImage = `node:${process.versions.node.split(".")[0]}-alpine`;
   if (!existsSync(path.join(CONTAINER_BUNDLE_DIR, "worker.js"))) {
@@ -1907,7 +1907,7 @@ function parseArgs(argv) {
   return args;
 }
 
-async function runLeg(name, args, state) {
+async function runLeg(name, args) {
   switch (name) {
     case "rebuild":
       await legRebuild();
@@ -1937,7 +1937,7 @@ async function runLeg(name, args, state) {
       await legGates(loadState());
       break;
     case "drill":
-      await legDrill(loadState());
+      await legDrill();
       break;
     case "teardown":
       await legTeardown(loadState(), null);
@@ -1978,7 +1978,7 @@ async function main() {
     try {
       for (const leg of sequence) {
         runSweepGuard(); // re-assert before every leg
-        await runLeg(leg, args, loadState());
+        await runLeg(leg, args);
       }
       const finalState = loadState();
       await legTeardown(finalState, "PASS");
@@ -2005,7 +2005,7 @@ async function main() {
     fail(`unknown leg "${args.leg}"\n\n${usage()}`, new Error("usage"));
   }
   runSweepGuard(); // before any single leg too (prohibition 1)
-  await runLeg(args.leg, args, loadState());
+  await runLeg(args.leg, args);
 }
 
 try {

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Client } from "pg";
 import { PgDialect } from "drizzle-orm/pg-core";
@@ -7,6 +8,7 @@ import {
   transitionUpdateSql,
 } from "@/worker/persist/tier1";
 import type { Tier1Input } from "@/worker/persist/tier1";
+import { workerPgPool } from "@/worker/db";
 
 // ---------------------------------------------------------------------------
 // Tier 1 transition proof suite (DAT-01/03-partial/04/07/10, audit §16.1)
@@ -32,6 +34,9 @@ import type { Tier1Input } from "@/worker/persist/tier1";
 //   7. deactivated monitor: same zero-row skip path, ping still commits
 //   8. deleted monitor: nothing written, no throw (§15.1 step-1 no-op)
 //   9. every inserted row carries a non-null DB-generated text UUID id
+//  10. WR-05 clock domain: every workerPgPool session reports TimeZone UTC
+//      exactly — the one clock domain Tier-1 naive now() writes, Tier-2 UTC
+//      strings, and maintenance AT TIME ZONE horizons all share (D-29)
 // ---------------------------------------------------------------------------
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -454,6 +459,40 @@ describe("Tier 1 transition transaction — §16.1 + D-35 (DAT-01/04)", () => {
       for (const row of [...pings, ...incidents, ...outbox]) {
         expect(row.id).toMatch(UUID_RE); // never null, never "undefined"
       }
+    },
+    10_000
+  );
+
+  it(
+    "10. WR-05: a client acquired from workerPgPool answers SHOW timezone with exactly UTC (D-29 — one clock domain for all writer tiers)",
+    async () => {
+      // The pool option (-c timezone=UTC) must reach EVERY session the pool
+      // mints, not just the drizzle client's: pings."createdAt" and
+      // monitors."lastChecked" are naive timestamp columns (audit A6) written
+      // by Tier 1 with session now(), by Tier 2 with UTC wall-clock strings,
+      // and compared by maintenance against now() AT TIME ZONE 'utc' — any
+      // session TimeZone other than exactly "UTC" (e.g. the server default
+      // "Etc/UTC" spelling, or an offset zone) offsets Tier-1 rows from
+      // Tier-2 rows in the same columns. The assertion is toBe("UTC"), not
+      // a UTC-equivalence check: the pin is the pool option verbatim.
+      const client = await workerPgPool.connect();
+      try {
+        const result = await client.query("SHOW timezone");
+        expect(result.rows[0].TimeZone).toBe("UTC");
+      } finally {
+        client.release();
+      }
+
+      // The OPTION is load-bearing even where the server default already
+      // spells UTC (this docker stack does — WR-05 is a latent deploy-topology
+      // hazard, not an active bug): without it, a container/host TZ change or
+      // a different server default silently drifts the clock domain, so the
+      // pin guards the option itself (outbox-relay case 1's source-pin
+      // precedent) — and that the option rides the worker pool block only,
+      // never the web pool or the migration runner (prohibition 2).
+      const source = readFileSync("src/worker/db.ts", "utf8");
+      expect(source).toContain('options: "-c timezone=UTC"');
+      expect(source.match(/new Pool\(/g)).toHaveLength(1); // the worker pool is this file's only Pool
     },
     10_000
   );

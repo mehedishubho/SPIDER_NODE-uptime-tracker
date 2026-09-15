@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 05
 current_phase_name: worker-cutover-operational-hardening
 status: executing
-stopped_at: Completed 05-04-PLAN.md
-last_updated: "2026-09-15T13:53:59.602Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-09-15T14:18:38.990Z"
 last_activity: 2026-09-15
 last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 45
-  completed_plans: 38
+  completed_plans: 39
   percent: 50
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-13)
 ## Current Position
 
 Phase: 05 (worker-cutover-operational-hardening) — EXECUTING
-Plan: 3 of 9
+Plan: 4 of 9
 Status: Ready to execute
 Last activity: 2026-09-15 — Phase 05 execution started
 
@@ -95,6 +95,7 @@ Progress: [████████████████████] 36/36 p
 | Phase 04 P09 | 1h5m + closeout continuation (Task 4 operator approval 2026-09-14) | 4 tasks | 9 files |
 | Phase 05 P01 | ~11 min active (resumed session) | 4 tasks | 8 files |
 | Phase 5 P4 | ~8 min (494s) | 3 tasks | 4 files |
+| Phase 05 P02 | 547s (~9 min, single session) | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -221,6 +222,10 @@ Recent decisions affecting current work:
 - [Phase 05]: 05-01: WRK-11/OBS-03 deliberately left Pending — this plan lands their inputs only (WRK-11 completes at 05-08 window, OBS-03 at 05-02 dead-man)
 - [Phase 5]: 05-04: §4a choreography appended as steps 5-11 (existing 1-4 kept as dark-launch history); D-19 age bound pinned 120 s; both cron routes verified GET-only before documenting the curl lever
 - [Phase 5]: 05-04: DEP-05/WRK-11 deliberately left Pending — doc wave only; WRK-11 completes at the 05-08 window, DEP-05 at phase end when the deletion release executes the dated paths (D-40)
+- [Phase ?]: [Phase 05]: 05-02: unknown outbox age (-1 sentinel or throwing read) withholds the ping — silence fails toward detection; the 5-min grace absorbs one transient read failure, a sustained gauge failure SHOULD page, and heartbeat /fail stays reserved for tick-level claim/enqueue exceptions
+- [Phase ?]: [Phase 05]: 05-02: memory check has NO crossing /fail (D-24/D-25 silence + 30-min grace is the memory page); outbox-age crossing keeps its single /fail marker (D-23)
+- [Phase ?]: [Phase 05]: 05-02: default memory provider reads ONE INFO on workerQueues().connection (the 25-budget shared producer) — production boot creates the queue set before the first tick, so no new connection is ever minted; route documented in-code
+- [Phase ?]: [Phase 05]: 05-02: WRK-09/OBS-03 deliberately left Pending — code + tests landed but the real healthchecks.io checks are provisioned at window-open (D-37); live paging proves out at 05-08 window evidence (02-03/04-02 false-signal precedent)
 
 ### Pending Todos
 
@@ -244,6 +249,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-15T13:53:59.596Z
-Stopped at: Completed 05-04-PLAN.md
+Last session: 2026-09-15T14:18:38.984Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None

@@ -229,7 +229,38 @@ Plans:
   3. Operators see trouble before users do: outbox-age alerting fires when rows exceed the threshold, and Prometheus exports queue depth/age, stalled count, transition→alert latency, and Redis memory
   4. Rollback is rehearsed: restoring the previous tarball returns the prior release cleanly, expand/contract discipline holds (no drops or renames inside verification windows), and the environment transition is complete (`REDIS_URL`, `EMAIL_PROVIDER`, `BETTER_AUTH_*` documented; `NEXTAUTH_*`/`CRON_MODE` retired or on a dated retirement path in `.env.example`)
 
-**Plans**: TBD
+**Plans**: 9/9 planned
+
+Plans:
+**Wave 1** *(parallel, no file overlap)*
+
+- [ ] 05-01-PLAN.md — D-29 WR-02..05 fix pack (breaker-skip/claim-posture/send-timeout/UTC-clock) + OBS-03 oldest-unsent-age collector (WRK-11, OBS-03)
+- [ ] 05-04-PLAN.md — Add-release doc wave: audit §M4 gated-window amendment (D-08), runbook §3c/§4a/§9 (D-24/D-38 + choreography), .env.example dated transition map (D-39/D-40) (DEP-05, WRK-11)
+
+**Wave 2** *(blocked on 05-01; parallel, no file overlap)*
+
+- [ ] 05-02-PLAN.md — WRK-09 heartbeat + OBS-03 outbox-age/memory dead-man pings on the worker tick, inert while scheduler-off (WRK-09, OBS-03)
+- [ ] 05-03-PLAN.md — OBS-05 Prometheus /metrics on :9090 via legitimacy-gated @prometheus-io/client (OBS-05)
+
+**Wave 3** *(blocked on 05-02 + 05-03)*
+
+- [ ] 05-05-PLAN.md — 7-gate evaluator (D-14/D-16/D-17), cron-remnant gate (D-41, inert), throwaway scraper (D-27) (WRK-11, OBS-05)
+
+**Wave 4** *(blocked on 05-05)*
+
+- [ ] 05-06-PLAN.md — D-33 rehearsal machinery: egress-neutral localhost stand-in, re-seed/unpause/co-run/induce/gates/drill legs + one-shot maintenance enqueue + IN-01 seed fix (WRK-11, DEP-03)
+
+**Wave 5** *(blocked on 05-06)*
+
+- [ ] 05-07-PLAN.md — Stand-in rehearsal execution (D-30/D-31/D-32 hard precondition) + add-release deploy + scheduler-off soak (WRK-11, DEP-03)
+
+**Wave 6** *(blocked on 05-07)*
+
+- [ ] 05-08-PLAN.md — Live window: re-seed → unpause → D-35 abort drill → 4-6h dense co-run → induced parity (D-11) → 7-gate PASS → D-18 operator approval (WRK-09, WRK-11, DEP-03)
+
+**Wave 7** *(final — blocked on 05-08 approval)*
+
+- [ ] 05-09-PLAN.md — Scheduler-only deletion release (D-03/D-41/D-46), old-check retirement (D-21), tier-2 tarball-restore rehearsal (D-15), env transition closeout (D-40) (WRK-11, DEP-03, DEP-05)
 
 ### Phase 6: Thin API Routes & Email Abstraction
 

@@ -229,7 +229,7 @@ Plans:
   3. Operators see trouble before users do: outbox-age alerting fires when rows exceed the threshold, and Prometheus exports queue depth/age, stalled count, transition→alert latency, and Redis memory
   4. Rollback is rehearsed: restoring the previous tarball returns the prior release cleanly, expand/contract discipline holds (no drops or renames inside verification windows), and the environment transition is complete (`REDIS_URL`, `EMAIL_PROVIDER`, `BETTER_AUTH_*` documented; `NEXTAUTH_*`/`CRON_MODE` retired or on a dated retirement path in `.env.example`)
 
-**Plans**: 3/9 plans executed
+**Plans**: 4/9 plans executed
 
 Plans:
 **Wave 1** *(parallel, no file overlap)*
@@ -240,7 +240,7 @@ Plans:
 **Wave 2** *(blocked on 05-01; parallel, no file overlap)*
 
 - [x] 05-02-PLAN.md — WRK-09 heartbeat + OBS-03 outbox-age/memory dead-man pings on the worker tick, inert while scheduler-off (WRK-09, OBS-03)
-- [ ] 05-03-PLAN.md — OBS-05 Prometheus /metrics on :9090 via legitimacy-gated @prometheus-io/client (OBS-05)
+- [x] 05-03-PLAN.md — OBS-05 Prometheus /metrics on :9090 via legitimacy-gated @prometheus-io/client (OBS-05)
 
 **Wave 3** *(blocked on 05-02 + 05-03)*
 

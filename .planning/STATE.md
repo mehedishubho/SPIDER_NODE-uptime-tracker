@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 05
 current_phase_name: worker-cutover-operational-hardening
 status: executing
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-09-15T14:18:38.990Z"
+stopped_at: Completed 05-03-PLAN.md
+last_updated: "2026-09-15T14:38:26.357Z"
 last_activity: 2026-09-15
 last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 45
-  completed_plans: 39
+  completed_plans: 40
   percent: 50
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-13)
 ## Current Position
 
 Phase: 05 (worker-cutover-operational-hardening) — EXECUTING
-Plan: 4 of 9
+Plan: 5 of 9
 Status: Ready to execute
 Last activity: 2026-09-15 — Phase 05 execution started
 
@@ -96,6 +96,7 @@ Progress: [████████████████████] 36/36 p
 | Phase 05 P01 | ~11 min active (resumed session) | 4 tasks | 8 files |
 | Phase 5 P4 | ~8 min (494s) | 3 tasks | 4 files |
 | Phase 05 P02 | 547s (~9 min, single session) | 3 tasks | 4 files |
+| Phase 05 P03 | ~14 min (single session) | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -226,6 +227,11 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 05]: 05-02: memory check has NO crossing /fail (D-24/D-25 silence + 30-min grace is the memory page); outbox-age crossing keeps its single /fail marker (D-23)
 - [Phase ?]: [Phase 05]: 05-02: default memory provider reads ONE INFO on workerQueues().connection (the 25-budget shared producer) — production boot creates the queue set before the first tick, so no new connection is ever minted; route documented in-code
 - [Phase ?]: [Phase 05]: 05-02: WRK-09/OBS-03 deliberately left Pending — code + tests landed but the real healthchecks.io checks are provisioned at window-open (D-37); live paging proves out at 05-08 window evidence (02-03/04-02 false-signal precedent)
+- [Phase 05]: 05-03: gauge degradation is reset/remove FIRST then set — a failed collector yields ABSENT samples (never stale scrape values); unlabelled gauges clear via remove() because reset() renders a lying 0 (probe-verified)
+- [Phase 05]: 05-03: no snapshot memoization between gauge families — every scrape reads the live collectors; a TTL cache masks collector failures within its window (caught by the RED suite)
+- [Phase 05]: 05-03: /metrics stays 404 without an injected registry; health.ts takes the registry STRUCTURALLY (contentType + async metrics()) so the module stays package-free
+- [Phase 05]: 05-03: @prometheus-io/client 0.16.1 legitimacy cleared (official org repo, prombot/nexucis/juliusv maintainers, no install scripts) under the plan-review-approved exact pin; deprecated prom-client never installed
+- [Phase 05]: 05-03: OBS-05 deliberately left Pending — export surface + family contract landed, but 05-05's throwaway scraper (D-27) and window gate-2 consumption are the proof legs (05-01/05-02 false-signal precedent)
 
 ### Pending Todos
 
@@ -249,6 +255,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-15T14:18:38.984Z
-Stopped at: Completed 05-02-PLAN.md
+Last session: 2026-09-15T14:38:26.351Z
+Stopped at: Completed 05-03-PLAN.md
 Resume file: None

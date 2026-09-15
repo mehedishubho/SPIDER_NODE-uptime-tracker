@@ -13,6 +13,7 @@ import {
   RELAY_MAX_ATTEMPTS,
   RELAY_PASS_EVERY_MS,
   renderAlertMessage,
+  telegramSend,
 } from "@/worker/persist/outbox";
 import type { RelaySendOutcome } from "@/worker/persist/outbox";
 import { startHealthServer } from "@/worker/health";
@@ -56,6 +57,14 @@ import { startHealthServer } from "@/worker/health";
 //   9. no telegramChatId: row handled + marked sent, no send (cron parity)
 //  10. gauges — unsent/failed counts + created_at->sent_at latency (D-24/
 //      D-25/D-44) on collectOutboxMetrics AND the /metrics.json endpoint
+//  11. WR-04 — telegramSend aborts a black-holed connection at ~10 s
+//      (well under the 30 s idle_in_transaction cap); a timed-out send is
+//      TRANSIENT inside the relay: attempts advance, the per-row claim
+//      transaction completes its mark-failure path, and the next pass can
+//      still claim the row (no orphaned FOR UPDATE row)
+//  12. OBS-03 gauge — oldestUnsentSeconds: the age of the oldest unsent
+//      non-FAILED row; null when nothing is unsent; -1 on query failure
+//      with the rest of the snapshot still resolving (Pitfall 7)
 // ---------------------------------------------------------------------------
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -253,6 +262,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs(); // case 11 stubs TELEGRAM_BOT_TOKEN for the direct telegramSend call
   vi.clearAllMocks();
 });
 
@@ -290,6 +300,10 @@ describe("outbox relay — DAT-05/DAT-06 + D-44..D-48", () => {
       // Dedup written AFTER a confirmed send only — the SET NX EX call sits
       // on the success path, below the send outcome check.
       expect(source).toContain('await redis.set(key, "1", "EX", DEDUP_TTL_SECONDS, "NX")');
+      // WR-04: the Telegram exchange is abort-bounded at 10 s inside the
+      // per-row FOR UPDATE transaction (undici's default would hang ~300 s
+      // on a black-holed connection, past the 30 s idle_in_transaction cap).
+      expect(source).toContain("signal: AbortSignal.timeout(10_000)");
       // Never queue pausing anywhere in the relay.
       expect(source).not.toMatch(/\.pause\s*\(/);
     },
@@ -656,6 +670,11 @@ describe("outbox relay — DAT-05/DAT-06 + D-44..D-48", () => {
       expect(metrics.latency.avgMs).toBeLessThanOrEqual(5_100);
       expect(metrics.latency.p50Ms).toBe(metrics.latency.avgMs);
       expect(metrics.latency.maxMs).toBe(metrics.latency.avgMs);
+      // OBS-03 gauge input: the one pending row's age (seeded created_at
+      // ~now, so a small non-negative double).
+      expect(metrics.oldestUnsentSeconds).not.toBeNull();
+      expect(metrics.oldestUnsentSeconds!).toBeGreaterThanOrEqual(0);
+      expect(metrics.oldestUnsentSeconds!).toBeLessThan(10);
 
       // The health surface: /metrics.json carries the outbox section via the
       // 04-07 outboxMetrics provider (additive merge, same as queueMetrics).
@@ -679,10 +698,135 @@ describe("outbox relay — DAT-05/DAT-06 + D-44..D-48", () => {
         expect(body.outbox.unsent).toBe(1);
         expect(body.outbox.failed).toBe(1);
         expect(body.outbox.latency.sample).toBe(1);
+        // The health surface carries the OBS-03 gauge input additively.
+        expect(typeof body.outbox.oldestUnsentSeconds).toBe("number");
+        expect(body.outbox.oldestUnsentSeconds as number).toBeGreaterThanOrEqual(0);
       } finally {
         await server.shutdown();
         await healthRedis.quit(); // passed explicitly => NOT owned by the server
       }
+    },
+    20_000
+  );
+
+  it(
+    "11. WR-04: telegramSend aborts a black-holed connection at ~10 s; the relay classifies the timeout TRANSIENT — attempts advance, claim transaction completes, row re-claimable",
+    async () => {
+      // (a) The send seam itself, dialed directly: a server that accepts the
+      // connection and never responds. The stub honors ONLY the abort signal
+      // — the exact black-hole undici would sit on for its ~300 s default
+      // without WR-04's bound (the relay holds the row's FOR UPDATE
+      // transaction across this await; the 30 s idle_in_transaction cap is
+      // the hard ceiling the 10 s bound must stay well under).
+      vi.stubEnv("TELEGRAM_BOT_TOKEN", "test-token");
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          (_url: unknown, init: { signal?: AbortSignal }) =>
+            new Promise((_resolve, reject) => {
+              init.signal?.addEventListener("abort", () =>
+                reject(new Error("The operation was aborted due to timeout"))
+              );
+            })
+        )
+      );
+      const startedAt = Date.now();
+      await expect(telegramSend("555000111", "⏳ black-hole probe")).rejects.toThrow(/abort/i);
+      const elapsed = Date.now() - startedAt;
+      expect(elapsed).toBeGreaterThanOrEqual(9_000); // it genuinely waited for the bound...
+      expect(elapsed).toBeLessThan(15_000); // ...which fires at ~10 s (slack for CI jitter)
+
+      // (b) Relay-level: a timed-out send is TRANSIENT (D-45 — timeout is
+      // not in the permanent enumeration). The send mock rejects immediately
+      // with the timeout-shaped error the real path now throws; the pass must
+      // complete the per-row mark-failure path (attempts advance — WR-04's
+      // "invisible to the attempts accounting" complaint) and release the
+      // row's FOR UPDATE lock so the NEXT pass can claim it.
+      const monitorId = await seedMonitor(testUserId, "relay-wr04-monitor");
+      const incidentId = await seedIncident(monitorId);
+      const rowId = await seedOutbox({ monitorId, eventType: "incident.down", incidentId });
+
+      const timedOut = vi.fn(async (): Promise<RelaySendOutcome> => {
+        throw new Error("The operation was aborted due to timeout");
+      });
+      const logger = fakeLogger();
+      await expect(runPass(timedOut, logger)).rejects.toThrow(/transient send failure/);
+
+      const row = await fetchOutboxRow(rowId);
+      expect(row?.sent_at).toBeNull();
+      expect(row?.attempts).toBe(1); // the timeout ADVANCED attempts
+      expect(row?.payload).not.toHaveProperty(RELAY_FAILURE_KEY); // not terminal
+      expect(logger.warn).toHaveBeenCalled(); // transient warn line, not the terminal error line
+
+      // No orphaned FOR UPDATE row: a follow-up pass with a healthy send
+      // claims the same row and delivers — proof the failed transaction
+      // committed its mark-failure and released the lock.
+      const send = okSendMock();
+      const result = await runPass(send);
+      expect(result.sent).toBe(1);
+      const sent = await fetchOutboxRow(rowId);
+      expect(sent?.sent_at).not.toBeNull();
+      expect(sent?.attempts).toBe(1); // the clean send does not increment
+    },
+    30_000
+  );
+
+  it(
+    "12. OBS-03 gauge: oldestUnsentSeconds — oldest unsent non-FAILED age; null when none; -1 on query failure (Pitfall 7)",
+    async () => {
+      // Nothing unsent: null (the queue gauge's oldestWaitingJobAgeMs
+      // convention — "no pending work" is null, not 0).
+      const empty = await collectOutboxMetrics();
+      expect(empty.unsent).toBe(0);
+      expect(empty.oldestUnsentSeconds).toBeNull();
+
+      // Three rows, only ONE of which the gauge may read: a FAILED row 10
+      // minutes old (attempts at cap — excluded), a sent row 5 minutes old
+      // (sent_at set — excluded), and a pending row 90 s old (THE input).
+      const monitorId = await seedMonitor(testUserId, "relay-age-monitor");
+      const failedRowIncident = await seedIncident(monitorId, "RESOLVED");
+      const sentRowIncident = await seedIncident(monitorId, "RESOLVED");
+      const pendingIncident = await seedIncident(monitorId); // ONGOING — the monitor's first
+      await seedOutbox({
+        monitorId,
+        eventType: "incident.down",
+        incidentId: failedRowIncident,
+        attempts: RELAY_MAX_ATTEMPTS, // derived FAILED — excluded from the gauge
+        createdAt: new Date(Date.now() - 600_000).toISOString(),
+      });
+      await seedOutbox({
+        monitorId,
+        eventType: "incident.down",
+        incidentId: sentRowIncident,
+        sentAt: new Date(Date.now() - 290_000).toISOString(),
+        createdAt: new Date(Date.now() - 300_000).toISOString(),
+      });
+      await seedOutbox({
+        monitorId,
+        eventType: "incident.down",
+        incidentId: pendingIncident,
+        createdAt: new Date(Date.now() - 90_000).toISOString(),
+      });
+
+      const metrics = await collectOutboxMetrics();
+      expect(metrics.unsent).toBe(1);
+      expect(metrics.oldestUnsentSeconds).not.toBeNull();
+      expect(metrics.oldestUnsentSeconds!).toBeGreaterThanOrEqual(89); // tolerance ±1 s
+      expect(metrics.oldestUnsentSeconds!).toBeLessThanOrEqual(95);
+
+      // Query failure: -1 (visible, never fatal — the 690-696 degradation
+      // pattern), with the rest of the snapshot still resolving.
+      const failingDb = {
+        execute: async () => {
+          throw new Error("simulated collector outage");
+        },
+      } as unknown as Parameters<typeof collectOutboxMetrics>[0];
+      const degraded = await collectOutboxMetrics(failingDb);
+      expect(degraded.unsent).toBe(-1);
+      expect(degraded.failed).toBe(-1);
+      expect(degraded.oldestUnsentSeconds).toBe(-1);
+      expect(degraded.latency.sample).toBe(0);
+      expect(degraded.latency.avgMs).toBeNull();
     },
     20_000
   );

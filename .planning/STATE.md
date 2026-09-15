@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 05
 current_phase_name: worker-cutover-operational-hardening
 status: executing
-stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-09-15T20:13:20.632Z"
+stopped_at: Completed 05-06-PLAN.md
+last_updated: "2026-09-15T20:56:47.352Z"
 last_activity: 2026-09-15
 last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 45
-  completed_plans: 41
+  completed_plans: 42
   percent: 50
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-13)
 ## Current Position
 
 Phase: 05 (worker-cutover-operational-hardening) — EXECUTING
-Plan: 6 of 9
+Plan: 7 of 9
 Status: Ready to execute
 Last activity: 2026-09-15 — Phase 05 execution started
 
@@ -98,6 +98,7 @@ Progress: [████████████████████] 36/36 p
 | Phase 05 P02 | 547s (~9 min, single session) | 3 tasks | 4 files |
 | Phase 05 P03 | ~14 min (single session) | 3 tasks | 6 files |
 | Phase 05 P05 | 20min | 3 tasks | 5 files |
+| Phase 05 P06 | 1998s (~33 min; single logical session across one compaction) | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -238,6 +239,12 @@ Recent decisions affecting current work:
 - [Phase ?]: 05-05: check-cron-remnants.mjs ships INERT (advisory) — verify-leg wiring + dep removal belong to the 05-09 deletion release; this plan touches no package.json
 - [Phase ?]: 05-05: gate-cutover degrades DB-backed gates to FAIL-with-reason on unreachable DB (never crashes); gate 1 without key/cache degrades to manual-evidence instructions
 - [Phase ?]: 05-05: WRK-11/OBS-05 stay Pending — proof is the live >=4h window evidence 05-08 captures (false-signal precedent)
+- [Phase 05]: 05-06: maintenance job contract — name 'cleanup' (processMaintenanceJob throws otherwise; the plan's 'named manual-maintenance' realized as jobId manual-maintenance:<mode>:<epoch-ms>, EXACTLY 3 colon segments — a 2-segment id throws 'Custom Id cannot contain :', caught live on a throwaway Redis)
+- [Phase 05]: 05-06: induced-parity target = TEST-NET-3 sibling containers (203.0.113.0/24, RFC 5737) — the SSRF denylist blocks every loopback/private target so a loopback target is DOWN-only (ssrf_blocked) and can never produce the UP leg; 05-CONTEXT D-11 leaves the target form to execution
+- [Phase 05]: 05-06: gates two-pass — pass A with TRUE bounds asserts the sub-4h D-16 refusal (the clock rule is part of what is rehearsed); pass B with extended bounds (end=now so induce/drill pings stay inside for gate 4) runs ONLINE against the throwaway DB — strictly more real than offline fixtures whose comparison contract 05-05's tests pin
+- [Phase 05]: 05-06: induce determinism — interval 1440 + fresh lastChecked/next_check_at starves BOTH engines so manual enqueue is the sole check driver (Pitfall 2 race avoided); monitor created via INSERT mirroring the /api/monitors route's exact data shape (NextAuth session unmintable on the anonymized stand-in)
+- [Phase 05]: 05-06: drill auto-resume proven via the §9 curl lever (Bearer CRON_SECRET runs due checks + in-request flush) — legacy cron's batcher makes raw ping-count polling lag; natural 1-min pass observational only
+- [Phase 05]: 05-06: WRK-11/DEP-03 deliberately stay Pending — choreography encoded and self-tested, but proof is 05-07 executing the rehearsal + 05-08's live window evidence (false-signal precedent)
 
 ### Pending Todos
 
@@ -261,6 +268,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-15T20:11:45.734Z
-Stopped at: Completed 05-03-PLAN.md
+Last session: 2026-09-15T20:56:47.345Z
+Stopped at: Completed 05-06-PLAN.md
 Resume file: None

@@ -229,7 +229,7 @@ Plans:
   3. Operators see trouble before users do: outbox-age alerting fires when rows exceed the threshold, and Prometheus exports queue depth/age, stalled count, transition→alert latency, and Redis memory
   4. Rollback is rehearsed: restoring the previous tarball returns the prior release cleanly, expand/contract discipline holds (no drops or renames inside verification windows), and the environment transition is complete (`REDIS_URL`, `EMAIL_PROVIDER`, `BETTER_AUTH_*` documented; `NEXTAUTH_*`/`CRON_MODE` retired or on a dated retirement path in `.env.example`)
 
-**Plans**: 5/9 plans executed
+**Plans**: 6/9 plans executed
 
 Plans:
 **Wave 1** *(parallel, no file overlap)*
@@ -248,7 +248,7 @@ Plans:
 
 **Wave 4** *(blocked on 05-05)*
 
-- [ ] 05-06-PLAN.md — D-33 rehearsal machinery: egress-neutral localhost stand-in, re-seed/unpause/co-run/induce/gates/drill legs + one-shot maintenance enqueue + IN-01 seed fix (WRK-11, DEP-03)
+- [x] 05-06-PLAN.md — D-33 rehearsal machinery: egress-neutral localhost stand-in, re-seed/unpause/co-run/induce/gates/drill legs + one-shot maintenance enqueue + IN-01 seed fix (WRK-11, DEP-03)
 
 **Wave 5** *(blocked on 05-06)*
 
@@ -339,7 +339,7 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | 2. Foundations & Theme Infrastructure | 10/10 | Gaps closed (02-10); round-2 verification human_needed — 5 UAT tests pending (02-UAT.md) | - |
 | 3. Redis & Drizzle Schema Ownership | 0/TBD | Not started | - |
 | 4. Monitoring Worker — Build & Dark Launch | 0/9 | Planned — research resolved, 9 plans across 6 waves | - |
-| 5. Worker Cutover & Operational Hardening | 5/9 | In Progress | - |
+| 5. Worker Cutover & Operational Hardening | 6/9 | In Progress | - |
 | 6. Thin API Routes & Email Abstraction | 0/TBD | Not started | - |
 | 7. Better Auth Cutover, Admin Gating & Prisma Removal | 0/TBD | Not started | - |
 | 8. Flagged Capabilities & UI Modernization | 0/TBD | Not started | - |

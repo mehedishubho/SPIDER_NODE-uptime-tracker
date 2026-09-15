@@ -529,19 +529,23 @@ curl -s -H "X-Api-Key: $HC_READ_ONLY_KEY" \
 
 **All other claims in this research were verified against the codebase, the local runtime, the npm registry, or official documentation this session.**
 
-## Open Questions
+## Open Questions (All RESOLVED — every question is adopted by a Phase-5 plan)
 
 1. **Outbox-age threshold exact value (D-23 band 60–120s)**
    - What we know: relay cadence is 5s; healthy age ≈ <10s; grace 5 min (D-25).
    - What's unclear: the exact threshold — 90s is the natural midpoint (~18 missed passes).
    - Recommendation: pin 90s in the add-release; revisit only with window data (D-20 discipline).
+   - **(RESOLVED)** Pinned at 90s — `OUTBOX_AGE_ALERT_THRESHOLD_SECONDS = 90` in 05-02 Task 2; any later change is D-20 disposition-driven (evidence in the deploy record).
 2. **Maintenance manual-enqueue leg for the window (D-12)**
    - What we know: no existing script enqueues a maintenance job (scripts/ has smoke/re-drive/rehearse only); the maintenance scheduler is daily-03:15, outside any window.
    - Recommendation: the D-33 rehearsal extension adds a one-shot maintenance enqueue (dry-run default) — trivial `Queue.add` on the maintenance lane; window evidence observes it.
+   - **(RESOLVED)** Adopted — `scripts/enqueue-maintenance.mjs` (one-shot enqueue, dry-run default, `--apply` / `--allow-prod` flags) in 05-06 Task 2; exercised by the rehearsal gates leg (05-06/05-07) and the real window (05-08 Task 3).
 3. **Env-var family naming for the two extra checks (discretion)**
    - Recommendation: `WORKER_OUTBOX_HC_PING_URL` / `WORKER_MEMORY_HC_PING_URL` (keeps the `WORKER_*` family and self-describes); or a single JSON env — rejected (one string per check matches `WORKER_HC_PING_URL` precedent).
+   - **(RESOLVED)** Adopted — `WORKER_OUTBOX_HC_PING_URL` / `WORKER_MEMORY_HC_PING_URL` (one string per check) wired in 05-02 Task 2; documented in `.env.example` by 05-04 Task 3.
 4. **Gate-script snapshot capture format (discretion)**
    - Recommendation: JSON files under `.snapshots/gates-<timestamp>/` (one per gate input) + a markdown summary appended to 05-DEPLOY-RECORD.md — mirrors the 03-05 evidence layout.
+   - **(RESOLVED)** Adopted — snapshot dir layout `DIR/samples/*.txt`, `recompute-report.json`, `parity-evidence.json`, `disposition.md`, `legacy-observations.json`, `flips-heartbeat.json` under `.snapshots/gates-<timestamp>/` with the markdown evidence block appended to `05-DEPLOY-RECORD.md`, pinned as the contract in 05-05 Task 1.
 
 ## Environment Availability
 

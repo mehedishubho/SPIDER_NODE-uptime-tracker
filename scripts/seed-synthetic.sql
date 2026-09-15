@@ -2,9 +2,13 @@
 -- Applied AFTER migrate on every deploy topology (rehearsal throwaway, local
 -- production stand-in, and the first VPS deploy) — it is the target the D-18
 -- smoke check enqueues against, and it must NEVER page a human:
---   * the owner sentinel has NO telegram chat binding, so any outbox row its
---     checks produce resolves to the no-chat skip path (alert dedup keys are
---     still written — the relay path itself stays exercised end-to-end);
+--   * the seed status is PENDING, so an UP smoke check derives
+--     monitor.first_check (deriveEventType) — exactly one outbox row, which
+--     resolves to the no-chat skip path (alert dedup key written, the relay
+--     path exercised end-to-end, a human never paged); a DOWN smoke
+--     exercises the full alert render. (04-REVIEW IN-01: the previous
+--     UNKNOWN seed derived NO event on an UP smoke, so the relay path only
+--     stayed exercised while example.com happened to be DOWN.)
 --   * the URL is https://example.com/ (IANA-reserved documentation host —
 --     stable, publicly reachable, answers fast);
 --   * interval 1440 (once-a-day cadence) keeps BOTH engines off its back
@@ -45,7 +49,7 @@ INSERT INTO monitors (
 SELECT
   'https://example.com/',
   'SpiderNode Smoke Check (operator)',
-  'UNKNOWN',
+  'PENDING',
   true,
   1440,
   'spidernode-ops-smoke',

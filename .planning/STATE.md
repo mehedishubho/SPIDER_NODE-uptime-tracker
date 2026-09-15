@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 05
 current_phase_name: worker-cutover-operational-hardening
 status: executing
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-09-15T13:39:02.286Z"
+stopped_at: Completed 05-04-PLAN.md
+last_updated: "2026-09-15T13:53:59.602Z"
 last_activity: 2026-09-15
 last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 45
-  completed_plans: 37
+  completed_plans: 38
   percent: 50
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-13)
 ## Current Position
 
 Phase: 05 (worker-cutover-operational-hardening) — EXECUTING
-Plan: 2 of 9
+Plan: 3 of 9
 Status: Ready to execute
 Last activity: 2026-09-15 — Phase 05 execution started
 
@@ -94,6 +94,7 @@ Progress: [████████████████████] 36/36 p
 | Phase 04 P08 | 2 sessions (Task 2-3 continuation after usage-limit cutoff; this leg ~75 min incl. two Rule-1 production fixes) | 3 tasks | 14 files |
 | Phase 04 P09 | 1h5m + closeout continuation (Task 4 operator approval 2026-09-14) | 4 tasks | 9 files |
 | Phase 05 P01 | ~11 min active (resumed session) | 4 tasks | 8 files |
+| Phase 5 P4 | ~8 min (494s) | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -218,6 +219,8 @@ Recent decisions affecting current work:
 - [Phase 05]: 05-01: oldestUnsentSeconds convention — null when nothing unsent (queue-gauge precedent), -1 on query failure
 - [Phase 05]: 05-01: WR-04 audit conclusion — Telegram send was the only internet-path await in the relay transaction; 10s AbortSignal bounds it, local PG/Redis awaits reaped by the 30s idle cap
 - [Phase 05]: 05-01: WRK-11/OBS-03 deliberately left Pending — this plan lands their inputs only (WRK-11 completes at 05-08 window, OBS-03 at 05-02 dead-man)
+- [Phase 5]: 05-04: §4a choreography appended as steps 5-11 (existing 1-4 kept as dark-launch history); D-19 age bound pinned 120 s; both cron routes verified GET-only before documenting the curl lever
+- [Phase 5]: 05-04: DEP-05/WRK-11 deliberately left Pending — doc wave only; WRK-11 completes at the 05-08 window, DEP-05 at phase end when the deletion release executes the dated paths (D-40)
 
 ### Pending Todos
 
@@ -241,6 +244,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-15T13:39:02.279Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-09-15T13:53:59.596Z
+Stopped at: Completed 05-04-PLAN.md
 Resume file: None

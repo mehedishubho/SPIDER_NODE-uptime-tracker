@@ -1012,10 +1012,15 @@ async function legUnpause(state) {
   try {
     docker(
       ["create", "--name", TARGET_CONTAINER, "--network", NETWORK, "--ip", TARGET_IP,
-       nodeImage, "node", "/target/target-driver.mjs"],
+       nodeImage, "node", "/target-driver.mjs"],
       { stdio: "inherit" }
     );
-    docker(["cp", toPosix(TARGET_DRIVER_FILE), `${TARGET_CONTAINER}:/target/target-driver.mjs`], {
+    // FLAT destination: a single-file cp into a NESTED path fails on a
+    // created-not-started container when the parent dir is absent ("Could not
+    // find the file /target" — caught live on the first 05-07 run). Copy to
+    // the container root instead; the 04-09 `/.` directory form works because
+    // docker cp creates the destination for directory sources.
+    docker(["cp", toPosix(TARGET_DRIVER_FILE), `${TARGET_CONTAINER}:/target-driver.mjs`], {
       stdio: "inherit",
     });
     docker(["start", TARGET_CONTAINER], { stdio: "inherit" });

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import Redis from "ioredis";
 import { Client } from "pg";
@@ -280,6 +280,59 @@ describe("scheduler flag + tick lane (WRK-10 / D-16 / RES-05)", () => {
 
       // D-16 wiring: the boot flow reads the flag.
       expect(indexSource).toContain("WORKER_SCHEDULER_ENABLED");
+    },
+    15_000
+  );
+
+  it(
+    "6. flag-off boot produces ZERO autonomous pings — the dead-man wiring rides inert (D-37 alignment)",
+    async () => {
+      // The 05-02 dead-man checks (heartbeat/outbox-age/memory) are wired on
+      // processTick, NOT gated on the D-16 flag: inertness is structural —
+      // flag off means no schedulers are upserted, so no scheduler path can
+      // ever invoke processTick and no ping is ever issued. This case proves
+      // that posture by simulation: boot the module's exported surface with
+      // the flag off while all three ping URLs are armed, and assert zero
+      // global-fetch calls.
+      //
+      // This inertness is exactly why the REAL healthchecks.io checks are
+      // provisioned at window-open (D-37), not at the add-release deploy: an
+      // add-release soak is scheduler-off, so provisioning early would leave
+      // three live checks receiving silence and false-paging through their
+      // graces before the window ever opens.
+      const saved: Record<string, string | undefined> = {};
+      for (const key of [
+        "WORKER_HC_PING_URL",
+        "WORKER_OUTBOX_HC_PING_URL",
+        "WORKER_MEMORY_HC_PING_URL",
+      ]) {
+        saved[key] = process.env[key];
+      }
+      process.env.WORKER_HC_PING_URL = "https://hc.example.test/flag-off-heartbeat-mock";
+      process.env.WORKER_OUTBOX_HC_PING_URL = "https://hc.example.test/flag-off-outbox-mock";
+      process.env.WORKER_MEMORY_HC_PING_URL = "https://hc.example.test/flag-off-memory-mock";
+
+      const fetchMock = vi.fn(async () => new Response("OK"));
+      vi.stubGlobal("fetch", fetchMock);
+      try {
+        const result = await upsertSchedulersAtBoot({ schedulerEnabled: false, queues });
+        expect(result.upserted).toEqual([]);
+
+        // No scheduler exists on any lane — nothing can autonomously fire a
+        // tick. (The tick-lane CONSUMER stays live by design, D-16/Pitfall
+        // 12 — but only a manual enqueue reaches it, never a boot path.)
+        expect(await queues.scheduler.getJobSchedulers()).toEqual([]);
+        expect(await queues.maintenance.getJobSchedulers()).toEqual([]);
+
+        // The dark-launch invariant, ping edition: zero autonomous pings.
+        expect(fetchMock).not.toHaveBeenCalled();
+      } finally {
+        vi.unstubAllGlobals();
+        for (const [key, value] of Object.entries(saved)) {
+          if (value === undefined) delete process.env[key];
+          else process.env[key] = value;
+        }
+      }
     },
     15_000
   );

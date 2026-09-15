@@ -365,7 +365,7 @@ describe("POST /api/monitors/[id]/check (manual force check — mocked seams, D-
     expect(cronMocks.runCronChecks).not.toHaveBeenCalled();
   });
 
-  it("200 for the owner — force-check (true, id), immediate flush, body shape", async () => {
+  it("200 for the owner — force-check (true, id), flush AWAITED before the response settles, order force-then-flush, body shape (D-04 pin)", async () => {
     mockSession(sessionA);
     h.prisma.monitor.findUnique.mockResolvedValue(monitorOfA);
     const result = [{ monitorId: 5, status: "UP" }];
@@ -373,19 +373,65 @@ describe("POST /api/monitors/[id]/check (manual force check — mocked seams, D-
       message: "Successfully checked all monitors",
       result,
     });
-    cronMocks.flushBatches.mockResolvedValue(undefined);
+    // D-04 deferred-mock pin: flushBatches returns a promise resolved ONLY
+    // by hand. The route awaits the flush INSIDE its try/catch (route line
+    // ~38), so the 200 cannot settle until this gate opens — de-awaiting,
+    // reordering, or deleting the flush fails the held-response assertion.
+    let releaseFlush!: () => void;
+    const flushGate = new Promise<void>((resolve) => {
+      releaseFlush = resolve;
+    });
+    cronMocks.flushBatches.mockReturnValueOnce(flushGate);
+
+    let settled = false;
+    const pending = POST_CHECK(
+      buildRequest({ path: "/api/monitors/5/check", method: "POST" }),
+      routeParams({ id: "5" }),
+    ).then((res) => {
+      settled = true;
+      return res;
+    });
+
+    // While the flush is in flight the response must NOT settle — this is
+    // the await pin, not just a call-count pin.
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(settled).toBe(false);
+    expect(cronMocks.flushBatches).toHaveBeenCalledTimes(1);
+
+    releaseFlush();
+    const res = await pending;
+
+    expect(res.status).toBe(200);
+    expect(cronMocks.runCronChecks).toHaveBeenCalledWith(true, 5);
+    expect(cronMocks.flushBatches).toHaveBeenCalledTimes(1);
+    // Invocation order: the force check precedes the flush (the flush
+    // exists to land what the force check queued).
+    expect(cronMocks.runCronChecks.mock.invocationCallOrder[0]).toBeLessThan(
+      cronMocks.flushBatches.mock.invocationCallOrder[0],
+    );
+    await expect(res.json()).resolves.toEqual({
+      message: "Monitor checked successfully",
+      result,
+    });
+  });
+
+  it("a rejecting flushBatches surfaces through the 500 path — the await sits inside the try/catch (D-04 pin)", async () => {
+    mockSession(sessionA);
+    h.prisma.monitor.findUnique.mockResolvedValue(monitorOfA);
+    cronMocks.runCronChecks.mockResolvedValue({
+      message: "Successfully checked all monitors",
+      result: [],
+    });
+    cronMocks.flushBatches.mockRejectedValueOnce(new Error("flush exploded"));
 
     const res = await POST_CHECK(
       buildRequest({ path: "/api/monitors/5/check", method: "POST" }),
       routeParams({ id: "5" }),
     );
 
-    expect(res.status).toBe(200);
-    expect(cronMocks.runCronChecks).toHaveBeenCalledWith(true, 5);
-    expect(cronMocks.flushBatches).toHaveBeenCalledTimes(1);
-    await expect(res.json()).resolves.toEqual({
-      message: "Monitor checked successfully",
-      result,
-    });
+    // The flush failure is never silently swallowed: an unawaited flush
+    // (void / fire-and-forget) would return 200 here instead.
+    expect(res.status).toBe(500);
+    await expect(res.json()).resolves.toEqual({ error: "Failed to check monitor" });
   });
 });

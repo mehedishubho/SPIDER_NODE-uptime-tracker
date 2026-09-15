@@ -531,11 +531,12 @@ describe("cutover gate evaluator — scripts/gate-cutover.mjs (D-14, WRK-11)", (
     }
   });
 
-  it("11. offline mode never touches a DB: an unreachable --db degrades gates 3-6 to FAIL-with-reason (never crash)", async () => {
+  it("11. online mode with an unreachable DB degrades gates 3-6 to FAIL-with-reason (never crash)", async () => {
     const dir = writeFixture((files) => {
-      // No db-evidence.json: online mode would query the (unreachable) DB.
-      delete (files as Record<string, string | undefined>)["db-evidence.json"];
+      // No db-evidence.json: online mode queries the (unreachable) DB.
+      delete (files as unknown as Record<string, string | undefined>)["db-evidence.json"];
     });
+    const recordDir = mkdtempSync(path.join(tmpdir(), "cutover-record-"));
     try {
       const env = { ...process.env };
       delete env.HC_READ_ONLY_API_KEY;
@@ -550,6 +551,8 @@ describe("cutover gate evaluator — scripts/gate-cutover.mjs (D-14, WRK-11)", (
           String(W_START),
           "--end",
           String(W_END),
+          "--record",
+          path.join(recordDir, "record.md"), // keep the default repo record out of the test
           "--db",
           "postgresql://127.0.0.1:1/gate-unreachable", // nothing listens on port 1
         ],
@@ -574,6 +577,7 @@ describe("cutover gate evaluator — scripts/gate-cutover.mjs (D-14, WRK-11)", (
       expect((error!.stderr ?? "")).not.toContain("Error:");
     } finally {
       rmSync(dir, { recursive: true, force: true });
+      rmSync(recordDir, { recursive: true, force: true });
     }
   });
 
@@ -594,7 +598,7 @@ describe("cutover gate evaluator — scripts/gate-cutover.mjs (D-14, WRK-11)", (
         { env }
       ).then(
         () => null,
-        (error: NodeJS.ErrnoException & { code?: number | string }) => error
+        (error: NodeJS.ErrnoException & { code?: number | string; stdout?: string; stderr?: string }) => error
       );
       expect(error).not.toBeNull();
       expect(Number(error!.code)).not.toBe(0);

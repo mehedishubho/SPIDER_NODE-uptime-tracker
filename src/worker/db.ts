@@ -34,6 +34,18 @@ export const workerPgPool =
     idleTimeoutMillis: 10000, // release idle server connections so the budget tracks load
     statement_timeout: 30000, // web+worker pools only; UNSET on the migration runner (§25.2)
     idle_in_transaction_session_timeout: 30000, // reap sessions stuck idle inside a transaction
+    // WR-05 (D-29): one clock domain for EVERY session this pool mints.
+    // pings."createdAt" and monitors."lastChecked" are naive timestamp
+    // columns (audit A6) written by Tier 1 with session now(), by Tier 2
+    // with formatPgTimestamp UTC strings, and compared by maintenance
+    // against now() AT TIME ZONE 'utc' — any session TimeZone other than
+    // UTC offsets Tier-1 rows from Tier-2 rows in the same columns. The
+    // option is a pass-through in the startup packet (@types/pg
+    // ClientConfig.options), so every pooled client (raw pool client AND
+    // the drizzle client riding the same pool) reports TimeZone UTC.
+    // Scoped to the WORKER pool only — the web pool and the migration
+    // runner keep their own postures (prohibition 2; 01-03).
+    options: "-c timezone=UTC",
   });
 
 // FAIL-STAY-UP (04-01 philosophy, proven by the resilience suite's

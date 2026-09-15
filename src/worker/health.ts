@@ -92,8 +92,13 @@ function parseInfoSection(text: string): Map<string, string> {
   return map;
 }
 
-/** Redis memory snapshot from ONE INFO call (D-25); failures map to nulls. */
-async function redisMemorySnapshot(redis: Pick<Redis, "info">) {
+/**
+ * Redis memory snapshot from ONE INFO call (D-25); failures map to nulls.
+ * Exported since 05-01 (key_links): the 05-02 memory dead-man ping and the
+ * 05-03 Prometheus memory gauge read this same snapshot instead of issuing
+ * their own INFO calls.
+ */
+export async function redisMemorySnapshot(redis: Pick<Redis, "info">) {
   try {
     const info = parseInfoSection(await redis.info("memory"));
     const usedMemoryBytes = Number(info.get("used_memory")) || null;

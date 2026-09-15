@@ -177,9 +177,26 @@ The VPS currently runs the app the way it always has: Node loaded via NVM (Ubunt
 
 ---
 
-## 3c. Redis 70% memory alert — VPS cron + dedicated healthchecks.io check (D-16)
+## 3c. Redis 70% memory alert — dedicated healthchecks.io check, pinged by the worker tick (D-16, amended D-24)
 
-> **Dead-man's-switch semantics: the script pings while memory is healthy; silence pages.** The check is **separate from the app's existing healthchecks.io heartbeat** — one check, one meaning (D-02's philosophy): a Redis memory event must not surface as "app down", and a healthy app must not mask an unhealthy Redis. Threshold: 70% of `maxmemory` — at §3b's `maxmemory 512mb` that is ~358 MB decimal (exactly 377,487,360 bytes / 360 MiB, since Redis's `mb` is binary; the script computes from `INFO`'s raw byte values, so its arithmetic is exact). **Phase 5's OBS-03 (Prometheus export) supersedes this whole mechanism — do not extend it.**
+> **Dead-man's-switch semantics: the worker pings while memory is healthy; silence pages.** The check is **separate from the worker heartbeat** — one check, one meaning (D-02's philosophy): a Redis memory event must not surface as "worker down", and a healthy worker must not mask an unhealthy Redis. Threshold: 70% of `maxmemory` — at §3b's `maxmemory 512mb` that is ~358 MB decimal (exactly 377,487,360 bytes / 360 MiB, since Redis's `mb` is binary; the arithmetic runs on `INFO`'s raw byte values, so it is exact). An unreachable Redis also produces silence: the dead man catches both over-threshold memory **and** a Redis outage.
+
+> **AMENDED 2026-09-15 (05-Context D-24 — supersedes the VPS-cron script form):** the operator provisions the healthchecks.io check and sets `WORKER_MEMORY_HC_PING_URL`; **the worker does the rest.** The scheduler tick already reads Redis `INFO` for the memory metrics gauge and pings the check each tick (every 30 s = 2 pings/min, under healthchecks.io's 5/min per-check cap) **only while used memory stays below 70% of maxmemory** — silence past the grace pages. This form works on the local stand-in today (no VPS cron exists to install) and retires the forward-tracked §3c application debt from the Phase-3 UAT disposition (03-UAT item (b)). The historical VPS-cron script form is retained at the bottom of this section, clearly marked — it is superseded; **do not install it**.
+
+1. **Provision the dedicated check (manual step, healthchecks.io dashboard).**
+   - *Action:* create a **new** check named for this purpose (e.g. `redis-memory-worker`), Schedule = Period **1 minute** (healthchecks.io's finest period; the tick's 30 s ping cadence stays under the 5-pings/min cap regardless), **Grace 30 minutes** (D-25 — avoids flapping on transient spikes; pages within ~36 min of sustained over-threshold memory). Record its ping URL (`https://hc-ping.com/<uuid>`) and set it as `WORKER_MEMORY_HC_PING_URL` in the **worker's** environment. No API is assumed — this is a dashboard step performed by the operator. The variable is optional by design: an unset URL skips the ping (nothing pages), so a stand-in without the check configured never errors.
+   - *Verification:* the check exists in the dashboard with the 1-minute schedule and 30-minute grace; the worker environment carries the URL; once the scheduler is live (Phase 5 window-open onward) the check's Last Ping advances each tick while memory is under threshold.
+   - *Rollback:* remove the variable from the worker environment and delete the check in the dashboard.
+2. **Verify both branches by hand (once, at provisioning time).**
+   - *Action:* the healthy branch proves itself (Last Ping advances). For the over-threshold branch, verify the decision **input** rather than disturbing production: read the worker's memory gauge (`:9090/metrics.json`, and the `/metrics` exposition from Phase 5) — it is the same `INFO`-derived value the ping decision reads — and compare it against a manual `redis-cli INFO memory` computation. Do NOT edit the production threshold or `maxmemory` to force a page.
+   - *Verification:* the gauge's used/max percentage matches the manual computation; a value under 70% with pings flowing demonstrates the gated ping condition by inspection.
+   - *Rollback:* n/a — read-only verification.
+3. **Rollback — the whole mechanism.**
+   - *Action:* unset `WORKER_MEMORY_HC_PING_URL` (pings stop) and delete the check in the dashboard in the same motion — a check whose pings stopped pages after its grace.
+   - *Verification:* the check is deleted (no lingering "down" pages); the worker runs unaffected (the variable is optional).
+   - *Rollback:* n/a — this step IS the rollback.
+
+**Historical form — VPS cron script (SUPERSEDED by the worker-side dead-man above, 05-Context D-24). Retained for the record; NO step in this block is operative — do not install, schedule, or extend any of it:**
 
 1. **Provision the dedicated check (manual step, healthchecks.io dashboard).**
    - *Action:* create a **new** check named for this purpose (e.g. `redis-memory-vps`), Schedule = Period **5 minutes**, Grace short (e.g. 5 minutes) so silence pages quickly. Record its ping URL (`https://hc-ping.com/<uuid>`). No API is assumed — this is a dashboard step performed by the operator.
@@ -192,7 +209,7 @@ The VPS currently runs the app the way it always has: Node loaded via NVM (Ubunt
      #!/usr/bin/env bash
      # redis-memory-check.sh — 70% maxmemory dead-man alert (D-16).
      # Pings ONLY while used_memory is below 70% of maxmemory; silence pages.
-     # Superseded by Phase 5 OBS-03 (Prometheus export) — do not extend.
+     # SUPERSEDED by the worker-side dead-man (D-24) — do not install or extend.
      set -u
      REDIS_PASS="<password>"
      PING_URL="https://hc-ping.com/<uuid>"
@@ -302,6 +319,8 @@ The first release that introduces `uptime-worker` is not a restart: the app does
 
 > **EXECUTED 2026-09-14 as the Phase 4 DARK LAUNCH (D-15/D-16/D-21/D-23, plan 04-09):** the worker went live as a plain process on the operator-ratified local stand-in (spidernode-dev-db + the hardened Redis stand-in + `pnpm start` web — the 03-08 topology) with `WORKER_SCHEDULER_ENABLED=false`. The flag pauses ONLY the scheduler upserts — consumers always live, and `queue.pause` is forbidden — so the worker consumes anything enqueued (the smoke check) while the legacy `instrumentation.ts` cron serves 100% of user monitors exactly as before. **Rollback for the dark launch is: stop the worker process (D-22).** No code-level rollback exists this phase by design — the worker is additive, the cron never stopped, and Phase 5 owns the overlap-verified cutover rehearsal. The PM2 handshake (`wait_ready`/`kill_timeout`) is exercised as configuration in `ecosystem.config.js` only — its live behavior is a first-VPS-deploy consumption point (deploy record disposition).
 
+> **AMENDED 2026-09-15 (Phase 5 gated window, plans 05-04..05-09 — audit §20.1 is the design authority):** steps 1–3 above plus step 4's re-seed are the executed dark-launch history and its Phase-5 preamble. Phase 5 executes the cutover as one **add-release → env-flip window → deletion release** arc (05-CONTEXT D-07): the add-release ships all new wiring (heartbeat, outbox-age/memory dead-men, `/metrics`, gate/scraper scripts, these doc amendments) and soaks scheduler-off in the dark-launch posture; **steps 5–11 below are the window-open choreography and the deletion release** — the runbook an operator executes on window day. The window itself is a pure environment flip (`WORKER_SCHEDULER_ENABLED=true` + worker restart), not an application change.
+
 1. **Register and start the worker — never `pm2 restart`.**
    - *Action:* deploy the worker artifact, then register the new PM2 app: `pm2 start ecosystem.config.js --only uptime-worker` (or `pm2 startOrReload` — both handle an unregistered app). **Never `pm2 restart uptime-worker`** on the first release: it errors on a name PM2 has never started. The app must emit the PM2 ready signal (`process.send('ready')` after its Redis + DB pings pass — §4/§5). **Dark-launch posture:** the plain-process stand-in runs `node dist/worker.js` with `WORKER_SCHEDULER_ENABLED=false` in its environment (D-16); readiness is still the two signals — `curl :9090/readyz` 200 for the operator, the process ready signal for PM2 (N/A-locally as a plain process).
    - *Verification:* `pm2 ls` shows `uptime-worker` `online` (not `errored`, not restart-looping); `curl -fsS http://127.0.0.1:9090/readyz` passes; the §4 step 6 synthetic-check smoke passes.
@@ -310,8 +329,8 @@ The first release that introduces `uptime-worker` is not a restart: the app does
    - *Action:* disable nothing. The old `instrumentation.ts` cron **keeps running** while the new worker serves — both paths are idempotent by design, so the overlap only wastes duplicate checks, never corrupts data (audit M3). Hold this window until every item below is green.
    - *Verification:* healthchecks.io heartbeat steady (no `/fail` ping fired); worker queue depth returns to ≈ 0 after the initial drain (Redis/BullMQ metrics); pings still flowing for sampled monitors (fresh `pings` rows appearing under both paths); Telegram alert parity over the window (every DOWN/RECOVERY event alerted exactly once); monitor counter deltas sane (audit M4 — `total_checks`/`failed_checks` advance by ≈ the interval count, no doubling).
    - *Rollback:* disable nothing and keep web-cron as the monitoring path — a red item in this window means the worker is not yet trusted; the old path was never turned off, so no rollback action exists or is needed.
-3. **Cutover completion — a separate, later release.**
-   - *Action:* only after the overlap window has closed green, ship a follow-up release that deletes the old monitoring path — the `instrumentation.ts` cron registration and `CRON_MODE` (audit §24 step 4). From this release the worker is the sole monitoring path. (The external cron endpoints and `CRON_SECRET` follow their own later retirement path in §9 — they are not deleted here.)
+3. **Cutover completion — a separate, later release (mechanics expanded in step 10).**
+   - *Action:* only after the gated window has closed green — the steps 5–8 choreography with its 7-gate evaluation PASS plus the step 9 operator approval — ship the follow-up release that deletes the old monitoring path's scheduler: the `instrumentation.ts` cron registration and `CRON_MODE` (audit §24 step 4; the release mechanics, including the Windows flush and the old-check pause, are step 10 below). From this release the worker is the sole monitoring path. (The external cron endpoints and `CRON_SECRET` follow their own later retirement path in §9 — they are not deleted here; they survive dormant as §9's emergency lever until Phase 6.)
    - *Verification:* one full check cycle with zero cron-route traffic (`/api/cron/*` access logs silent; `CRON_MODE` absent from the environment); the healthchecks.io heartbeat still green, now fired from the worker scheduler tick; §4 step 6 smoke check green.
    - *Rollback:* restore the previous release tarball pair and restart both apps — the previous release still carries the cron path, so web-cron returns; watch one check interval to confirm it is firing.
 4. **Re-seed `next_check_at` BEFORE the scheduler unpause (D-49 — TEXT NOW, execution Phase 5).**
@@ -329,6 +348,41 @@ The first release that introduces `uptime-worker` is not a restart: the app does
      `LEAST` bounds the wave: a monitor overdue by hours gets its (past) nominal slot — the claim's D-50 `GREATEST` catch-up advance then handles it as one immediately-due claim — while a monitor checked recently keeps its true next slot. One UPDATE, zero new migrations, forward-only.
    - *Verification:* the UPDATE reports a row count equal to the active-monitor count; the first scheduler tick after unpause claims a sane wave (no backlog-gate drops in `/metrics.json`), and §4 step 6 smoke stays green.
    - *Rollback:* no down-path needed — the column is derived scheduling state, not data; re-running the UPDATE (or letting one tick pass) recomputes it. If the unpause itself goes wrong, re-pause (`WORKER_SCHEDULER_ENABLED=false`) — the cron is still live until the §4a step-3 cutover release.
+5. **Unpause the scheduler — flag flip + worker RESTART (window-open, 05-CONTEXT D-01).**
+   - *Action:* run step 4's D-49 re-seed UPDATE **immediately before** this step — it is mandatory, not optional (the claim's D-50 `GREATEST` catch-up alone would still be correct, but the re-seed is what makes the first wave sane). Provision the three real healthchecks.io checks (D-37 — throwaway rehearsal checks were separate; these are the permanent ones) and put their ping URLs in the worker's environment: `WORKER_HC_PING_URL` (heartbeat), `WORKER_OUTBOX_HC_PING_URL` (outbox age), `WORKER_MEMORY_HC_PING_URL` (Redis memory) — all optional, ping skipped when unset, graces per step 11's table. Then set `WORKER_SCHEDULER_ENABLED=true` and **restart the worker**: the flag is boot-read (`src/worker/index.ts` reads it once; `upsertSchedulersAtBoot` runs at boot only) — flipping the env on a running worker does nothing.
+   - *Verification:* `curl -fsS http://127.0.0.1:9090/readyz` passes; the worker boot log prints **`recurring scheduling ACTIVE`** (a boot payload still showing `schedulerEnabled: false` means the flag never reached the process — the 04 split-brain guard exists because exactly that happened); expect the first samples to show immediate relay-pass and flush-sweep activity — at unpause, four schedulers activate at once (check-tick 30 s, tier2-flush 30 s, relay-pass 5 s, maintenance daily) — this is harmless and is noted in the gate evidence, not treated as an anomaly.
+   - *Rollback:* re-pause — `WORKER_SCHEDULER_ENABLED=false` + worker restart (the step 6 abort form; 05-CONTEXT D-06). Cron never stopped, so monitoring never stopped.
+6. **Live abort drill — prove the lever BEFORE the window (05-CONTEXT D-35/D-15 tier 1).**
+   - *Action:* after 10–15 minutes of unpause, re-pause (`WORKER_SCHEDULER_ENABLED=false` + worker restart). Verify cron auto-resumes via the due-filter: monitors the worker had just checked are not due (starved), and everything else comes back on its own slot — zero gap. Then unpause again (step 5 form) into the **fresh** window — the drill's re-pause restarts the window clock (D-16). Keep the drill under the heartbeat check's grace (10 min, step 11) or pause the heartbeat check in the dashboard for its duration so the drill does not page.
+   - *Verification:* per-monitor ping timestamps show no gap exceeding interval + tolerance across the drill; the web process's cron-pass logs show the due set re-admitted (monitors the worker had not yet taken come due on their own slots); after the second unpause the boot log again prints `recurring scheduling ACTIVE`.
+   - *Rollback:* n/a — this step IS the abort rehearsal. Its purpose is that the first real abort is never performed under incident stress; a stand-in rehearsal (D-30) proved the mechanics earlier, but env-wiring mistakes on the real stack are only caught by a live pull.
+7. **The window — 4–6 h dense co-run (05-Context D-12/D-16).**
+   - *Action:* hold the co-run dense so every monitor cycles multiple times within it. Induce DOWN/RECOVERED parity events mid-window on the operator-owned monitor against a controllable target (D-11 — exercise the real create path; natural incidents count as bonus evidence only). Enqueue the maintenance dry-run pass manually instead of waiting for the daily 03:15 slot (WRK-13's manual path). Any interruption — reboot, restart, operator-caused gap — **restarts the window clock**: gates evaluate only over the final continuous ≥4 h stretch; a gap IS a monitoring gap and is never dispositioned away.
+   - *Verification:* the throwaway scraper's samples flow continuously; no check-lane job older than **120 s** at any sample and depth returns to 0 between claim cycles (D-19's age bound — this is the documented worst-case check latency, the WRK-12/J-6 number); the heartbeat check's flips record stays green.
+   - *Rollback:* any red signal → step 6's abort form (re-pause; D-06 — pre-committed, no debate at 2 a.m.).
+8. **Gate evaluation — one typed command (05-CONTEXT D-14).**
+   - *Action:* run `node scripts/gate-cutover.mjs` with the window start/end timestamps and the captured snapshot directory. It emits PASS/FAIL per the 7 gates — (1) heartbeat steady via the healthchecks.io flips record (D-17 — the dead-man switch IS the monitor, no local tick counting), (2) queue age + drain, (3) alert parity (exactly one relayed alert per incident, D-48 bytes), (4) counter gates: pings-vs-counters reconciliation (D-02) AND the D-37 dry-run recompute, (5) continuity gap-scan, (6) zero duplicate ONGOING incidents, (7) legacy-path log disposition — and appends the evidence block to `.planning/phases/05-worker-cutover-operational-hardening/05-DEPLOY-RECORD.md`. The alert-parity gate is a **verify + gate + disposition** control: duplicate-alert suppression machinery is deliberately NOT built (D-05) — a transient takeover-minute duplicate is dispositioned in the record.
+   - *Verification:* the script exits 0 with 7/7 PASS; a window shorter than 4 continuous hours fails up front (D-16).
+   - *Rollback:* any FAIL → re-pause (D-06), fix, re-rehearse on the stand-in (D-30/D-32), and reopen a fresh window — the window never "counts" partially.
+9. **Operator approval — BLOCKING step (05-Context D-18).**
+   - *Action:* the operator reviews the gate-script PASS output and the evidence, then **explicitly approves before the deletion release ships**. The approval is recorded with date + verdict in `05-DEPLOY-RECORD.md` (the 04-09 Task 4 pattern). No approval, no deletion release — the co-run may simply continue (cron is still live) or the scheduler may be re-paused.
+   - *Verification:* an affirmative approval entry with the operator's name, date, and verdict exists in the deploy record, referencing the gate evidence.
+   - *Rollback:* decline or defer — the system keeps running exactly as it is (co-run or re-paused); nothing about the window forces the deletion.
+10. **Deletion release — SCHEDULER-ONLY (05-Context D-03).**
+   - *Action:* ship the follow-up release of step 3. It deletes exactly **`src/instrumentation.ts` + `CRON_MODE`** (plus the now-unread `node-cron` dependency). `cron-logic.ts`, `db-batcher.ts`, and the `/api/cron/*` routes **survive dormant** as §9's manual emergency lever until Phase 6 (API-01/SEC-06) deletes them. On the Windows stand-in, immediately **BEFORE stopping web**, run `curl -fsS "http://127.0.0.1:3007/api/cron/check" -H "Authorization: Bearer $CRON_SECRET"` (a GET — both cron routes export GET only) so the batcher flushes in-request — the SIGTERM flush never fires under a Windows hard stop (`taskkill /T /F` lost exactly one batched ping at the 04 dark launch), and timing it just after a 15-minute flush boundary leaves minimal residue (D-43). In the same release, **pause or delete the OLD cron healthchecks.io check** (the one behind `HC_PING_URL`) in the dashboard — its pings stop when `instrumentation.ts` dies, and an un-paused check false-pages within its grace (D-21).
+   - *Verification:* one full check cycle with zero cron-route traffic; the heartbeat stays green, now fired from the worker scheduler tick; §4 step 6's smoke check green; the old cron check shows paused/deleted in the dashboard.
+   - *Rollback:* restore the previous release tarball pair and restart both apps (worker first, `readyz` gate) — the previous release still carries the cron path, so web-cron returns; watch one check interval to confirm it fires.
+11. **Post-cutover standing state — the pause lever and the dead-man graces (05-Context D-09/D-25).**
+   - **`WORKER_SCHEDULER_ENABLED=false` + worker restart is THE permanent operator emergency/maintenance pause** — never `queue.pause()` (forbidden since the dark launch; pausing queues strands in-flight work). The flag form lets consumers drain, keeps health endpoints up, and lets in-flight jobs finish; after the deletion release there is no cron to fall back on, so the emergency check path is §9's curl lever.
+   - Dead-man grace table (D-25) — provisioned at step 5, operative from window-open:
+
+     | Check (env var) | Grace | Pages within | Why this grace |
+     |---|---|---|---|
+     | Worker heartbeat (`WORKER_HC_PING_URL`) | 10 min | ~11 min | absorbs deploy restarts; a dead worker pages one tick + transport after grace |
+     | Outbox age (`WORKER_OUTBOX_HC_PING_URL`) | 5 min | ~6 min | relay cadence is 5 s — 5 min of silence is ~60 missed passes, a real problem |
+     | Redis memory (`WORKER_MEMORY_HC_PING_URL`) | 30 min | ~36 min | avoids flapping on transient memory spikes (§3c's 70% threshold) |
+
+   - **Tuning rule (D-20):** the pinned constants stand unless window data shows a concrete problem — breaker 5-fail/60 s, backlog gate ~2x active monitors, attempt bounds 3–5, the D-19 120 s age bound. Any tuning change lands with its evidence in the deploy record; no speculative tuning.
 
 ---
 
@@ -342,7 +396,7 @@ The first release that introduces `uptime-worker` is not a restart: the app does
 | **`max_restarts`** | `10` | both | Crash-loop visibility: PM2 flags `errored` instead of restarting forever. |
 | **`min_uptime`** | `60000` | both | A process that cannot stay up 60 s counts toward the crash-loop budget. |
 
-`kill_timeout ≥ 20 s` is the non-negotiable floor (P-1/DEP-01). `listen_timeout`, `max_restarts`, and `min_uptime` are defaults — tune with data from Phase 4 onward (D-10). The worker's heartbeat to healthchecks.io fires from the scheduler tick (R-1); a heartbeat gap pages the operator independently of PM2.
+`kill_timeout ≥ 20 s` is the non-negotiable floor (P-1/DEP-01). `listen_timeout`, `max_restarts`, and `min_uptime` are defaults — tune with data from Phase 4 onward (D-10). The worker's heartbeat to healthchecks.io fires from the scheduler tick (R-1); a heartbeat gap pages the operator independently of PM2. *(Annotated 2026-09-15, Phase 5: the tick→heartbeat wiring lands with the Phase-5 add-release — during the Phase-4 dark launch the heartbeat still fires from the legacy `instrumentation.ts` cron pass; from window-open the tick pings the NEW dedicated check behind `WORKER_HC_PING_URL`, 05-Context D-21/D-22, grace per §4a step 11's table.)*
 
 ---
 
@@ -383,7 +437,15 @@ The target-topology smoke check is: **enqueue one synthetic check against a know
 
 > **Design rule (S-4):** no endpoint accepts secrets via query strings. Error responses never include stack traces or internal details.
 >
-> `CRON_SECRET` (today accepted as `?secret=` on cron routes) **retires with the cron endpoints** on a dated retirement path: repo hygiene (`.env.example`, no stack traces, no secrets in query) lands in Phase 2 (FND-07); the cron endpoints and `CRON_SECRET` itself are deleted at the Phase 5 overlap-verified cutover, once the worker has proven continuity. During the interim, prefer the `Authorization: Bearer` form where the current routes accept it.
+> `CRON_SECRET` (today accepted as `?secret=` on cron routes) **retires with the cron endpoints** on a dated retirement path: repo hygiene (`.env.example`, no stack traces, no secrets in query) landed in Phase 2 (FND-07); the cron endpoints and `CRON_SECRET` themselves carry a **death date of Phase 6** — API-01 deletes the routes and SEC-06 retires the secret. *(Amended 2026-09-15, 05-Context D-38: this retirement was previously dated "at the Phase 5 overlap-verified cutover". The Phase-5 deletion release is scheduler-only — it deletes `instrumentation.ts` + `CRON_MODE` (§4a step 10) and deliberately deletes neither the routes nor the secret, converting the surviving pair into the emergency lever below. One story across REQUIREMENTS, this runbook, and the phase-5 context.)*
+
+**The surviving emergency lever (from the Phase-5 deletion release until Phase 6).** The cron API routes — `/api/cron/check` (runs a full check pass and flushes the batcher in-request) and `/api/cron/cleanup` (the retention pass), both GET — plus `CRON_SECRET` survive **dormant**: nothing schedules them anymore (`instrumentation.ts` is gone), the engine (`cron-logic.ts`, `db-batcher.ts`) is unreachable dead code, but the operator holds a manual lever to force a full cron pass if the worker is ever down hard:
+
+```
+curl -fsS "http://127.0.0.1:3007/api/cron/check" -H "Authorization: Bearer $CRON_SECRET"
+```
+
+Prefer the `Authorization: Bearer` form — both routes accept it. The `?secret=` query-string form remains deliberately pinned as the Phase-6 red/green marker for SEC-06 (the 02-05 contract tests assert today's acceptance so Phase 6's removal is a visible behavior change); do not extend reliance on it in new tooling or docs beyond this historical note. **Death date: Phase 6** — until then the lever is part of the documented rollback posture (§4a step 11: with cron deleted, this curl is the emergency check path when the worker is paused or down).
 
 ---
 

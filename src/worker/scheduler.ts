@@ -69,6 +69,38 @@ export interface TickResult {
   failed: number;
 }
 
+// ---------------------------------------------------------------------------
+// Dead-man's-switch ping wiring (WRK-09 / OBS-03, D-21..D-25). Three dedicated
+// healthchecks.io checks hang off the tick; health = pinging, silence = page
+// (the external detector must survive the worker itself dying — R-1/D-17).
+//
+// Pitfall 3 discipline (5 pings/min/check cap, silently enforced): EXACTLY one
+// ping per check per tick, ZERO retries, and /fail REPLACES the success ping —
+// a retry or double ping can eat the real signal and manufacture a false page.
+//
+// The pings are deliberately NOT gated on the D-16 scheduler flag: inertness
+// is structural (flag off means no schedulers, so no tick ever fires and no
+// ping is ever issued). A redundant flag guard here would be dead code — do
+// not add one.
+// ---------------------------------------------------------------------------
+
+/**
+ * Pings one healthchecks.io dead-man check. Returns early when the check's
+ * URL is unset (wiring rides inert until the operator provisions it — D-37:
+ * the real checks are provisioned at window-open, not at add-release deploy).
+ * Every error is swallowed and nothing is ever retried — heartbeat failures
+ * must never fail the tick they observe (audit §14.2 step 5 / §14.4 row 3);
+ * healthchecks.io's own dead-man grace covers sustained loss.
+ */
+async function pingDeadMan(base: string | undefined, fail = false): Promise<void> {
+  if (!base) return;
+  try {
+    await fetch(fail ? `${base}/fail` : base, { signal: AbortSignal.timeout(5_000) });
+  } catch {
+    // Intentionally silent and unretried (Pitfall 3 + §14.4 row 3).
+  }
+}
+
 /**
  * One tick (§14.2 steps 2-4): claim due monitors atomically, then enqueue one
  * check per claimed row through the backlog-gated helper — lane assignment
@@ -81,35 +113,54 @@ export interface TickResult {
 export async function processTick(
   deps: { batchSize?: number; queues?: WorkerQueueSet } = {}
 ): Promise<TickResult> {
-  const queues = deps.queues ?? workerQueues();
-  const claimed = await claimDue(deps.batchSize ?? CLAIM_BATCH_LIMIT_DEFAULT);
-  const gate: BacklogGate = openBacklogGate({ checksQueue: queues.checks });
-  const result: TickResult = { claimed: claimed.length, enqueued: 0, dropped: 0, failed: 0 };
+  try {
+    const queues = deps.queues ?? workerQueues();
+    const claimed = await claimDue(deps.batchSize ?? CLAIM_BATCH_LIMIT_DEFAULT);
+    const gate: BacklogGate = openBacklogGate({ checksQueue: queues.checks });
+    const result: TickResult = { claimed: claimed.length, enqueued: 0, dropped: 0, failed: 0 };
 
-  for (const row of claimed) {
-    try {
-      const outcome = await enqueueClaimedCheck(row, { checksQueue: queues.checks, gate });
-      if (outcome.dropped) {
-        result.dropped += 1;
-      } else {
-        result.enqueued += 1;
+    for (const row of claimed) {
+      try {
+        const outcome = await enqueueClaimedCheck(row, { checksQueue: queues.checks, gate });
+        if (outcome.dropped) {
+          result.dropped += 1;
+        } else {
+          result.enqueued += 1;
+        }
+      } catch (err) {
+        result.failed += 1;
+        log.error(
+          {
+            monitorId: row.id,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          "tick enqueue failed — claim stays advanced, the next tick re-claims when due (J-1 / §14.4)"
+        );
       }
-    } catch (err) {
-      result.failed += 1;
-      log.error(
-        {
-          monitorId: row.id,
-          err: err instanceof Error ? err.message : String(err),
-        },
-        "tick enqueue failed — J-1 rollback already applied inside the enqueue helper"
-      );
     }
-  }
 
-  if (result.claimed !== result.enqueued) {
-    log.warn({ ...result }, "tick claimed-vs-enqueued mismatch (drops and failures are visible here)");
+    if (result.claimed !== result.enqueued) {
+      log.warn({ ...result }, "tick claimed-vs-enqueued mismatch (drops and failures are visible here)");
+    }
+
+    // §14.2 step 5 heartbeat (WRK-09, D-22 parity with instrumentation.ts):
+    // ping at the END of the completed tick. Enqueue failures (failed > 0)
+    // ping /fail INSTEAD of success — the audit §14.4 row 1 rule (a Redis-down
+    // mid-batch tick is a degraded tick and must say so immediately, not wait
+    // out the grace). Distinction: backlog-gated drops (dropped without a
+    // failure) are DELIBERATE J-5 skips that self-heal at the next due slot —
+    // they never trigger /fail.
+    await pingDeadMan(process.env.WORKER_HC_PING_URL, result.failed > 0);
+
+    return result;
+  } catch (err) {
+    // Any tick-level exception (claim transaction failure, §14.4 row 2):
+    // ping /fail BEFORE surfacing the error. The ping itself is
+    // failure-isolated inside pingDeadMan — it can never mask or replace
+    // the rethrow below.
+    await pingDeadMan(process.env.WORKER_HC_PING_URL, true);
+    throw err;
   }
-  return result;
 }
 
 /** What the boot flow needs to drain the tick lane (WRK-07 drainable). */

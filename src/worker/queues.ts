@@ -1,9 +1,7 @@
 import { Queue, Worker } from "bullmq";
 import type { JobsOptions } from "bullmq";
 import type IORedis from "ioredis";
-import { sql } from "drizzle-orm";
 import { workerConnection } from "./connection";
-import { workerDb } from "./db";
 import { buildLogger } from "./logger";
 import { backlogDropCount, noteBacklogDrop, openBacklogGate } from "./backlog";
 import type { BacklogGate } from "./backlog";
@@ -230,19 +228,6 @@ export async function addCheckJob(
   });
 }
 
-/**
- * J-1 failed-enqueue compensation: when a claimed monitor's add() rejects,
- * roll next_check_at BACK one interval so the next tick re-claims it. The
- * interval comes from the row itself (SQL-side), never a JS-side guess.
- */
-export async function rollbackFailedClaim(monitorId: number): Promise<void> {
-  await workerDb.execute(sql`
-    UPDATE monitors
-       SET next_check_at = next_check_at - (interval * interval '1 minute')
-     WHERE id = ${monitorId}
-  `);
-}
-
 export interface CheckEnqueueDeps {
   /** Overrides the checks queue (tests inject rejections/fakes). */
   checksQueue?: CheckQueueClient;
@@ -263,8 +248,12 @@ export interface CheckEnqueueOutcome {
  * Enqueues one check for a row returned by the claim transaction. Lane
  * assignment (J-6): status UP -> routine priority 10 (backlog-gated, droppable);
  * anything else -> priority 1 (a non-UP monitor's next check can carry the
- * RECOVERED transition — never gated, 01-02). On an add() rejection the claim
- * is compensated (J-1 rollback) and the error rethrown for the tick to log.
+ * RECOVERED transition — never gated, 01-02). A breaker refusal — at the
+ * outer gate below, or inside addCheckJob's inner gate after it passed
+ * (the WR-02 TOCTOU window) — is a SKIP. Any OTHER add() failure rethrows
+ * with the claim LEFT ADVANCED: the audit §14.4 J-1 disposition (one missed
+ * check per un-enqueued monitor is the accepted consequence; a rollback
+ * storm against a dying database would only add write pressure, WR-03/D-29).
  */
 export async function enqueueClaimedCheck(
   row: ClaimedMonitor,
@@ -298,25 +287,28 @@ export async function enqueueClaimedCheck(
   try {
     await addCheckJob(queue, row.id, { priority, jobId });
   } catch (err) {
+    if (err instanceof BreakerOpenError) {
+      // WR-02 (D-29): the breaker OPENED between the outer canEnqueue check
+      // above and addCheckJob's inner gate — a refusal is STILL a skip, not
+      // a failed enqueue. Same skip shape as the outer-gate return above,
+      // verbatim; claims stay advanced per the §14.4 posture.
+      log.warn(
+        { monitorId: row.id, jobId, marker: BREAKER_GATE_MARKER },
+        "claimed-check enqueue skipped — breaker OPENED between the enqueue gates, claims stay advanced (RES-01 / §14.4)"
+      );
+      return { jobId, priority, dropped: true, breakerGated: true };
+    }
+    // WR-03 (D-29, audit §14.4 J-1): NO rollback — the claim stays advanced,
+    // the missed check is the accepted consequence, and the next tick
+    // re-claims the monitor when due. Re-throw so the tick counts a failure.
     log.error(
       {
         monitorId: row.id,
         jobId,
         err: err instanceof Error ? err.message : String(err),
       },
-      "check enqueue FAILED — rolling next_check_at back one interval (J-1)"
+      "check enqueue FAILED — claim stays advanced, next tick re-claims when due (J-1 / §14.4)"
     );
-    try {
-      await rollbackFailedClaim(row.id);
-    } catch (rollbackErr) {
-      log.error(
-        {
-          monitorId: row.id,
-          err: rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr),
-        },
-        "J-1 rollback FAILED — monitor re-claims at its advanced due slot"
-      );
-    }
     throw err;
   }
   return { jobId, priority, dropped: false };

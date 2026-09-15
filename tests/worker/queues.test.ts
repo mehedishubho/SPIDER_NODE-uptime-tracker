@@ -15,6 +15,7 @@ import {
 import type { CheckQueueClient, WorkerQueueSet } from "@/worker/queues";
 import { backlogDropCount, noteBacklogDrop, openBacklogGate, resetBacklogDropCount } from "@/worker/backlog";
 import { BACKLOG_DROP_MARKER } from "@/worker/backlog";
+import { BREAKER_THRESHOLD, recordInfraFailure, resetBreaker } from "@/worker/breaker";
 
 // ---------------------------------------------------------------------------
 // Queue-topology proof suite (WRK-02/WRK-12/RES-02, audit §14.1) against the
@@ -29,8 +30,14 @@ import { BACKLOG_DROP_MARKER } from "@/worker/backlog";
 //      (Pitfall 3), and every helper's job carries its lane priority
 //   2. jobId derivation — check:{monitorId}:{epoch-seconds} for claims,
 //      check:{monitorId}:manual:{epochMs} unique per manual enqueue
-//   3. J-1 failed-enqueue compensation — add() rejection rolls
-//      next_check_at back one interval on the seeded monitor
+//   3. J-1 failed-enqueue disposition (re-pinned, WR-03/D-29) — add()
+//      rejection propagates to the tick AND next_check_at STAYS advanced
+//      (audit §14.4: leave claims advanced; one missed check per monitor
+//      is the accepted consequence — no rollback churn against a dying
+//      Redis). The 4b TOCTOU case (WR-02) proves a breaker opened BETWEEN
+//      the outer canEnqueue check and add() is a SKIP — dropped +
+//      breakerGated, same shape as the outer-gate skip verbatim — never
+//      a rollback and never a throw
 //   4. the backlog gate — routine (UP/priority-10) enqueues drop above the
 //      ~2x cap with the BACKLOG_DROP marker + counter; non-UP NEVER gates
 // ---------------------------------------------------------------------------
@@ -109,6 +116,9 @@ afterAll(async () => {
 beforeEach(async () => {
   await flushQueueKeys("bull:monitor-checks:");
   resetBacklogDropCount();
+  // Case 4b trips the breaker module state OPEN; it must never leak into
+  // another case's enqueue gates (01-03: process-lifetime state).
+  resetBreaker();
 });
 
 describe("queue topology — priorities, jobIds, J-1, backlog gate (WRK-02/WRK-12/RES-02)", () => {
@@ -184,7 +194,7 @@ describe("queue topology — priorities, jobIds, J-1, backlog gate (WRK-02/WRK-1
   );
 
   it(
-    "4. J-1 failed-enqueue compensation: add() rejection rolls next_check_at back ONE interval",
+    "4. J-1 failed-enqueue disposition (re-pinned, WR-03/D-29): add() rejection propagates — next_check_at STAYS advanced (audit §14.4)",
     async () => {
       const monitorId = await seedMonitor({ status: "DOWN", interval: 5 });
       // What the claim just did: advanced a due row to now()+5m.
@@ -203,11 +213,80 @@ describe("queue topology — priorities, jobIds, J-1, backlog gate (WRK-02/WRK-1
         enqueueClaimedCheck({ id: monitorId, status: "DOWN", nextCheckAt: claimedTo }, { checksQueue: rejecting })
       ).rejects.toThrow("simulated redis down");
 
-      // Compensation: now()+5m rolled back one interval => ~now => the next
-      // tick re-claims the monitor instead of waiting 5 minutes.
+      // Audit §14.4 disposition (WR-03): the claim is NOT rolled back. The
+      // row stays at its advanced slot — the missed check is the accepted
+      // J-1 consequence, the next tick re-claims the monitor when due, and
+      // a sustained Redis outage produces one failed enqueue per tick per
+      // due monitor instead of a per-monitor claim/rollback churn loop.
       const after = await pg.query(`SELECT next_check_at FROM monitors WHERE id = $1`, [monitorId]);
-      const rolled = new Date(after.rows[0].next_check_at as string).getTime();
-      expect(Math.abs(rolled - Date.now())).toBeLessThan(3_000);
+      const stayed = new Date(after.rows[0].next_check_at as string).getTime();
+      expect(Math.abs(stayed - claimedTo.getTime())).toBeLessThan(1_000);
+    },
+    15_000
+  );
+
+  it(
+    "4b. WR-02 TOCTOU: breaker opening between the outer gate and add() is a SKIP — dropped + breakerGated, outer-gate skip shape verbatim, claim stays advanced",
+    async () => {
+      const monitorId = await seedMonitor({ status: "UP", interval: 5 });
+      const claimedTo = new Date(Date.now() + 5 * 60_000);
+      await pg.query(`UPDATE monitors SET next_check_at = $1 WHERE id = $2`, [
+        claimedTo.toISOString(),
+        monitorId,
+      ]);
+
+      // The reference outcome FIRST: breaker already OPEN before the call —
+      // the outer canEnqueue gate refuses and returns the canonical skip.
+      resetBreaker();
+      for (let i = 0; i < BREAKER_THRESHOLD; i += 1) recordInfraFailure();
+      const outerSkip = await enqueueClaimedCheck(
+        { id: monitorId, status: "UP", nextCheckAt: claimedTo },
+        { checksQueue: queues.checks }
+      );
+      expect(outerSkip).toEqual({
+        jobId: claimedCheckJobId(monitorId, claimedTo),
+        priority: LANE_PRIORITY.routineCheck,
+        dropped: true,
+        breakerGated: true,
+      });
+
+      // The TOCTOU window itself: breaker CLOSED at enqueueClaimedCheck's
+      // outer check, tripped by the work that runs BETWEEN the two gates
+      // (for a routine row that is the backlog gate's depth read) — so
+      // addCheckJob's inner gate then throws BreakerOpenError after the
+      // outer check already passed. The suite's injection seam: the gate
+      // callback does the tripping.
+      resetBreaker();
+      const add = vi.fn(async () => ({}));
+      const neverDialed: CheckQueueClient = {
+        add,
+        getJobCounts: vi.fn(async () => ({ wait: 0, prioritized: 0, delayed: 0, active: 0 })),
+      };
+      const trippingGate = {
+        canAcceptRoutine: async () => {
+          for (let i = 0; i < BREAKER_THRESHOLD; i += 1) recordInfraFailure();
+          return true; // depth is fine — Postgres died mid-tick anyway
+        },
+      };
+      const toctou = await enqueueClaimedCheck(
+        { id: monitorId, status: "UP", nextCheckAt: claimedTo },
+        { checksQueue: neverDialed, gate: trippingGate }
+      );
+
+      // NOT a throw, and the skip-return shape matches the outer-gate skip
+      // verbatim — same fields, same values (WR-02's fix requirement).
+      expect(toctou).toEqual(outerSkip);
+      expect(toctou.breakerGated).toBe(true);
+      expect(toctou.dropped).toBe(true);
+      // The enqueue itself never fired.
+      expect(add).not.toHaveBeenCalled();
+
+      // §14.4 holds through the refusal: the claim stays advanced.
+      const after = await pg.query(`SELECT next_check_at FROM monitors WHERE id = $1`, [monitorId]);
+      const stayed = new Date(after.rows[0].next_check_at as string).getTime();
+      expect(Math.abs(stayed - claimedTo.getTime())).toBeLessThan(1_000);
+
+      resetBreaker(); // leave the module state CLOSED for later cases
     },
     15_000
   );

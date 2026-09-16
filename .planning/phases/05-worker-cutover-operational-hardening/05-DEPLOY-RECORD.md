@@ -201,3 +201,25 @@ The operator moved the round-3/4 checks into the readable project (dashboard pas
 - Housekeeping notes: `My First Check` changed grace 3600→300 at some point (account default check, not ours, inert). The round-5 wrong-account checks are abandoned; the `rehearsal-*` throwaways + orphans remain for post-window cleanup (deferred-items.md).
 
 **Verdict: CONFORMING — the pre-committed condition for opening the window is met.** The dead-man profile (D-25) is API-verified, paging channels are bound, and both evaluation keys can read the checks. Task 1 (operator gate) is COMPLETE; Task 2 window-open choreography begins immediately.
+
+## 05-08 window — Task 2 window-open choreography (2026-09-16, 17:45Z–18:02Z) — EXECUTED AS STAGED
+
+Stack pre-state verified before any change: worker `readyz` green (soak PID 40020, scheduler off), web `/login` 200 on :3007 (PID 33388), `spidernode-dev-db` + `spidernode-prod-redis` Up 10 h. All times UTC.
+
+**1. D-49 re-seed (run once, 17:45:32Z, `UPDATE 2`):** before — 2 active monitors, 2 due, max overdue 6 466 min; after — 1 due now, max overdue 1 min, max future 1 151 min. Due-filter horizon bounded exactly as designed.
+
+**2. Drill-phase scraper A:** `.snapshots/gates-0508-drill-20260916T174600Z/` — 15 s cadence from 17:46:00Z, gapless `ok` samples (34+), captures the pre-unpause baseline, the transition, and the drill.
+
+**3. First unpause (17:46:56Z, worker PID 15684, sha 5411026):** `schedulerEnabled: true`; all four schedulers upserted (`check-tick`, `maintenance-cleanup`, `tier2-flush-sweep`, `relay-pass`); boot log line **"recurring scheduling ACTIVE"**; `readyz` green. Immediate relay/flush activity in first samples — expected at unpause, recorded not alarmed. Monitor 2 checked every ~60 s on the Tier-2 lane (`check:2:<epoch>` + routine-UP flush staging).
+
+**4. First heartbeat pings at hc.io:** all three real checks flipped `new → up` within ~70 s of unpause; counters advancing 1→3 by 17:48:07Z on `worker-heartbeat`/`worker-outbox-age`/`worker-redis-memory` (functional proof that the env-file UUIDs bind to the named checks — the ping counters move on exactly the names the API list shows).
+
+**5. Co-run ~12 min (17:46:56Z→17:58:46Z):** legacy cron per-minute blocks continuous (457 by 17:54:46Z) with the due-filter visibly sharing load — mix of "No monitors are due for a check right now" (worker's fresh `lastChecked` starves cron — WRK-11 bounded overlap working as designed) and "Successfully checked all monitors". Worker metrics: all lanes depth 0 except normal delayed repeatables; `outbox_unsent 0`; `redis_memory_percent 0.5`; pg breaker closed; zero stalls.
+
+**6. D-35 live abort drill — RE-PAUSE 17:58:48Z (epoch 1789581528, worker PID 36340):** abort lever = scheduler flag + restart ONLY (queues never touched). Boot log: `schedulerEnabled: false`, "scheduler flag OFF — skipping all Job Scheduler upserts", NO "recurring scheduling ACTIVE" line, `readyz` green throughout. **Pause duration 2 m 13 s** (well under the 6–7 min budget / 10-min heartbeat grace). Coverage during pause: cron blocks continuous per-minute with "Successfully checked all monitors" — zero-gap. **Honest observation (recorded, not a gate):** the Redis-persisted `check-tick` chain fired twice more during the pause (17:58:56, 17:59:56 — monitor 2 staged, then quiesced as the pause ended): flag-off boots skip NEW scheduler upserts but do not sever already-persisted repeatable chains. Full worker-side stop on a live Redis would need scheduler removal (never queue pause); on a fresh Redis (true rollback scenario) the flag alone yields the dark-launch posture. The safety property D-35 exists to prove held: lever safe to pull, zero missed checks, instant recovery. All three hc.io checks kept pinging through the pause (health loop is scheduler-independent — 27 pings/up at 18:00:22Z), confirming D-17's process-level dead-man semantics.
+
+**7. RE-UNPAUSE into the FRESH WINDOW — 18:01:01Z, epoch 1789581661, worker PID 55168:** boot log again `schedulerEnabled: true` + all four schedulers + "recurring scheduling ACTIVE"; `readyz` green; heartbeat resumed immediately (31 pings/up by 18:02:26Z).
+
+**8. Window scraper B + gate-4 baseline:** scraper A stopped, scraper B → `.snapshots/gates-0508-window-20260916T180144Z/` from 18:01:44Z (15 s cadence, gapless). `counters-baseline.json` captured 18:02:03Z at fresh window start (2 monitors) — gate 4's `totalCountDelta` base is window-bounded as required.
+
+**Window ledger:** start epoch **1789581661** (18:01:01Z). Minimum gate-eligible end: **+14 400 s = ~22:01:10Z**. Target counted stretch 4–6 h (end 22:01Z–00:01Z). Gates evaluate ONLY this continuous stretch (D-16); any interruption restarts the clock. Known operational facts entering the stretch: monitor 2 is the only frequently-due monitor (interval ~1 min); monitor 1 next due ~19.2 h out (re-seed horizon).

@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 05
 current_phase_name: worker-cutover-operational-hardening
 status: executing
-stopped_at: Completed 05-06-PLAN.md
-last_updated: "2026-09-15T20:56:47.352Z"
+stopped_at: Completed 05-07-PLAN.md
+last_updated: "2026-09-16T13:16:01.786Z"
 last_activity: 2026-09-15
 last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 45
-  completed_plans: 42
+  completed_plans: 43
   percent: 50
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-13)
 ## Current Position
 
 Phase: 05 (worker-cutover-operational-hardening) — EXECUTING
-Plan: 7 of 9
+Plan: 8 of 9
 Status: Ready to execute
 Last activity: 2026-09-15 — Phase 05 execution started
 
@@ -99,6 +99,7 @@ Progress: [████████████████████] 36/36 p
 | Phase 05 P03 | ~14 min (single session) | 3 tasks | 6 files |
 | Phase 05 P05 | 20min | 3 tasks | 5 files |
 | Phase 05 P06 | 1998s (~33 min; single logical session across one compaction) | 3 tasks | 3 files |
+| Phase 05 P07 | 15h 29m | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -245,6 +246,12 @@ Recent decisions affecting current work:
 - [Phase 05]: 05-06: induce determinism — interval 1440 + fresh lastChecked/next_check_at starves BOTH engines so manual enqueue is the sole check driver (Pitfall 2 race avoided); monitor created via INSERT mirroring the /api/monitors route's exact data shape (NextAuth session unmintable on the anonymized stand-in)
 - [Phase 05]: 05-06: drill auto-resume proven via the §9 curl lever (Bearer CRON_SECRET runs due checks + in-request flush) — legacy cron's batcher makes raw ping-count polling lag; natural 1-min pass observational only
 - [Phase 05]: 05-06: WRK-11/DEP-03 deliberately stay Pending — choreography encoded and self-tested, but proof is 05-07 executing the rehearsal + 05-08's live window evidence (false-signal precedent)
+- [Phase 05]: 05-07: rehearsal red items are harness bugs until proven otherwise — 3 fixes (docker-cp path, induce throwaway chat-owner, byteMatch D-48 subset+allowlist) all in scripts/, src/ untouched; every red item forced a FULL --leg all re-run per D-31/D-36 (5 runs, run 4 = transient 0xC0000005)
+- [Phase 05]: 05-07: D-48 payload contract codified as subset semantics in byteMatch — all 8 D-48 keys required, writer extensions only via pinned allowlist [monitorId] (writer emits it since 04-04; no consumer reads it)
+- [Phase 05]: 05-07: production snapshot has ZERO telegram-bound users (anonymizer preserves non-null chat ids — none exist), so the induce leg seeds a throwaway chat id on the oldest user when the dump has none (stand-in only; dummy token keeps relay attempts FAILED, D-34)
+- [Phase 05]: 05-07: deployed worker = the REHEARSED byte-identical bundle (dist/worker.js sha256 847280f10b981b00; failed main-tree rebuilds died pre-tsup); web .next from a clean worktree build of the same commit 7b5a997; D-31 pins commit SHA + deployed-worker byte equality — bundle bytes are nondeterministic across same-commit rebuilds
+- [Phase 05]: 05-07: D-04 manual-check proof uses the REAL credentials flow (synthetic sentinel armed with throwaway bcrypt password + emailVerified, stand-in DB only) after the permission system correctly denied the .env-reading JWT-mint approach — no workaround attempted, zero secret reads
+- [Phase 05]: 05-07: WRK-11/DEP-03 deliberately stay Pending in REQUIREMENTS.md — rehearsal+soak here is the precondition; the proof requirement is 05-08's live window (05-06 precedent)
 
 ### Pending Todos
 
@@ -268,6 +275,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-15T20:56:47.345Z
-Stopped at: Completed 05-06-PLAN.md
+Last session: 2026-09-16T13:16:01.780Z
+Stopped at: Completed 05-07-PLAN.md
 Resume file: None

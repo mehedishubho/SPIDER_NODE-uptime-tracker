@@ -1305,6 +1305,15 @@ const D48_PAYLOAD_KEYS = [
   "statusCode",
   "responseTimeMs",
 ];
+// The 04-04 writer (tier1.ts outboxInsertSql, commit 2545ce6) additionally
+// carries the monitor's id under "monitorId" — the plan's "monitor identity"
+// wording, present in every row since the first Tier 1 build and covered by
+// the OutboxEvent type's extension-key allowance ([key: string]: unknown).
+// D-48's "extend, never rename" makes the 8-key shape a SUBSET contract:
+// assert every D-48 key present, extras restricted to this pinned allowlist
+// so any NEW key still fails loud. (Exact-key equality failed run 3 — the
+// induce leg had never reached real rows before runs 1-3.)
+const WRITER_EXTENSION_KEYS = ["monitorId"];
 const ERROR_CLASS_VOCABULARY = ["timeout", "dns", "tls", "ssrf_blocked", "http_5xx", "network"];
 
 /**
@@ -1332,9 +1341,15 @@ function evaluateByteMatch(rows, inducedUrl) {
   }
   for (const row of rows) {
     const payload = row.payload ?? {};
-    const keys = Object.keys(payload).filter((k) => k !== "_relayFailure").sort();
-    if (JSON.stringify(keys) !== JSON.stringify([...D48_PAYLOAD_KEYS].sort())) {
-      reasons.push(`${row.event_type}: payload keys != the D-48 shape`);
+    const keys = Object.keys(payload).filter((k) => k !== "_relayFailure");
+    const missing = D48_PAYLOAD_KEYS.filter((k) => !keys.includes(k));
+    const unexpected = keys.filter(
+      (k) => !D48_PAYLOAD_KEYS.includes(k) && !WRITER_EXTENSION_KEYS.includes(k)
+    );
+    if (missing.length > 0 || unexpected.length > 0) {
+      reasons.push(
+        `${row.event_type}: payload keys != the D-48 shape (missing: [${missing.join(", ")}]; unexpected: [${unexpected.join(", ")}])`
+      );
       continue;
     }
     if (typeof payload.monitorName !== "string" || !payload.monitorName) {

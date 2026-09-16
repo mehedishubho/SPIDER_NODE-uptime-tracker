@@ -127,3 +127,23 @@ The row was created at 12:56:19.689 — after the pre-POST DB clock read (12:56:
 ## Verdict
 
 **GREEN — the add-release is live and soaking in the exact posture the dark launch proved.** Same-SHA rehearsal PASS on the deployed artifact (D-31/D-32), rollback target retained before anything changed (DEP-03), worker `readyz`-gated ahead of the web restart, scheduler inert with the boot log to show for it, legacy cron serving 100% of checks with pings landing on cadence, the D-04 in-request flush pin landed through a real authenticated request, and the queue/outbox surfaces are all zeros. **Window day (05-08) can be scheduled.**
+
+---
+
+## 05-08 window — Task 1 pre-window verification (2026-09-16 ~15:05Z)
+
+> **Status: BLOCKED at the Task 1 operator gate — the real-check URLs are NOT yet in the live worker env.** The window may not open until they are (D-37: the wiring is inert before it, which is exactly why provisioning aligns with window-open).
+
+**Soak state re-verified alive before anything was touched:** worker `readyz` green (pid 40020, `{"ok":true,"redis":{"ok":true},"db":{"ok":true}}`), web `/login` 200 on :3007, `spidernode-dev-db` (:5454) + `spidernode-prod-redis` (:6391) up ~7 h — the 05-07 dark-launch posture is intact.
+
+**Carry-forward re-verification (deferred-items.md):** the Playwright browser-spec spawn denial has **self-resolved** — browser project **6/6 passed (13.9 s)**, API project **12/12 passed (3.0 s)** at the release commit, with no reinstall, ACL change, or code change. Deferred item closed before window day as required.
+
+**Task 1 verification (masked output only — var names, UUIDs, counts; never values, keys, or ping URLs):**
+
+- Operator reports the three REAL dead-man checks provisioned (paging ON, graces 10/5/30 min per D-25) and the window scheduled.
+- The only env file carrying the `WORKER_*_HC_PING_URL` family is `.snapshots/rehearsal-hc-env.sh` (created for the D-37 throwaway rehearsal checks). All three URLs in it resolve (hc.io flips endpoint HTTP 200 for each derived UUID) — but the account's check list shows exactly 4 checks: `rehearsal-heartbeat` / `rehearsal-outbox` / `rehearsal-memory` (grace 3600 s, **0 channels**, 4 pings each — the throwaways) and the account-default `My First Check` (new, 0 pings). **None match the D-25 real profile (grace 600/300/1800 s, paging channels > 0)** — the file still points at the throwaway checks, which page nobody. (If the real checks were created in a non-default hc.io project, the list call cannot see them — moot until the URLs are placed.)
+- `HC_READ_ONLY_API_KEY` present alongside (length 32) — reused for gate-1 flips evidence per the operator note.
+
+**Action handed to the operator (blocking):** paste the three real ping URLs **and the real `TELEGRAM_BOT_TOKEN`** (required for the D-11 real-delivery parity leg) into `.snapshots/live-worker-hc-env.sh` (template created, gitignored; values never transit chat or evidence files), and name the induced-parity monitor plan (owner account with real Telegram binding + target form, 05-06's TEST-NET-3 sibling-container precedent). On resume: masked re-verification (var name + length + hc.io check profile), then Task 2 window-open choreography.
+
+**Throwaway-check note:** the three `rehearsal-*` checks (D-37: "deleted after") still exist — inert; delete at leisure post-window (logged in deferred-items.md).

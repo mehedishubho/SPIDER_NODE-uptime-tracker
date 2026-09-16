@@ -461,6 +461,22 @@
         "implication": "during WRK-11 overlap the legacy writer's deferred (in-memory, minutes-late) monitor-status writes can land after worker Tier-1 transition commits and un-transition status without touching incidents — the due-filter bounds which monitors are checked but not WHEN the legacy side's writes land; cutover must retire the legacy writer before the worker owns transitions",
         "recordedAt": "2026-09-16T19:42:00Z"
       }
+    ],
+    "legacy-batcher-deferral-overcheck": [
+      {
+        "source": "live 05-08 co-run observation (stand-in web :3007 node-cron + worker :9090, window #3 tail / incident #3 worker outage, not a test-suite injection)",
+        "monitorId": 3,
+        "intervalMinutes": 30,
+        "dueAt": "2026-09-16T22:18:26Z",
+        "overcheckWindow": "2026-09-16T22:19:00Z - 22:29:00Z",
+        "pingsInOneCycle": 11,
+        "expectedPingsInCycle": 1,
+        "rootCause": "the legacy due-filter reads the DB row's lastChecked, which the in-memory db-batcher defers updating for up to 15 min; after the worker stopped checking (silent death 22:14Z) the row went stale past due-time and every per-minute cron tick re-found the monitor due and re-checked it, queueing a duplicate ping each time (11 pings landed at the 22:30:00.023 flush, totalChecks 21 -> 32 for one 30-min cycle)",
+        "selfTermination": "bounded — the 15-min flush resets lastChecked, so the over-check lasts at most one deferral window per cycle; no counter drift (11 pings matched +11 counter increments, D-02-consistent)",
+        "coRunMasking": "while the worker was healthy its immediate Tier-2 routine writes kept lastChecked fresh and the legacy engine never saw the monitor due — the hazard only surfaces when legacy alone owns a monitor through a due boundary (worker outage, or post-cutover legacy-lag), exactly the WRK-11 handoff seam",
+        "implication": "legacy-only ownership inflates check counts (cost/quotas on real fleets) and can race induced transitions during handoffs; cutover disposition should note the legacy engine re-checks a due monitor every tick until a flush lands the row update",
+        "recordedAt": "2026-09-16T22:35:00Z"
+      }
     ]
   },
   "generatedAt": "2026-09-14T18:24:30.657Z"

@@ -147,3 +147,13 @@ The row was created at 12:56:19.689 — after the pre-POST DB clock read (12:56:
 **Action handed to the operator (blocking):** paste the three real ping URLs **and the real `TELEGRAM_BOT_TOKEN`** (required for the D-11 real-delivery parity leg) into `.snapshots/live-worker-hc-env.sh` (template created, gitignored; values never transit chat or evidence files), and name the induced-parity monitor plan (owner account with real Telegram binding + target form, 05-06's TEST-NET-3 sibling-container precedent). On resume: masked re-verification (var name + length + hc.io check profile), then Task 2 window-open choreography.
 
 **Throwaway-check note:** the three `rehearsal-*` checks (D-37: "deleted after") still exist — inert; delete at leisure post-window (logged in deferred-items.md).
+
+### Task 1 re-verification after the operator's "checks provisioned" reply (2026-09-16 ~15:20Z) — STILL NON-CONFORMING, window NOT opened
+
+The operator saved `.snapshots/live-worker-hc-env.sh` and replied "checks provisioned". Masked re-verification (var names, UUIDs, counts — never values):
+
+- All four vars present with sane shapes: the three ping URLs (lengths 56/56/57, host `hc-ping.com`) and `TELEGRAM_BOT_TOKEN` (length 46 — Telegram bot-token shape).
+- **The three derived UUIDs are byte-identical to the rehearsal throwaway checks** (`3a39dd76…` heartbeat, `3a6054f8…` outbox, `9f6fb0b4…` memory — the same UUIDs `.snapshots/rehearsal-hc-env.sh` carries). The account check list is unchanged: 4 checks total — `rehearsal-heartbeat`/`rehearsal-outbox`/`rehearsal-memory` (grace **3600 s**, **0 channels**, 4 pings each) + `My First Check` (new). **No check matches the D-25 real profile (grace 600/300/1800 s, paging channels > 0).**
+- Minor paste artifact: the memory URL carries one stray character (57 vs 56 chars, same UUID tail — likely a mid-path double slash), which would mis-shape the `/fail` ping form.
+
+**Verdict: the pasted values appear copied from `rehearsal-hc-env.sh` (the throwaway checks), not from the newly provisioned real checks.** Either the real checks were provisioned in a different healthchecks.io account/project than the one the read-only key sees, or the wrong URLs were copied. Per the pre-committed rule the window is NOT opened on non-conforming checks — a paging dead-man that pages nobody defeats gate 1's entire premise (D-17: the dead-man switch IS the monitor). Operator directed to re-paste the three REAL check ping URLs (from the real checks' pages — names/graces per D-25, integrations ON) into `.snapshots/live-worker-hc-env.sh`.

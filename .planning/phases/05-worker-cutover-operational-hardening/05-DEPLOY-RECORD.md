@@ -223,3 +223,13 @@ Stack pre-state verified before any change: worker `readyz` green (soak PID 4002
 **8. Window scraper B + gate-4 baseline:** scraper A stopped, scraper B → `.snapshots/gates-0508-window-20260916T180144Z/` from 18:01:44Z (15 s cadence, gapless). `counters-baseline.json` captured 18:02:03Z at fresh window start (2 monitors) — gate 4's `totalCountDelta` base is window-bounded as required.
 
 **Window ledger:** start epoch **1789581661** (18:01:01Z). Minimum gate-eligible end: **+14 400 s = ~22:01:10Z**. Target counted stretch 4–6 h (end 22:01Z–00:01Z). Gates evaluate ONLY this continuous stretch (D-16); any interruption restarts the clock. Known operational facts entering the stretch: monitor 2 is the only frequently-due monitor (interval ~1 min); monitor 1 next due ~19.2 h out (re-seed horizon).
+
+### Task 4 induced-parity pre-flight (2026-09-16 ~18:36Z) — BLOCKED: no owner Telegram binding exists; induction NOT performed
+
+Operator approved "induce on monitor 2" with the TEST-NET-3 sibling target. Pre-flight verification (per the pre-committed rule — verify the binding before inducing, never induce on an unbound monitor):
+
+- **Monitor 2:** owner `cmtxp8i600000v0uyx52vb7rh` (MEHEDI HASSAN SHUBHO — the real operator account), `url https://example.com`, interval 1 min, active, status UP. The frequently-due monitor of the window (the other active monitor is the ops-smoke sentinel, next due ~19 h out).
+- **Owner Telegram binding: `telegramChatId` IS NULL.** Checked every user in the stand-in DB: MEHEDI HASSAN SHUBHO — NULL; SpiderNode Operator Smoke (sentinel, synthetic) — NULL. No user carries any Telegram chat binding, real or synthetic.
+- TEST-NET-3 sibling: no sibling container/network from the 05-06 induction currently exists — it will be created fresh at induction time (trivial; not the blocker).
+
+**Induction BLOCKED pending a real binding.** D-11's real-delivery parity leg requires the DOWN/RECOVERED alerts to reach the operator's real Telegram chat through the product bot. Operator action: log into the stand-in app at `http://127.0.0.1:3007` as monitor 2's owner and bind Telegram via the app UI, then confirm. Caveat surfaced to the operator: the stand-in web process was started in the 05-07 dark-launch posture and may not carry `TELEGRAM_BOT_TOKEN` in its env — if the in-app binding flow errors, report it rather than restarting the web mid-window (a web restart is a legacy-engine interruption with D-16 clock implications; a deliberate decision, not an improvisation). The window itself continues running unaffected (worker + scraper continuity intact — the induction leg is independent of gate continuity).

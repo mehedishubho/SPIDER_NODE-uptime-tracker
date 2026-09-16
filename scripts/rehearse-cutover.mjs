@@ -1390,12 +1390,24 @@ async function legInduce(state) {
   // a hashed id) — the relay must resolve a chat id and genuinely dial, else
   // the FAILED state is never exercised. No human is reachable by
   // construction (dummy token).
-  const owner = (await pgQuery(`SELECT id FROM users WHERE "telegramChatId" IS NOT NULL ORDER BY "createdAt" LIMIT 1`)).rows[0];
+  let owner = (await pgQuery(`SELECT id FROM users WHERE "telegramChatId" IS NOT NULL ORDER BY "createdAt" LIMIT 1`)).rows[0];
+  let seededChatOwner = false;
   if (!owner) {
-    fail(
-      "no user with a telegramChatId in the restored snapshot",
-      new Error("the parity leg needs a chat-bound owner; check the anonymized dump (anonymize-snapshot preserves non-null chat ids)")
-    );
+    // 05-07 run 2 red item: this dump carries ZERO chat-bound users (verified
+    // live — anonymize-snapshot preserves non-null as 'tg-<md5>', so the
+    // production snapshot itself has none). Bind a throwaway chat id to the
+    // first restored user IN THE STAND-IN ONLY: the relay still genuinely
+    // dials the dummy-token path (D-34 FAILED rows) while user row counts
+    // stay untouched for the gate parity reads.
+    owner = (
+      await pgQuery(
+        `UPDATE users SET "telegramChatId" = 'tg-rehearsal-throwaway'
+         WHERE id = (SELECT id FROM users ORDER BY "createdAt" LIMIT 1)
+         RETURNING id`
+      )
+    ).rows[0];
+    seededChatOwner = true;
+    console.log("  note: dump has no chat-bound user — bound throwaway chat id (stand-in only; dummy token dials fail by construction)");
   }
   const day = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const inducedUrl = `http://${TARGET_IP}:${TARGET_PORT}/probe`;
@@ -1467,6 +1479,7 @@ async function legInduce(state) {
         induced: {
           monitorId,
           ownerUserId: owner.id,
+          seededChatOwner,
           incidentId: incident.id,
           events: rows.map((r) => r.event_type),
           attemptsPerEvent: rows.map((r) => r.attempts),
@@ -1482,7 +1495,7 @@ async function legInduce(state) {
   );
   saveState((s) => {
     s.induced = { monitorId, incidentId: incident.id };
-    s.legs = { ...s.legs, induce: { status: "ok", monitorId, incidentId: incident.id, byteMatch: true } };
+    s.legs = { ...s.legs, induce: { status: "ok", monitorId, incidentId: incident.id, byteMatch: true, seededChatOwner } };
   });
   console.log(`  -> GREEN: monitor ${monitorId}, incident ${String(incident.id).slice(0, 8)}, 3 events, 1 attempt each, FAILED (dummy token)`);
 }

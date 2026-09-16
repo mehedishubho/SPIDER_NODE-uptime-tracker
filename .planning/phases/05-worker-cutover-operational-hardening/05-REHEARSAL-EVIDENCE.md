@@ -65,5 +65,83 @@ The worker heartbeat's live ticks belong to the 05-08 window with the REAL check
 
 ## Task 2 — Full stand-in rehearsal on the add-release SHA (D-30/D-31/D-32)
 
-*(filled in after the run — per-leg statuses, gate verdicts, SHA, durations, deviations)*
+**Verdict: REHEARSAL PASSED** — run 5, 2026-09-16, full 10-leg `--leg all` pass.
+Primary evidence under `.snapshots/cutover-rehearsal-2026091608484/` (gitignored;
+counts/verdicts/ids only — no secrets, no URLs, per T-05-06-03 / T-05-07-04).
+
+### Build provenance (D-31/D-44)
+
+| Fact | Value |
+|------|-------|
+| buildSha (git HEAD at the rebuild leg) | `7b5a997` |
+| dist/worker.js sha256 (first 16) | `847280f10b981b00` |
+| .next BUILD_ID | `R-_mBaQR0PCwjpm5GsEYH` |
+| drizzle journal entries | 2 — zero new vs the deployed schema (D-44) |
+| dist freshness assert | dist/worker.js newer than every `src/**/*.{ts,tsx}` (no stale bundle) |
+
+Task 3's deployed build must embed this same SHA; the deploy record carries the
+SHA-diff proof (`git diff 7b5a997..HEAD -- src scripts package.json` empty of
+behavior changes at deploy time).
+
+### Per-leg results (all GREEN)
+
+| # | Leg | Result |
+|---|-----|--------|
+| 1 | rebuild | SHA/dist/BUILD_ID above; journal 2 |
+| 2 | restore | throwaway PG+Redis stand-in on the TEST-NET-3 network; counts users=2 monitors=2 pings=710 incidents=0 outbox=0; monitor checksum `9dcee1b4629cec9b746ece5967b84b44`; migration rows 2 |
+| 3 | sweep | 0 real side-effect channels (dummy TELEGRAM_BOT_TOKEN, empty HC/SMTP pins, telemetry off) |
+| 4 | reseed | D-49 block applied to 2 rows == active count; sha256 `f232626c48b44ccb` (runbook string-compare PASS) |
+| 5 | unpause | four schedulers ACTIVE at once (check-tick 30s, tier2-flush 30s, relay-pass 5s, maintenance daily — expected per runbook §4a step 5); worker readyz 555 ms; web gated on :3460 |
+| 6 | corun | 45 min, 181 samples, 63 pings created, 0 cron-originated incidents |
+| 7 | induce | monitor 4, incident `513a3d60`, events first_check/down/recovered, exactly 1 relay attempt each, all FAILED under the dummy token (D-34), byteMatch PASS (D-48) |
+| 8 | maintenance | WRK-13 dry-run via `--wait`: audit checked 3 monitors, discrepancies 0 |
+| 9 | gates | pass A produced the D-16 sub-4h refusal as designed; pass B 7/7 PASS |
+| 10 | drill | pause marker seen; §9 lever pings 776 -> 777 (cron auto-resume, zero gap); one natural cron pass observed; re-unpause ACTIVE into a fresh window (D-16) |
+
+### Gate verdicts (pass B, extended bounds — all seven evaluated)
+
+| Gate | Name | Verdict |
+|------|------|---------|
+| 1 | heartbeat steady (D-17) | PASS |
+| 2 | queue health (D-19) | PASS |
+| 3 | alert parity (D-48+D-05) | PASS |
+| 4 | counter gates (D-02+D-37) | PASS |
+| 5 | continuity gap-scan | PASS |
+| 6 | duplicate ONGOING | PASS |
+| 7 | legacy-path disposition | PASS |
+
+Pass A (true 45-minute window bounds) exited 1 with the expected `shorter than`
++ `D-16` refusal — the clock rule itself was rehearsed, not skipped. Gate 1's
+flips input was the labeled synthetic fixture (no real hc.io check exists for
+the stand-in; the live flips record belongs to the 05-08 window, D-17).
+
+### Timeline (UTC)
+
+| Phase | Time |
+|-------|------|
+| Run start (rebuild leg) | ~08:46 |
+| Window open (baseline capture) | 08:48:48 |
+| Window close (45 min elapsed) | 09:33:58 |
+| induce -> maintenance -> gates -> drill -> teardown | 09:34:03 -> 09:34:32 |
+| Total run | ~= 49 min |
+
+### Deviations during Task 2 (Rule 1, rehearsal harness only; full re-runs per D-31/D-36)
+
+The 05-06 choreography had never completed end-to-end before this plan — each of
+runs 1-3 surfaced the next latent harness defect. Five runs total:
+
+| Run | Outcome | Fix (commit) |
+|-----|---------|--------------|
+| 1 — 2026-09-15 22:35 | FAIL at unpause: docker cp of the target driver to a nested path fails on a created-not-started container | flat container-root destination + matching node argv (`de5956a`) |
+| 2 — 2026-09-15 22:38 | FAIL at induce: the anonymized dump carries zero chat-bound users (anonymize preserves non-null as `tg-<md5>`, so the production snapshot itself has none) | bind throwaway `tg-rehearsal-throwaway` chat id in the stand-in DB only; `seededChatOwner: true` recorded in parity-evidence.json and leg state (`61dfbdc`) |
+| 3 — 2026-09-16 07:54 | FAIL at induce byteMatch: exact-key equality rejected the writer's `monitorId` payload extension — present since the first 04-04 Tier 1 build (2545ce6), allowed by the OutboxEvent extension-key type, unread by any consumer | D-48 asserted as subset + pinned extension allowlist `[monitorId]`; any other new key still fails loud (`7b5a997`) |
+| 4 — 2026-09-16 ~08:46 | FAIL at rebuild: `tsc` crashed 0xC0000005 (Windows access violation — transient native crash, no code change; a bare standalone build fails differently only because the leg injects NEXT_PUBLIC_DEV_BASE_URL per the 02-07 env-less-checkout precedent) | clean relaunch, same SHA |
+| 5 — 2026-09-16 08:46 -> 09:34 | **PASS** — the evidence above | — |
+
+No application code (`src/`) changed at any point — all three fixes live in
+`scripts/rehearse-cutover.mjs`. The green run verified the artifacts it built:
+SHA `7b5a997`, dist sha256 `847280f10b981b00`. The failed runs' snapshot dirs
+(`...2026091522354`, `...2026091522380`, `...2026091607541`) are retained with
+their PARTIAL evidence files for audit; the stand-in containers/network were
+torn down at each pass and the final teardown is clean.
 

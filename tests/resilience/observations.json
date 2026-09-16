@@ -27,6 +27,33 @@
         "pingsAfterRecovery": 1,
         "totalChecksAfterRecovery": 1,
         "recordedAt": "2026-09-14T13:46:57.396Z"
+      },
+      {
+        "injection": "admin DEL at checkpoints.beforeReverify",
+        "abortedWithZeroWrites": true,
+        "abortOutcome": "aborted-lock-lost",
+        "jobMsToAbort": 14,
+        "pingsAfterRecovery": 1,
+        "totalChecksAfterRecovery": 1,
+        "recordedAt": "2026-09-14T18:16:07.583Z"
+      },
+      {
+        "injection": "admin DEL at checkpoints.beforeReverify",
+        "abortedWithZeroWrites": true,
+        "abortOutcome": "aborted-lock-lost",
+        "jobMsToAbort": 16,
+        "pingsAfterRecovery": 1,
+        "totalChecksAfterRecovery": 1,
+        "recordedAt": "2026-09-14T18:19:43.078Z"
+      },
+      {
+        "injection": "admin DEL at checkpoints.beforeReverify",
+        "abortedWithZeroWrites": true,
+        "abortOutcome": "aborted-lock-lost",
+        "jobMsToAbort": 14,
+        "pingsAfterRecovery": 1,
+        "totalChecksAfterRecovery": 1,
+        "recordedAt": "2026-09-14T18:24:30.657Z"
       }
     ],
     "backlog-flood": [
@@ -59,6 +86,36 @@
         "transitionAdmittedAtDepth": 9,
         "transitionCompletedMs": 544,
         "recordedAt": "2026-09-14T13:46:56.123Z"
+      },
+      {
+        "floodedDepth": 8,
+        "activeMonitors": 3,
+        "cap": 6,
+        "droppedRoutineEnqueues": 1,
+        "backlogDropCounter": 1,
+        "transitionAdmittedAtDepth": 9,
+        "transitionCompletedMs": 540,
+        "recordedAt": "2026-09-14T18:16:04.006Z"
+      },
+      {
+        "floodedDepth": 8,
+        "activeMonitors": 3,
+        "cap": 6,
+        "droppedRoutineEnqueues": 1,
+        "backlogDropCounter": 1,
+        "transitionAdmittedAtDepth": 9,
+        "transitionCompletedMs": 537,
+        "recordedAt": "2026-09-14T18:19:39.972Z"
+      },
+      {
+        "floodedDepth": 8,
+        "activeMonitors": 3,
+        "cap": 6,
+        "droppedRoutineEnqueues": 1,
+        "backlogDropCounter": 1,
+        "transitionAdmittedAtDepth": 9,
+        "transitionCompletedMs": 541,
+        "recordedAt": "2026-09-14T18:24:27.627Z"
       }
     ],
     "redis-restart": [
@@ -88,6 +145,24 @@
         "pingsResumed": true,
         "tickSchedulersAfterReboot": 1,
         "recordedAt": "2026-09-14T13:46:52.576Z"
+      },
+      {
+        "persistence": "redis:8-alpine stock config (RDB default save points, no AOF/volume) — restart state indeterminate by design",
+        "redisRestartMs": 540,
+        "staleLockTtlExpiryMs": 15102,
+        "bootToSchedulerReupsertMs": 327,
+        "pingsResumed": true,
+        "tickSchedulersAfterReboot": 1,
+        "recordedAt": "2026-09-14T18:20:14.977Z"
+      },
+      {
+        "persistence": "redis:8-alpine stock config (RDB default save points, no AOF/volume) — restart state indeterminate by design",
+        "redisRestartMs": 549,
+        "staleLockTtlExpiryMs": 15098,
+        "bootToSchedulerReupsertMs": 321,
+        "pingsResumed": true,
+        "tickSchedulersAfterReboot": 1,
+        "recordedAt": "2026-09-14T18:24:25.819Z"
       }
     ],
     "duplicate-delivery": [
@@ -117,6 +192,33 @@
         "enqueueToCompletedMs": 209,
         "jobId": "check:13:1789393674",
         "recordedAt": "2026-09-14T13:46:54.331Z"
+      },
+      {
+        "enqueueAttempts": 2,
+        "admittedJobs": 1,
+        "pings": 1,
+        "totalChecks": 1,
+        "enqueueToCompletedMs": 209,
+        "jobId": "check:66:1789409826",
+        "recordedAt": "2026-09-14T18:16:06.295Z"
+      },
+      {
+        "enqueueAttempts": 2,
+        "admittedJobs": 1,
+        "pings": 1,
+        "totalChecks": 1,
+        "enqueueToCompletedMs": 210,
+        "jobId": "check:77:1789410041",
+        "recordedAt": "2026-09-14T18:19:41.760Z"
+      },
+      {
+        "enqueueAttempts": 2,
+        "admittedJobs": 1,
+        "pings": 1,
+        "totalChecks": 1,
+        "enqueueToCompletedMs": 216,
+        "jobId": "check:94:1789410329",
+        "recordedAt": "2026-09-14T18:24:29.398Z"
       }
     ],
     "redis-down": [
@@ -146,6 +248,33 @@
         "recoveryLatencyMs": 69561,
         "postgresIntact": true,
         "recordedAt": "2026-09-14T13:46:20.769Z"
+      },
+      {
+        "pausedWindowMs": 40000,
+        "pingsBefore": 2,
+        "pingsDuringPause": 0,
+        "readyzDuringOutage": "hung",
+        "recoveryLatencyMs": 43971,
+        "postgresIntact": true,
+        "recordedAt": "2026-09-14T18:13:22.440Z"
+      },
+      {
+        "pausedWindowMs": 40000,
+        "pingsBefore": 2,
+        "pingsDuringPause": 0,
+        "readyzDuringOutage": "hung",
+        "recoveryLatencyMs": 68342,
+        "postgresIntact": true,
+        "recordedAt": "2026-09-14T18:19:38.151Z"
+      },
+      {
+        "pausedWindowMs": 40000,
+        "pingsBefore": 2,
+        "pingsDuringPause": 0,
+        "readyzDuringOutage": "hung",
+        "recoveryLatencyMs": 69102,
+        "postgresIntact": true,
+        "recordedAt": "2026-09-14T18:21:47.176Z"
       }
     ],
     "postgres-down": [
@@ -184,6 +313,33 @@
         "closedRecoveryMs": 60210,
         "jobsRetriedNotLost": 3,
         "recordedAt": "2026-09-14T13:45:09.280Z"
+      },
+      {
+        "enqueueToOpenMs": 2260,
+        "consecutiveFailuresAtOpen": 6,
+        "outageToRecoveredMs": 6210,
+        "openWindowMs": 60000,
+        "closedRecoveryMs": 60157,
+        "jobsRetriedNotLost": 3,
+        "recordedAt": "2026-09-14T18:14:28.117Z"
+      },
+      {
+        "enqueueToOpenMs": 2265,
+        "consecutiveFailuresAtOpen": 6,
+        "outageToRecoveredMs": 6232,
+        "openWindowMs": 60000,
+        "closedRecoveryMs": 60139,
+        "jobsRetriedNotLost": 3,
+        "recordedAt": "2026-09-14T18:18:27.935Z"
+      },
+      {
+        "enqueueToOpenMs": 2261,
+        "consecutiveFailuresAtOpen": 6,
+        "outageToRecoveredMs": 6187,
+        "openWindowMs": 60000,
+        "closedRecoveryMs": 60121,
+        "jobsRetriedNotLost": 3,
+        "recordedAt": "2026-09-14T18:22:51.881Z"
       }
     ],
     "kill-mid-job": [
@@ -237,8 +393,75 @@
         "pingsAfterRedelivery": 2,
         "totalChecksAfterRedelivery": 1,
         "recordedAt": "2026-09-14T13:44:04.578Z"
+      },
+      {
+        "crashHook": "tier1_commit",
+        "enqueueToCrashMs": 203,
+        "committedAtCrash": {
+          "status": "DOWN",
+          "totalChecks": 1,
+          "failedChecks": 1,
+          "pings": 1,
+          "incidents": 1,
+          "ongoingIncidents": 1,
+          "outbox": 1
+        },
+        "stallRedeliveryMs": 90372,
+        "pingsAfterRedelivery": 2,
+        "totalChecksAfterRedelivery": 1,
+        "recordedAt": "2026-09-14T18:16:00.306Z"
+      },
+      {
+        "crashHook": "tier1_commit",
+        "enqueueToCrashMs": 203,
+        "committedAtCrash": {
+          "status": "DOWN",
+          "totalChecks": 1,
+          "failedChecks": 1,
+          "pings": 1,
+          "incidents": 1,
+          "ongoingIncidents": 1,
+          "outbox": 1
+        },
+        "stallRedeliveryMs": 60431,
+        "pingsAfterRedelivery": 2,
+        "totalChecksAfterRedelivery": 1,
+        "recordedAt": "2026-09-14T18:17:23.455Z"
+      },
+      {
+        "crashHook": "tier1_commit",
+        "enqueueToCrashMs": 203,
+        "committedAtCrash": {
+          "status": "DOWN",
+          "totalChecks": 1,
+          "failedChecks": 1,
+          "pings": 1,
+          "incidents": 1,
+          "ongoingIncidents": 1,
+          "outbox": 1
+        },
+        "stallRedeliveryMs": 60389,
+        "pingsAfterRedelivery": 2,
+        "totalChecksAfterRedelivery": 1,
+        "recordedAt": "2026-09-14T18:23:54.121Z"
+      }
+    ],
+    "legacy-batcher-overlap-clobber": [
+      {
+        "source": "live 05-08 co-run observation (stand-in web :3007 node-cron + worker :9090, window #2, not a test-suite injection)",
+        "legacyTickQueuedAt": "2026-09-16T19:28:00.100Z",
+        "workerTransitionAt": "2026-09-16T19:29:21.604Z",
+        "staleFlushClobberAt": "2026-09-16T19:30:00.015Z",
+        "transitionToClobberMs": 38411,
+        "swallowedRecoveryCheckAt": "2026-09-16T19:30:02.645Z",
+        "swallowedRecoveryOutcome": "applied:false eventType:null — Tier-1 dedup guard (WHERE status <> targetStatus) matched zero rows because the stale flush had already set status back to UP",
+        "desyncState": "monitors.status=UP while incident 5faa85f8 ONGOING (status/incidents desync, no lost alerts: down already delivered at 19:29:26Z)",
+        "rootCause": "web in-memory db-batcher (src/lib/db-batcher.ts queueRoutineCheck/flushBatches) held {status:UP, lastChecked:19:28:00.1} from the 19:28:00 legacy tick that raced the executor's starvation UPDATE; the flush's prisma.monitor.update (lines 100-110) overwrote the worker's Tier-1 DOWN transition columns",
+        "resolution": "DOWN re-established 19:37:48.847Z (incidentOpenSql ON CONFLICT rode the partial unique onto the same incident); recovery applied 19:38:27.087Z; relay near-duplicate dedup suppressed the duplicate DOWN page (dedupSkipped:1, sent_at set, attempts=0)",
+        "implication": "during WRK-11 overlap the legacy writer's deferred (in-memory, minutes-late) monitor-status writes can land after worker Tier-1 transition commits and un-transition status without touching incidents — the due-filter bounds which monitors are checked but not WHEN the legacy side's writes land; cutover must retire the legacy writer before the worker owns transitions",
+        "recordedAt": "2026-09-16T19:42:00Z"
       }
     ]
   },
-  "generatedAt": "2026-09-14T13:46:57.396Z"
+  "generatedAt": "2026-09-14T18:24:30.657Z"
 }

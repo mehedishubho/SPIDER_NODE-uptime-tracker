@@ -157,3 +157,14 @@ The operator saved `.snapshots/live-worker-hc-env.sh` and replied "checks provis
 - Minor paste artifact: the memory URL carries one stray character (57 vs 56 chars, same UUID tail — likely a mid-path double slash), which would mis-shape the `/fail` ping form.
 
 **Verdict: the pasted values appear copied from `rehearsal-hc-env.sh` (the throwaway checks), not from the newly provisioned real checks.** Either the real checks were provisioned in a different healthchecks.io account/project than the one the read-only key sees, or the wrong URLs were copied. Per the pre-committed rule the window is NOT opened on non-conforming checks — a paging dead-man that pages nobody defeats gate 1's entire premise (D-17: the dead-man switch IS the monitor). Operator directed to re-paste the three REAL check ping URLs (from the real checks' pages — names/graces per D-25, integrations ON) into `.snapshots/live-worker-hc-env.sh`.
+
+### Task 1 verification round 3 (2026-09-16 ~15:35Z) — URLs now NEW and resolvable, but the D-25 profile is UNVERIFIABLE with this key; window still NOT opened
+
+The operator re-pasted. Masked verification:
+
+- **File shapes now clean:** three ping URLs all length 56, host `hc-ping.com`, no trailing/extra slashes; `TELEGRAM_BOT_TOKEN` present (length 46).
+- **The three UUIDs are NEW** (`7434b1d4…` heartbeat, `831d2ecf…` outbox, `aa6be726…` memory) — not the throwaway set, and all three resolve on the flips endpoint (HTTP 200). A negative control (random valid-format UUID) returns 404, so the endpoint discriminates: checks with these UUIDs genuinely exist.
+- **But the read-only key's check list still shows only the 4 old checks** (the three `rehearsal-*` + `My First Check`) — unchanged by the `?project=` probe (0–5 all return the same set; the parameter is not honored by this key). The three new checks are therefore outside this key's visible scope: a different project in the account, or a different account entirely (the flips-by-uuid path resolves regardless, which is why gate 1's endpoint answers 200).
+- Consequence: **graces (600/300/1800 s) and paging channels (> 0) cannot be confirmed via the API** with the current key — and per the pre-committed rule the window does not open on an unverified dead-man. Notably the `rehearsal-*` checks now show `status=new, pings=0` (pings were cleared between rounds) — they remain inert non-paging checks regardless.
+
+**Operator directed to one of two mechanical fixes (either makes verification complete):** (1) move the three real checks into the project this read-only key reads (dashboard move), or (2) paste a read-only API key FROM the project/account holding the real checks into `.snapshots/live-worker-hc-env.sh` as `export HC_REAL_CHECKS_API_KEY=…`. On the next resume the same masked verification must show the three checks by name with the D-25 graces and channels > 0 before Task 2 runs.

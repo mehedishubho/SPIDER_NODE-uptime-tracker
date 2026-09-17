@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 05
 current_phase_name: worker-cutover-operational-hardening
 status: executing
-stopped_at: Completed 05-07-PLAN.md
-last_updated: "2026-09-16T13:16:01.786Z"
+stopped_at: Completed 05-08-PLAN.md
+last_updated: "2026-09-17T08:14:17.883Z"
 last_activity: 2026-09-15
 last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 45
-  completed_plans: 43
+  completed_plans: 44
   percent: 50
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-13)
 ## Current Position
 
 Phase: 05 (worker-cutover-operational-hardening) — EXECUTING
-Plan: 8 of 9
+Plan: 9 of 9
 Status: Ready to execute
 Last activity: 2026-09-15 — Phase 05 execution started
 
@@ -100,6 +100,7 @@ Progress: [████████████████████] 36/36 p
 | Phase 05 P05 | 20min | 3 tasks | 5 files |
 | Phase 05 P06 | 1998s (~33 min; single logical session across one compaction) | 3 tasks | 3 files |
 | Phase 05 P07 | 15h 29m | 3 tasks | 4 files |
+| Phase 05 P08 | ~19h | 5 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -252,6 +253,9 @@ Recent decisions affecting current work:
 - [Phase 05]: 05-07: deployed worker = the REHEARSED byte-identical bundle (dist/worker.js sha256 847280f10b981b00; failed main-tree rebuilds died pre-tsup); web .next from a clean worktree build of the same commit 7b5a997; D-31 pins commit SHA + deployed-worker byte equality — bundle bytes are nondeterministic across same-commit rebuilds
 - [Phase 05]: 05-07: D-04 manual-check proof uses the REAL credentials flow (synthetic sentinel armed with throwaway bcrypt password + emailVerified, stand-in DB only) after the permission system correctly denied the .env-reading JWT-mint approach — no workaround attempted, zero secret reads
 - [Phase 05]: 05-07: WRK-11/DEP-03 deliberately stay Pending in REQUIREMENTS.md — rehearsal+soak here is the precondition; the proof requirement is 05-08's live window (05-06 precedent)
+- [Phase ?]: 05-08: Cutover gates PASS 7/7 on a continuous 18000s live window (byteMatch true, real-chat delivery, pings==delta exact); D-18 operator approval of the deletion release recorded APPROVED 2026-09-17T08:02Z
+- [Phase ?]: 05-08: Every observed co-run hazard (batcher clobber class, over-check bursts, mixed-authorship transitions, dead lanes) is legacy-side; D-20 GREEN — worker engine fit to own 100% of checks
+- [Phase ?]: 05-08: Tier-1 applied:false duplicate checks commit a ping without a counter by DAT-04 design (tier1.ts evidencePingSql) — gate-4 pings==delta audits are deterministic only for windows without Tier-1 no-ops
 
 ### Pending Todos
 
@@ -275,6 +279,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-16T13:16:01.780Z
-Stopped at: Completed 05-07-PLAN.md
+Last session: 2026-09-17T08:14:17.876Z
+Stopped at: Completed 05-08-PLAN.md
 Resume file: None

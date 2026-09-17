@@ -390,3 +390,21 @@ GATE 7 (legacy-path disposition): PASS
 **Post-window restore (05:01Z):** m2/m3 `next_check_at` unfrozen (checks resumed immediately); m2 `https://example.com`/interval 1 and m3 `https://example.com/`/interval 30, both UP — original states verified. Worker PID 21988 ACTIVE is the deployment steady state.
 
 **D-20 DISPOSITION (2026-09-17T05:00:36Z): GREEN — CUTOVER APPROVED.** All seven gates PASS on a continuous 5 h window with real-chat alert parity (byteMatch true) and an exactly reconciled ping/counter bijection. Every residual hazard observed tonight — legacy deferred writes (window #2/#3 clobber class, the 23:59 last-write-wins save), legacy over-check bursts (m3 ×2), mixed-authorship transition ownership (×2), the Tier-1 no-op ping-without-counter accounting exception (DAT-04), the dead manual/maintenance lanes on the long-lived boot (restart-recovered, BullMQ stall-redelivery absorbed idempotently ×3) — is a property of the co-run/legacy side or a documented worker idempotency semantic, and each is retired or absorbed by design; none implicates the worker engine's fitness to own 100% of checks. **Proceed to the D-18 operator approval of the deletion release (Task 5).**
+
+## 05-08 Task 5 — D-18 operator approval + post-window closeout (2026-09-17T08:02–08:11Z)
+
+**D-18 OPERATOR APPROVAL — VERDICT: APPROVED.** Decision received 2026-09-17T08:02Z (verbatim operator reply: "approved", relayed via the coordinator at 08:03Z against the checkpoint delivering the 7/7 PASS gate table, the D-20 GREEN disposition, and the verification pointers). The operator had the gate output, the deploy record's three evidence blocks, and the real-chat alert history in hand; the deletion release — removing the legacy cron writer (`src/lib/cron-logic.ts` + the `db-batcher` write path) so the worker owns 100% of checks — is green-lit. Until that release ships, the deployment holds the current co-run posture (worker ACTIVE + legacy cron), which tonight's evidence shows is safe.
+
+**Post-window cleanup (executed 08:04–08:11Z, window closed at 05:00:36Z so D-16 no longer binds):**
+
+| Item | Action | Result |
+|---|---|---|
+| Window scraper | `taskkill` PID 55828 (`scripts/scrape-metrics.mjs`, 15 s cadence) | stopped; samples frozen at 2281 (window #4 dir) |
+| Induction fixture | `taskkill` PID 48560 (`.snapshots/0508-induce/target.mjs` on 203.0.113.10:8080) | stopped |
+| Leftover container | `docker rm spidernode-0508-target` | removed |
+| Loopback TEST-NET-3 alias | `netsh interface ip delete address "Loopback Pseudo-Interface 1" 203.0.113.10` | **refused — requires elevation**; operator advisory logged (deferred-items.md) |
+| Web restart + UI chunk fix | kill PID 33388 → relaunch `pnpm start` :3007 with the stand-in prod-Redis env | LOGIN 200 in ~3 s; cron block firing cleanly; **chunks FIXED** — 3/3 `/_next/static/chunks/*.js` on `/login` return 200 (were 500 since the orchestrator's mid-soak build) |
+| Monitor restoration re-verified | SQL read | m2 `https://example.com`/interval 1/UP, m3 `https://example.com/`/interval 30/UP, both active with `next_check_at` advancing; zero ongoing incidents |
+| hc.io throwaways | advisory only (keys are read-only) | operator dashboard action (rehearsal-*, My First Check, round-5 wrong-account orphans) |
+
+Steady state handed to the deletion release: worker PID 21988 ACTIVE (scheduler on, readyz green, bundle sha `5411026`), web fresh-booted on :3007 with legacy cron per-minute, DB/Redis containers up, all window evidence retained under `.snapshots/gates-0508-*` (gitignored). **05-08 COMPLETE — all five tasks done, cutover decision D-18 recorded APPROVED, D-20 GREEN.**

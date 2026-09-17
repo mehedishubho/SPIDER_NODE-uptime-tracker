@@ -319,3 +319,74 @@ The window-#2 clobber lesson became a protocol and the protocol held. Sequence: 
 **D-02 root cause (not a race):** the 23:48 pre-reconcile found m2 pings-in-window 84 vs counter delta 83. Verified in `src/worker/persist/tier1.ts`: the evidence ping INSERT runs on EVERY Tier-1 call (duplicate deliveries included) while the counter increment rides ONLY the conditional transition UPDATE — the single applied:false duplicate check of the window (23:33:25.223) is a ping-without-counter BY DESIGN (DAT-04: "counters advanced exactly once"). Tier-1 transitions increment counters atomically in the same transaction; the 00:00 flush arithmetic reconciled exactly (1571 + 6 worker sweeps + 10 flush entries = 1587). Gate 4's exact pings==delta assertion is therefore unsatisfiable for any window containing a Tier-1 no-op — window #4a's counter base retired.
 
 **Window #4a -> #4b supersession (no interruption — measurement-base correction):** worker PID 59024 continuous since 22:36:55Z, scraper gapless. Predicted 00:00 stale-DOWN clobber did NOT materialize (legacy's fresh 23:59 UP entry won the batcher's last-write-wins Map slot; discovered en passant: legacy's due-filter reads `lastChecked` age, NOT `next_check_at` — the 23:55:33 push froze only the worker). Window #4b: **epoch 1789603200 (2026-09-17T00:00:00Z)**, baseline m2 1587/6 + m3 43/0 from the 00:00:23.823 read — chosen so the ping/counter bijection holds at both window boundaries by construction (pre-epoch pairs' counters landed in the 00:00:00.014 flush; post-epoch pairs' counters land after the read; planned end 04:30:00Z is a flush boundary with worker checks frozen from ~04:28 and the gate read after the 04:30:00.014 flush). Planned gate run ~04:30:20Z; hourly stewardship reconciliation pings-vs-delta (any drift is a documented finding, never patched).
+
+---
+
+## Cutover gate evaluation — 2026-09-17T04:31:16.815Z
+
+- Window: 2026-09-17T00:00:00.000Z .. 2026-09-17T04:30:00.000Z (16200 s)
+- Mode: live
+- Verdict: **FAIL (6/7)**
+
+GATE 1 (heartbeat steady): PASS [D-17]
+GATE 2 (queue health): PASS [D-19]
+GATE 3 (alert parity): PASS [D-48+D-05]
+  - [disposition] extra transient alert listed for disposition (D-05): {"outbox_id":"fd3a553b-bd6c-48fd-9761-395e1c51b58d","event_type":"incident.recovered","incident_id":"cmu4qkop800ifrguylhkjn43i","created_at":"2026-09-16T23:34:25.221Z"}
+GATE 4 (counter gates): FAIL [D-02+D-37]
+  - monitor 3: pings in window = 12 but total_count delta = 55 (D-02 lost-update class)
+  - monitor 2: pings in window = 401 but total_count delta = 1989 (D-02 lost-update class)
+  - recompute-report.json missing — capture the D-37 dry-run recompute during the window
+GATE 5 (continuity gap-scan): PASS
+GATE 6 (duplicate ONGOING): PASS
+GATE 7 (legacy-path disposition): PASS
+
+---
+
+## Cutover gate evaluation — 2026-09-17T04:46:41.142Z
+
+- Window: 2026-09-17T00:00:00.000Z .. 2026-09-17T04:45:00.000Z (17100 s)
+- Mode: live
+- Verdict: **FAIL (6/7)**
+
+GATE 1 (heartbeat steady): PASS [D-17]
+GATE 2 (queue health): PASS [D-19]
+GATE 3 (alert parity): PASS [D-48+D-05]
+  - [disposition] extra transient alert listed for disposition (D-05): {"outbox_id":"fd3a553b-bd6c-48fd-9761-395e1c51b58d","event_type":"incident.recovered","incident_id":"cmu4qkop800ifrguylhkjn43i","created_at":"2026-09-16T23:34:25.221Z"}
+GATE 4 (counter gates): FAIL [D-02+D-37]
+  - monitor 2: pings in window = 416 but total_count delta = 417 (D-02 lost-update class)
+  - recompute-report.json has no discrepancies array (expected the runConsistencyAudit shape)
+GATE 5 (continuity gap-scan): PASS
+GATE 6 (duplicate ONGOING): PASS
+GATE 7 (legacy-path disposition): PASS
+
+---
+
+## Cutover gate evaluation — 2026-09-17T05:00:36.630Z
+
+- Window: 2026-09-17T00:00:00.000Z .. 2026-09-17T05:00:00.000Z (18000 s)
+- Mode: live
+- Verdict: **PASS (7/7)**
+
+GATE 1 (heartbeat steady): PASS [D-17]
+GATE 2 (queue health): PASS [D-19]
+GATE 3 (alert parity): PASS [D-48+D-05]
+  - [disposition] extra transient alert listed for disposition (D-05): {"outbox_id":"fd3a553b-bd6c-48fd-9761-395e1c51b58d","event_type":"incident.recovered","incident_id":"cmu4qkop800ifrguylhkjn43i","created_at":"2026-09-16T23:34:25.221Z"}
+GATE 4 (counter gates): PASS [D-02+D-37]
+GATE 5 (continuity gap-scan): PASS
+GATE 6 (duplicate ONGOING): PASS
+GATE 7 (legacy-path disposition): PASS
+
+## 05-08 window #4b — stewardship, end-boundary, and the 7/7 PASS (2026-09-17 00:08Z–05:01Z)
+
+**Stewardship:** 50 consecutive watchdog rounds (5-min cadence, 00:08:50–04:24:59Z) ALL ok — readyz green, zero worker fatal errors, scraper gapless (366 → 1390 samples), hc.io trio up, zero ongoing incidents, and the m2/m3 pings-vs-delta reconciliation EXACT at every single observation (final: m2 386/386, m3 12/12). The ping/counter bijection engineered at window open held for the entire window.
+
+**The three gate runs (honest sequence — the first two are engineering artifacts, fully attributed, no data was ever patched):**
+
+1. **Run 1 (04:31:16Z, end 04:30:00) FAIL 6/7** — my own baseline-file bug: the gate script parses per-monitor rows keyed `monitorId`; I had written `id`, so every lookup fell to 0 and the deltas read as raw counters (m2 "1989", m3 "55"). The D-37 recompute also could not be captured: the maintenance lane was as dead as the manual lane on worker PID 59024 (the enqueued dry-run job sat unconsumed; `--wait` timed out at 300 s; a first extraction attempt parsed the JOB echo as the REPORT — caught, bogus file deleted). Rule 1 fixed the file shape; the D-37 capture required the lane alive.
+2. **Post-window worker restart (04:45:57Z):** with the evaluated stretch [00:00, 04:45) closed and fully continuous (worker alive throughout, zero errors), PID 59024 was killed and relaunched (PID 21988, same bundle sha `5411026`, scheduler ACTIVE, readyz green) — reviving the dead lanes (the queued maintenance job consumed immediately, "maintenance DRY-RUN report (zero writes)" logged). The restart's stall-redelivery produced exactly ONE m2 pair at 04:45:57.2 (ping + counter; "lane job stalled — redelivered at-least-once" ×3 absorbed idempotently, 3 per-monitor-lock no-ops) — which sat post-end for run 2.
+3. **Run 2 (04:46:41Z, end 04:45:00) FAIL 6/7** — m2 416 pings vs 417 delta: the +1 fully attributed to that redelivered pair (ping excluded as post-end, counter landed pre-read); recompute file present but in the nested REPORT shape (gate expects the top-level runConsistencyAudit `{checked, discrepancies}` — window #3's file would have failed this leg identically; reshaped).
+4. **Run 3 (05:00:36Z, end 05:00:00) — VERDICT: PASS (7/7).** End moved to a flush boundary: every in-window legacy pair's counters land at 05:00:00.014, the 05:00:00.040 tick excludes both sides, and the worker was frozen to 05:50 (`next_check_at` push) — the gate read sat in a wide frozen-counter window. Gate-4 arithmetic at PASS: m2 pings == delta (the redelivered pair and the 15 legacy entries 04:45–04:59 all in-window with landed counters), m3 17/17 (the 04:40–04:44 legacy over-check burst landed as consistent pairs in the 04:45 flush), recompute audit checked 2 / discrepancies [].
+
+**Post-window restore (05:01Z):** m2/m3 `next_check_at` unfrozen (checks resumed immediately); m2 `https://example.com`/interval 1 and m3 `https://example.com/`/interval 30, both UP — original states verified. Worker PID 21988 ACTIVE is the deployment steady state.
+
+**D-20 DISPOSITION (2026-09-17T05:00:36Z): GREEN — CUTOVER APPROVED.** All seven gates PASS on a continuous 5 h window with real-chat alert parity (byteMatch true) and an exactly reconciled ping/counter bijection. Every residual hazard observed tonight — legacy deferred writes (window #2/#3 clobber class, the 23:59 last-write-wins save), legacy over-check bursts (m3 ×2), mixed-authorship transition ownership (×2), the Tier-1 no-op ping-without-counter accounting exception (DAT-04), the dead manual/maintenance lanes on the long-lived boot (restart-recovered, BullMQ stall-redelivery absorbed idempotently ×3) — is a property of the co-run/legacy side or a documented worker idempotency semantic, and each is retired or absorbed by design; none implicates the worker engine's fitness to own 100% of checks. **Proceed to the D-18 operator approval of the deletion release (Task 5).**

@@ -185,15 +185,15 @@ describe("cron-remnant gate — scripts/check-cron-remnants.mjs (D-41)", () => {
     }
   });
 
-  it("5. --advisory against today's real repo lists the legitimate remnants and exits 0", async () => {
-    // The acceptance criterion: today src/instrumentation.ts legitimately
-    // exists (deleted only at the 05-09 deletion release), so advisory mode
-    // lists it without failing — the gate stays inert until armed.
+  it("5. --advisory against today's real repo is green now that 05-09 removed instrumentation.ts", async () => {
+    // Post-deletion-release invariant (05-09): src/instrumentation.ts no
+    // longer exists, so advisory mode finds no legitimate remnants — the
+    // gate is armed and the real repo must scan green.
     const result = await runRemnants(["--advisory"]);
     expect(result.code).toBe(0);
     const out = `${result.stdout}${result.stderr}`;
-    expect(out).toContain("instrumentation.ts");
-    expect(out).toContain("advisory");
+    expect(out).toContain("green");
+    expect(out).not.toContain("instrumentation.ts");
   });
 
   it("6. --help prints usage and exits 0", async () => {

@@ -435,3 +435,7 @@ Steady state handed to the deletion release: worker PID 21988 ACTIVE (scheduler 
 | readyz | green on :9090 |
 
 **Steady state after the deletion release:** worker PID 9252 (sha d55cad5) is the **sole monitoring path**; web serves :3007 with no scheduler of any kind; the `/api/cron/*` routes survive dormant as runbook §9's manual emergency lever (D-03), CRON_SECRET-gated, retiring Phase 6.
+
+## 05-09 Task 3 — D-21 RESOLVED BY ABSENCE: no old cron check exists to false-page (2026-09-19T19:54Z)
+
+Operator resolution of the blocking checkpoint (verbatim reports, in order): **"I have 1 project only"** — the current login contains only the worker trio plus the stray default check — and **"previously created account was deleted"** — the second hc.io account from the 05-08 round-5 saga no longer exists (deleted by the operator). Combined with the masked read-only API read recorded above (the visible project holds exactly `worker-heartbeat` / `worker-outbox-age` / `worker-redis-memory` — all `up`, advancing — plus `My First Check`), the conclusion is: **no old cron-typed check exists under any account the operator controls; the retired legacy `HC_PING_URL` has no live target and cannot false-page.** Threat T-05-09-02 (DoS: false page from the orphaned old cron check; disposition mitigate) is satisfied by absence of the hazard — there is nothing to pause. Incidental: the operator paused `My First Check` during the search (harmless — 0 pings, never alertable; it stays a cleanup candidate alongside the other throwaways from the 05-08 closeout table).

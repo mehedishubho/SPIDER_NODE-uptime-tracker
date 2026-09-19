@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Foundations & Theme Infrastructure** - pnpm, CI gates, characterization tests on real Postgres/Redis; theme tokens land with zero behavior change — *round-2 verification 2026-09-12: both gaps independently confirmed closed (02-10), human_needed — 5 manual UAT tests pending (02-UAT.md)* (completed 2026-09-12)
 - [x] **Phase 3: Redis & Drizzle Schema Ownership** - Redis with no correctness dependence; live-DDL Drizzle baseline plus worker schema addenda, rehearsed on a prod snapshot (completed 2026-09-12)
 - [x] **Phase 4: Monitoring Worker — Build & Dark Launch** - Dedicated worker owns all monitoring on idempotent, resilient BullMQ machinery; dark-launched while cron still serves users (completed 2026-09-14)
-- [ ] **Phase 5: Worker Cutover & Operational Hardening** - Gated overlap cutover deletes the cron; heartbeat moves, observability, env transition, rehearsed rollback
+- [x] **Phase 5: Worker Cutover & Operational Hardening** - Gated overlap cutover deletes the cron; heartbeat moves, observability, env transition, rehearsed rollback (completed 2026-09-19)
 - [ ] **Phase 6: Thin API Routes & Email Abstraction** - Web becomes an enqueue-only producer; security fixes at the new boundary; email queued off the request path
 - [ ] **Phase 7: Better Auth Cutover, Admin Gating & Prisma Removal** - Canary-gated auth cutover onto existing tables; admin roles gate feedback and queue UI; Prisma deleted
 - [ ] **Phase 8: Flagged Capabilities & UI Modernization** - AI and windowed-uptime behind default-off flags; visual redesign on stable tokens and stable APIs
@@ -229,7 +229,7 @@ Plans:
   3. Operators see trouble before users do: outbox-age alerting fires when rows exceed the threshold, and Prometheus exports queue depth/age, stalled count, transition→alert latency, and Redis memory
   4. Rollback is rehearsed: restoring the previous tarball returns the prior release cleanly, expand/contract discipline holds (no drops or renames inside verification windows), and the environment transition is complete (`REDIS_URL`, `EMAIL_PROVIDER`, `BETTER_AUTH_*` documented; `NEXTAUTH_*`/`CRON_MODE` retired or on a dated retirement path in `.env.example`)
 
-**Plans**: 8/9 plans executed
+**Plans**: 9/9 plans complete
 
 Plans:
 **Wave 1** *(parallel, no file overlap)*
@@ -260,7 +260,7 @@ Plans:
 
 **Wave 7** *(final — blocked on 05-08 approval)*
 
-- [ ] 05-09-PLAN.md — Scheduler-only deletion release (D-03/D-41/D-46), old-check retirement (D-21), tier-2 tarball-restore rehearsal (D-15), env transition closeout (D-40) (WRK-11, DEP-03, DEP-05)
+- [x] 05-09-PLAN.md — Scheduler-only deletion release (D-03/D-41/D-46), old-check retirement (D-21), tier-2 tarball-restore rehearsal (D-15), env transition closeout (D-40) (WRK-11, DEP-03, DEP-05)
 
 ### Phase 6: Thin API Routes & Email Abstraction
 
@@ -339,7 +339,7 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | 2. Foundations & Theme Infrastructure | 10/10 | Gaps closed (02-10); round-2 verification human_needed — 5 UAT tests pending (02-UAT.md) | - |
 | 3. Redis & Drizzle Schema Ownership | 0/TBD | Not started | - |
 | 4. Monitoring Worker — Build & Dark Launch | 0/9 | Planned — research resolved, 9 plans across 6 waves | - |
-| 5. Worker Cutover & Operational Hardening | 8/9 | In Progress | - |
+| 5. Worker Cutover & Operational Hardening | 9/9 | Complete — deletion release d55cad5 shipped (worker owns 100% of checks, legacy cron deleted); D-18 approved, D-21 resolved-by-absence, tier-2 rollback rehearsed | 2026-09-19 |
 | 6. Thin API Routes & Email Abstraction | 0/TBD | Not started | - |
 | 7. Better Auth Cutover, Admin Gating & Prisma Removal | 0/TBD | Not started | - |
 | 8. Flagged Capabilities & UI Modernization | 0/TBD | Not started | - |

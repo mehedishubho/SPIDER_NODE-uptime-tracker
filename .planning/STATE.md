@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 05
 current_phase_name: worker-cutover-operational-hardening
-status: executing
-stopped_at: Completed 05-08-PLAN.md
-last_updated: "2026-09-17T08:14:17.883Z"
+status: verifying
+stopped_at: Completed 05-09-PLAN.md
+last_updated: "2026-09-19T20:49:31.683Z"
 last_activity: 2026-09-15
 last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 8
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 45
-  completed_plans: 44
-  percent: 50
+  completed_plans: 45
+  percent: 63
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-13)
 
 Phase: 05 (worker-cutover-operational-hardening) — EXECUTING
 Plan: 9 of 9
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-15 — Phase 05 execution started
 
 Progress: [████████████████████] 36/36 plans (100%)
@@ -101,6 +101,7 @@ Progress: [████████████████████] 36/36 p
 | Phase 05 P06 | 1998s (~33 min; single logical session across one compaction) | 3 tasks | 3 files |
 | Phase 05 P07 | 15h 29m | 3 tasks | 4 files |
 | Phase 05 P08 | ~19h | 5 tasks | 3 files |
+| Phase 05 P09 | 3h20m | - tasks | - files |
 
 ## Accumulated Context
 
@@ -256,6 +257,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 05-08: Cutover gates PASS 7/7 on a continuous 18000s live window (byteMatch true, real-chat delivery, pings==delta exact); D-18 operator approval of the deletion release recorded APPROVED 2026-09-17T08:02Z
 - [Phase ?]: 05-08: Every observed co-run hazard (batcher clobber class, over-check bursts, mixed-authorship transitions, dead lanes) is legacy-side; D-20 GREEN — worker engine fit to own 100% of checks
 - [Phase ?]: 05-08: Tier-1 applied:false duplicate checks commit a ping without a counter by DAT-04 design (tier1.ts evidencePingSql) — gate-4 pings==delta audits are deterministic only for windows without Tier-1 no-ops
+- [Phase ?]: 05-09: D-43 zero-loss drain executed via empty-batcher-window kill (18:45:00.111Z) after the curl-lever proved impossible on the stand-in (web never carried CRON_SECRET)
+- [Phase ?]: 05-09: D-21 resolved-by-absence — operator's only hc.io project holds the worker trio + a never-pinged default check; second account deleted; no old-cron check can false-page
+- [Phase ?]: 05-09: tier-2 rehearsal finding — the 9f667e2 tarball needs 2 node_modules junction shims on fresh install (Turbopack mangled instrumentation externals); current build immune; runbook §7 amended
 
 ### Pending Todos
 
@@ -279,6 +283,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-17T08:14:17.876Z
-Stopped at: Completed 05-08-PLAN.md
+Last session: 2026-09-19T20:49:31.676Z
+Stopped at: Completed 05-09-PLAN.md
 Resume file: None

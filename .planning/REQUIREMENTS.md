@@ -122,10 +122,10 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 ### Observability
 
 - [x] **OBS-01**: Queue metrics exported: depth per queue, job age (not just depth), stalled count, transition→alert latency, Redis memory %
-- [x] **OBS-02**: Structured logs with `monitorId` correlation across scheduler → check → persist → alert
-- [ ] **OBS-03**: Outbox-age alerting (rows older than N seconds page the operator)
+- [x] **OBS-02**: Structured logs with `monitorId` correlation across scheduler → check → persist → alert **— evidence: correlated log chains captured in the Phase-5 cutover window (D-42; `obs-02-monitor2-correlated-logs.json`, window #4b, 05-DEPLOY-RECORD)**
+- [x] **OBS-03**: Outbox-age alerting (rows older than N seconds page the operator) **— evidence: `WORKER_OUTBOX_HC_PING_URL` live since the 05-02 add-release (300 s grace, D-25); real firing ×2 on 2026-09-16 host outages (~8-min health-loop outage detected, down→up transitions recorded); trio lockstep-advancing in the deletion-release proofs (05-DEPLOY-RECORD, 05-09)**
 - [ ] **OBS-04**: Bull Board queue inspection behind admin auth + IP allowlist
-- [ ] **OBS-05**: Prometheus export (BullMQ telemetry + custom gauges) with optional dashboard
+- [x] **OBS-05**: Prometheus export (BullMQ telemetry + custom gauges) with optional dashboard **— evidence: worker `/metrics.json` on :9090 serving BullMQ telemetry + custom gauges (build SHA embedded), live through the deletion release; Grafana/persistent Prometheus deferred to the VPS era per D-40 (05-09 closeout)**
 
 ### AI Integration
 
@@ -149,7 +149,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [x] **DEP-02**: Deploy ordering: build → backup (`pg_dump`) → migrate (single runner) → restart worker (waits `readyz`) → restart web → smoke-check (synthetic check → ping row appears)
 - [x] **DEP-03**: Rollback story: previous tarball retained; expand/contract discipline (additive-only migrations during verification windows; drops deferred to a following release)
 - [x] **DEP-04**: CI gates on PRs: lint → typecheck → unit/integration → build; deploy only from `main` after green
-- [ ] **DEP-05**: Environment transition complete: `REDIS_URL`, `EMAIL_PROVIDER`, `BETTER_AUTH_*` added; `NEXTAUTH_*`, `CRON_MODE` retired; `.env.example` kept current
+- [x] **DEP-05**: Environment transition complete: `REDIS_URL`, `EMAIL_PROVIDER`, `BETTER_AUTH_*` added; `NEXTAUTH_*`, `CRON_MODE` retired; `.env.example` kept current **— complete via D-40's dated-paths form (05-09): `CRON_MODE` retired at the deletion release (d55cad5, entry + reader deleted); `REDIS_URL` present since Phase 03; `CRON_SECRET` + `/api/cron/*` annotated retiring Phase 6 (SEC-06); `EMAIL_PROVIDER` placeholder dated Phase 6 (EML-01); `BETTER_AUTH_*`/`NEXTAUTH_*` dated Phase 7 (AUTH-01/AUTH-07)**
 
 ## v2 Requirements
 
@@ -252,9 +252,9 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | WRK-09 | Phase 5 | Complete |
 | WRK-11 | Phase 5 | Complete |
 | DEP-03 | Phase 5 | Complete |
-| DEP-05 | Phase 5 | Pending |
-| OBS-03 | Phase 5 | Pending |
-| OBS-05 | Phase 5 | Pending |
+| DEP-05 | Phase 5 | Complete |
+| OBS-03 | Phase 5 | Complete |
+| OBS-05 | Phase 5 | Complete |
 | API-01 | Phase 6 | Pending |
 | API-02 | Phase 6 | Pending |
 | SEC-03 | Phase 6 | Pending |

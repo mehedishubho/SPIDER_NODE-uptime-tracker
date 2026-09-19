@@ -408,3 +408,30 @@ GATE 7 (legacy-path disposition): PASS
 | hc.io throwaways | advisory only (keys are read-only) | operator dashboard action (rehearsal-*, My First Check, round-5 wrong-account orphans) |
 
 Steady state handed to the deletion release: worker PID 21988 ACTIVE (scheduler on, readyz green, bundle sha `5411026`), web fresh-booted on :3007 with legacy cron per-minute, DB/Redis containers up, all window evidence retained under `.snapshots/gates-0508-*` (gitignored). **05-08 COMPLETE — all five tasks done, cutover decision D-18 recorded APPROVED, D-20 GREEN.**
+
+## 05-09 — THE DELETION RELEASE: legacy cron scheduler removed, worker owns 100% of checks (2026-09-19)
+
+**Authorization:** D-18 operator approval (2026-09-17T08:02Z, entry above + commit 8a7577d). Release SHA **d55cad5**: `src/instrumentation.ts` deleted, `node-cron` + `@types/node-cron` removed, `.env.example` trimmed per D-46 — CRON_MODE and HC_PING_URL entries removed (grep proved their only `src/` reader was the deleted file), CRON_SECRET stays annotated as the dormant emergency lever retiring Phase 6 with the `/api/cron/*` routes. Full `pnpm verify` green on d55cad5 including the new `cron:remnants` enforcement leg (D-41: 444 files scanned, zero remnants) and zero drizzle/schema drift (D-44). Two documented en-route deviations: (1) Rule-3 unblock — eslint `globalIgnores` += `".kilo/**"` (a foreign agent IDE's linked worktrees appeared inside the repo root during the 3-day gap and linted as source; committed separately as 65d35cb to keep the deletion commit inside D-03's file list); (2) the `.env.example` NEXT_RUNTIME entry also removed (FND-07 reader-driven: its only reader was the deleted file).
+
+**Pre-release backup (§4a step 1):** pg_dump → `.snapshots/pre-deletion-release-20260919-181530.dump` (114,597 bytes), taken with the old stack still running.
+
+**Flush-first (§4a step 3, D-43) — mechanism deviated, zero-loss goal held:**
+- 18:30:00Z scheduled flush observed live in the old web log: `[DB Batcher] Flushing 9 pings and 1 monitor updates...` → `Flush completed successfully` (`.snapshots/0509-revival-web.log`).
+- The plan's curl-lever form hit two facts: the route exports **GET** only (the plan's `-X POST` letter was corrected to the runbook §4a step 10 GET form), and the live stand-in web answered **HTTP 500 `CRON_SECRET is not configured in production environment.`** — the stand-in env never carried CRON_SECRET, so the lever has never actually been callable on this stand-in (runbook blind spot; logged for §4a). Rule-3 fix: a fresh 64-hex secret was minted into gitignored `.snapshots/standin-web-env.sh` (value never logged, never committed) so the NEW web can exercise the lever.
+- D-43's actual goal — a deterministic zero-loss batcher drain before killing old web — was achieved by an **empty-window kill**: the old checks cron fires every minute and the flush cron every 15; at a flush boundary the same-minute check entries register first and are drained by that flush, so between flush completion and the next minute-tick the batcher holds zero entries. A 1 s watcher caught the 18:45:00Z flush completion (detected 18:45:00.111Z) and taskkilled old web PID 5528 the same second — ~60 s of margin, zero pings buffered at kill time, zero lost by construction. (A first attempt at the 18:30 boundary missed the window by ~2 s — a post-flush minute-tick had already re-batched entries — hence the precise watcher for 18:45.)
+
+**Restart (§4a step 4, worker first):** new worker PID 9252 — boot log `sha d55cad5`, `builtAt 2026-09-19T18:14:35.277Z`, `schedulerEnabled: true`, four schedulers, "recurring scheduling ACTIVE", **readyz green**. Then web — `/login` HTTP 200 and a 9-line silent boot log: **zero cron lines** (every pre-deletion boot banners "Internal Cron Triggered" within a minute; the deletion build cannot produce it).
+
+**Old cron hc.io check (D-21):** operator dashboard step — **IN FLIGHT at this entry** (Task 3 blocking checkpoint delivered immediately after this deploy; outcome appended below on the resume signal). Masked read-only account check shows only the three worker checks `up` plus the stray default check documented in the 05-08 closeout table above.
+
+**Post-deletion proofs (§4a step 6):**
+
+| Proof | Result |
+|---|---|
+| Emergency lever answers | HTTP 200 `{"message":"No monitors are due for a check right now","result":[]}` at 18:48:16Z with Bearer CRON_SECRET (harmless run — due-filter finds nothing due, in-request flush drained an empty batcher); negative control: wrong secret → HTTP 401 |
+| Synthetic smoke | `pnpm smoke:enqueue` PASS — job `check-manual:3:1789843711353` processed, UP 36 ms, ping row verified in the stand-in DB |
+| Worker-only continuity (no cron anywhere) | m2 per-minute pings 18:45:56Z → 18:51:26Z (5.5-min observed window), all uuid-form (worker Tier-1 authorship), readyz green throughout, web log silent; one ~90 s catch-up gap at the worker restart boot, well inside the 10-minute heartbeat grace |
+| hc.io heartbeat steady | trio in lockstep `up`, pings advancing 3117 → 3118 → 3120 across two reads 40 s apart (~18:56Z), graces 600/300/1800 s per D-25 |
+| readyz | green on :9090 |
+
+**Steady state after the deletion release:** worker PID 9252 (sha d55cad5) is the **sole monitoring path**; web serves :3007 with no scheduler of any kind; the `/api/cron/*` routes survive dormant as runbook §9's manual emergency lever (D-03), CRON_SECRET-gated, retiring Phase 6.

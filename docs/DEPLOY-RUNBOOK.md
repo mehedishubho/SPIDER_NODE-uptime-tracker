@@ -421,6 +421,7 @@ The target-topology smoke check is: **enqueue one synthetic check against a know
 - Why: deploys roll back by redeploying the previous tarball, but migrations are forward-only — the rollback runs old code on the new schema, which is safe only if the schema merely expanded.
 - Destructive (contract) steps are deferred to their own release and carry a manually documented `drizzle-kit` down-path written **before** that release ships.
 - A release is verified only when `readyz` (web serving + worker `readyz`) and the smoke check are green post-deploy. Until then, treat the release as unverified and the previous tarball as live-ready.
+- **Tier-2 restore-from-scratch amendment (05-09 rehearsal finding):** a *fresh* `pnpm install` cannot satisfy the pre-cutover tarball's Turbopack-externalized instrumentation deps — `.next`'s server-root chunk bare-imports them under pnpm-hash mangled names (`node-cron-5efbb29b9a4eb14a`, `pg-4c0d8067d674414d`), so first boot fails the instrumentation hook and `/login` 500s. Fix after install: two node_modules junctions — `mklink /J node_modules\node-cron-5efbb29b9a4eb14a node_modules\node-cron` and `mklink /J node_modules\pg-4c0d8067d674414d node_modules\pg` — after which the release boots and monitors exactly as before. The current (deletion-release) build is structurally immune: `instrumentation.ts` is gone and the one remaining mangled name is dead code. A real VPS rollback reuses the existing node_modules tree and needs no junctions; only a restore-from-scratch of the pre-cutover tarball does.
 
 ---
 

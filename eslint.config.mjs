@@ -18,6 +18,11 @@ const eslintConfig = defineConfig([
     // its require() calls are the point of the format (D-03), not lintable
     // source. Same posture as src/generated.
     "dist/**",
+    // Foreign-tool workspaces nested in the repo root (05-09 Rule-3 unblock):
+    // .kilo/worktrees/* are linked git worktrees another agent IDE creates
+    // inside the project — stale branch checkouts, never this repo's source
+    // of truth. Same posture as .next/dist: tool-owned, not lintable.
+    ".kilo/**",
   ]),
 ]);
 

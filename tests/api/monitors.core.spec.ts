@@ -117,7 +117,11 @@ test("POST /api/monitors valid → 201 with the route's real response shape", as
   const res = await ctxA.post("/api/monitors", {
     data: {
       name: "E2E API Created Monitor",
-      url: "https://created.test.example.com/",
+      // Must RESOLVE: the 06-03 DNS-only admission (assertUrlAllowed,
+      // fail-closed) refuses NXDOMAIN hosts with a 400 before the create.
+      // example.com is the IANA documentation host — resolvable, never
+      // dialed by this suite (the monitor is renamed and deleted unchecked).
+      url: "https://example.com/",
       interval: "10",
     },
   });
@@ -128,7 +132,7 @@ test("POST /api/monitors valid → 201 with the route's real response shape", as
   };
   expect(body.message).toBe("Monitor listed successfully");
   expect(body.monitor.name).toBe("E2E API Created Monitor");
-  expect(body.monitor.url).toBe("https://created.test.example.com/");
+  expect(body.monitor.url).toBe("https://example.com/");
   expect(body.monitor.interval).toBe(10);
   // API-created monitors start PENDING (first UP sends "MONITORING STARTED").
   expect(body.monitor.status).toBe("PENDING");

@@ -166,3 +166,19 @@ the steady-posture worker.
 **Decision:** wave gate continued per operator choice — environmental, soak worker
 intentionally untouched. Suite was fully green in every executor run while the
 port was free (06-02: 40/355+; 06-03: 40/376; 06-04 pre-flight resilience 7/7).
+
+**06-05 Task 2 occurrence:** full-verify run on the deletion tree saw the same
+single failure (379/380, `EADDRINUSE 127.0.0.1:9090`, zero assertion
+regressions); deferral disposition unchanged. All other verify legs green —
+including the extended D-41/D-27 remnant gate (441 files) and e2e 18/18. The
+gate re-checks for real once the soak worker retires at the Task 3 deletion
+deploy (worker restart frees 9090).
+
+**Related resilience flake occurrence (same window):** the 06-05 Task 2
+`pnpm test:resilience` run lost 1/7 (`redis-down`) to a native worker-child
+crash before readyz (`code=3221226505` = 0xC0000409 fail-fast; output tail
+empty). Same machine-native-crash class as the forks-pool flake above and the
+documented 0xC0000005 Turbopack build transient; the harness assigns a free
+health port (`freePort()`), so this is NOT the 9090 collision, and six sibling
+cases booted the identical fresh bundle green. Single retry: GREEN (7/7 across
+the two runs).

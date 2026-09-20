@@ -4,11 +4,11 @@ milestone: v1.0
 current_phase: 06
 current_phase_name: thin-api-routes-email-abstraction
 status: executing
-stopped_at: "Paused 06-05 Task 1 at blocking checkpoint (D-31 soak open 2026-09-20T20:00Z; earliest gate-close 2026-09-21T20:00Z; awaiting operator soak evidence + production TELEGRAM_WEBHOOK_SECRET mint/setWebhook + approval; Task 1 record committed c376b8b)"
-last_updated: "2026-09-20T20:47:17.518Z"
+stopped_at: "06-05 Tasks 1-2 complete (Task 1 approval recorded 46df8a3; Task 2 deletion release e448245 — verify green incl. extended D-41/D-27 gate 441 files, e2e 18/18); STOPPED at Task 3 blocking checkpoint: deletion-release deploy per runbook §4 (backup → deploy web+worker readyz-gated → smoke: ping row, cron 404s, check-now 202+poll, registration email) + one scheduler tick + queue-drain observation + DEPLOY-RECORD closeout"
+last_updated: "2026-09-20T21:49:11.205Z"
 last_activity: 2026-09-21
 last_activity_desc: Phase 06 execution started
-state_head: c376b8b41e9d329e1585bff5dbe6b7452ccfe9f0
+state_head: e4482458064a67803c79451fab421e4b18892aca
 progress:
   total_phases: 8
   completed_phases: 5
@@ -276,6 +276,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Webhook + alert renders share the D-24 escapeHtml trio (and ampersand/lt/gt): byte-neutral for plain values, D-48 parity pins stayed green (06-03)
 - [Phase 06]: 06-04: operator approval recorded from bare 'approved' under the 05-08 D-18 precedent; A3/Vercel residuals verified repo-side (no contradicting evidence) and routed to 06-05 Task 1 user_setup
 - [Phase 06]: 06-04: D-31 soak window opened 2026-09-20T20:00Z on release 31a56df (live since 19:28:22Z); gate enforcement at 06-05 Task 1 blocking checkpoint; setWebhook + production secret mint remain 06-05 Task 1 by plan
+- [Phase 06]: 06-05: Task 1 closed on bare operator 'approved' (mehedishubho, 2026-09-20T21:06Z, T+~66min into the elected ~24h D-31 window) — machine-verified vs operator-attested split recorded in 06-DEPLOY-RECORD §12; deletion release authorized
+- [Phase 06]: 06-05: deletion release executed as one atomic contract (e448245) — cron routes/modules/mail.ts/CRON_SECRET/playwright writer gone, D-41 gate extended per D-27, all deleted pins mapped in 06-PIN-INVENTORY.md
 
 ### Pending Todos
 
@@ -299,6 +301,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-20T20:47:16.798Z
-Stopped at: Paused 06-05 Task 1 at blocking checkpoint (D-31 soak open 2026-09-20T20:00Z; earliest gate-close 2026-09-21T20:00Z; awaiting operator soak evidence + production TELEGRAM_WEBHOOK_SECRET mint/setWebhook + approval; Task 1 record committed c376b8b)
+Last session: 2026-09-20T21:49:10.581Z
+Stopped at: 06-05 Tasks 1-2 complete (Task 1 approval recorded 46df8a3; Task 2 deletion release e448245 — verify green incl. extended D-41/D-27 gate 441 files, e2e 18/18); STOPPED at Task 3 blocking checkpoint: deletion-release deploy per runbook §4 (backup → deploy web+worker readyz-gated → smoke: ping row, cron 404s, check-now 202+poll, registration email) + one scheduler tick + queue-drain observation + DEPLOY-RECORD closeout
 Resume file: None

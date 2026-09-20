@@ -91,13 +91,13 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [x] **SEC-02**: OS-level egress control on the worker host (deny private ranges; allow 80/443 egress only)
 - [ ] **SEC-03**: Telegram webhook authenticated via `secret_token` (X-Telegram-Bot-Api-Secret-Token header check) (S-2)
 - [ ] **SEC-04**: Admin role via Better Auth admin plugin; feedback listing admin-gated; any queue UI admin-gated + IP allowlist (S-3)
-- [ ] **SEC-05**: Per-user enqueue rate limiter on the manual-check endpoint
+- [x] **SEC-05**: Per-user enqueue rate limiter on the manual-check endpoint
 - [ ] **SEC-06**: No secret accepted via query string; `CRON_SECRET` retires with the cron endpoints (S-4/R15)
 
 ### API Layer
 
-- [ ] **API-01**: Manual check becomes enqueue + 202 + optimistic read + poll; API routes never execute checks (rule 4–6)
-- [ ] **API-02**: API enqueue fails loudly (503) when Redis is unreachable — never silently no-ops
+- [x] **API-01**: Manual check becomes enqueue + 202 + optimistic read + poll; API routes never execute checks (rule 4–6)
+- [x] **API-02**: API enqueue fails loudly (503) when Redis is unreachable — never silently no-ops
 
 ### Auth Migration
 
@@ -255,10 +255,10 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | DEP-05 | Phase 5 | Complete |
 | OBS-03 | Phase 5 | Complete |
 | OBS-05 | Phase 5 | Complete |
-| API-01 | Phase 6 | Pending |
-| API-02 | Phase 6 | Pending |
+| API-01 | Phase 6 | Complete |
+| API-02 | Phase 6 | Complete |
 | SEC-03 | Phase 6 | Pending |
-| SEC-05 | Phase 6 | Pending |
+| SEC-05 | Phase 6 | Complete |
 | SEC-06 | Phase 6 | Pending |
 | EML-01 | Phase 6 | Pending |
 | EML-02 | Phase 6 | Pending |

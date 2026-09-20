@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 6
-current_phase_name: Thin API Routes & Email Abstraction
+current_phase: 06
+current_phase_name: thin-api-routes-email-abstraction
 status: executing
 stopped_at: Phase 6 UI-SPEC approved
-last_updated: "2026-09-20T13:54:08.555Z"
+last_updated: "2026-09-20T17:23:10.767Z"
 last_activity: 2026-09-20
-last_activity_desc: Phase 5 complete, transitioned to Phase 6
+last_activity_desc: Phase 06 execution started
 progress:
   total_phases: 8
   completed_phases: 5
-  total_plans: 45
+  total_plans: 50
   completed_plans: 45
   percent: 63
 ---
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-19)
 
 **Core value:** Modernize the infrastructure without breaking existing monitoring — never lose or corrupt uptime data, silently stop checking, or lock users out irrecoverably.
-**Current focus:** Phase 06 — Thin API Routes & Email Abstraction
+**Current focus:** Phase 06 — thin-api-routes-email-abstraction
 
 ## Current Position
 
-Phase: 6 — Thin API Routes & Email Abstraction
-Plan: Not started
+Phase: 06 (thin-api-routes-email-abstraction) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-09-20 — Phase 5 complete, transitioned to Phase 6
+Last activity: 2026-09-20 — Phase 06 execution started
 
 Progress: [████████████████████] 45/45 plans (100%)
 
@@ -103,6 +103,7 @@ Progress: [████████████████████] 45/45 p
 | Phase 05 P07 | 15h 29m | 3 tasks | 4 files |
 | Phase 05 P08 | ~19h | 5 tasks | 3 files |
 | Phase 05 P09 | 3h20m | - tasks | - files |
+| Phase 06 P01 | 34m | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -261,6 +262,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 05-09: D-43 zero-loss drain executed via empty-batcher-window kill (18:45:00.111Z) after the curl-lever proved impossible on the stand-in (web never carried CRON_SECRET)
 - [Phase ?]: 05-09: D-21 resolved-by-absence — operator's only hc.io project holds the worker trio + a never-pinged default check; second account deleted; no old-cron check can false-page
 - [Phase ?]: 05-09: tier-2 rehearsal finding — the 9f667e2 tarball needs 2 node_modules junction shims on fresh install (Turbopack mangled instrumentation externals); current build immune; runbook §7 amended
+- [Phase ?]: Manual check is a stateless producer: POST returns 202 {jobId, queuedAt}; the client polls GET /api/monitors until lastChecked > queuedAt — never BullMQ job state (06-01, D-01/D-05)
+- [Phase ?]: Web-side BullMQ access goes through a globalThis-cached bounded producer (maxRetriesPerRequest 1, 1s connect/command timeouts): Redis-down rejects fast to a 503 instead of hanging the request (06-01, API-02)
+- [Phase ?]: Rate limiter now returns resetSeconds from the atomic INCR+EXPIRE+PTTL Lua script; 429s carry a numeric Retry-After header (06-01, D-06/SEC-05)
 
 ### Pending Todos
 
@@ -284,6 +288,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-20T13:24:50.460Z
+Last session: 2026-09-20T17:22:55.869Z
 Stopped at: Phase 6 UI-SPEC approved
 Resume file: .planning/phases/06-thin-api-routes-email-abstraction/06-UI-SPEC.md

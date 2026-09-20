@@ -1,8 +1,10 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  assertUrlAllowed,
   DENYLIST,
   isInfraFailure,
   performCheck,
+  UrlNotAllowedError,
   type ErrorClass,
 } from "@/lib/ssrf";
 import { startCheckTarget, type CheckTargetHandle } from "./helpers/check-target-server";
@@ -28,6 +30,26 @@ import { startCheckTarget, type CheckTargetHandle } from "./helpers/check-target
 
 /** Production denylist minus ONLY the ::1 token — the documented test seam. */
 const SEAM_DENYLIST = DENYLIST.filter((token) => token !== "::1");
+
+// ---------------------------------------------------------------------------
+// DNS stub seam for the assertUrlAllowed (D-23) describe below. The mock
+// DELEGATES to the real node:dns/promises lookup unless a case sets an
+// override, so every other case in this file (fixture servers, the real
+// NXDOMAIN case) keeps genuine resolution.
+// ---------------------------------------------------------------------------
+const dnsStub = vi.hoisted(() => ({
+  override: null as null | ((hostname: string) => Promise<Array<{ address: string; family: number }>>),
+}));
+
+vi.mock("node:dns/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:dns/promises")>();
+  return {
+    lookup: ((hostname: string, options: unknown) =>
+      dnsStub.override
+        ? dnsStub.override(hostname)
+        : actual.lookup(hostname, options as Parameters<typeof actual.lookup>[1])) as unknown as typeof actual.lookup,
+  };
+});
 
 let publicStandIn: CheckTargetHandle; // ::1 — allowed under SEAM_DENYLIST
 let privateTarget: CheckTargetHandle; // 127.0.0.1 — denied under every denylist
@@ -301,5 +323,92 @@ describe("ssrf — check pipeline (SEC-01 / D-38..D-43)", () => {
     expect(isInfraFailure(abort)).toBe(false);
     // Internal exception shape (a bare TypeError with no errno) — infra.
     expect(isInfraFailure(new TypeError("internal bug"))).toBe(true);
+  });
+});
+
+describe("ssrf — assertUrlAllowed (D-23 DNS-only admission wrapper)", () => {
+  afterEach(() => {
+    dnsStub.override = null;
+  });
+
+  it("accepts a public hostname after DNS resolution — and performs NO target fetch (DNS-only)", async () => {
+    const lookup = vi.fn(async () => [{ address: "93.184.216.34", family: 4 }]);
+    dnsStub.override = lookup;
+
+    const startedAt = Date.now();
+    await expect(assertUrlAllowed("https://public.example.test/probe")).resolves.toBeUndefined();
+    // Resolve-then-validate (layer 2) DID run against the hostname…
+    expect(lookup).toHaveBeenCalledWith("public.example.test");
+    // …and nothing else did: no undici exchange was attempted. Any target
+    // fetch would consume a connect-timeout-scale budget dialing a real
+    // address — this returns in milliseconds.
+    expect(Date.now() - startedAt).toBeLessThan(2_000);
+  });
+
+  it("rejects a hostname RESOLVING to a private range with a clean, internals-free message", async () => {
+    dnsStub.override = vi.fn(async () => [{ address: "10.0.0.5", family: 4 }]);
+
+    const err: unknown = await assertUrlAllowed("https://intranet.example.test/").then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(UrlNotAllowedError);
+    // The surfaced message never carries resolution internals (the resolved
+    // address) — routes forward it verbatim as a 400 body (D-32).
+    expect((err as Error).message).not.toContain("10.0.0.5");
+    expect((err as Error).message).not.toContain("intranet.example.test");
+  });
+
+  it("rejects non-http(s) schemes BEFORE any DNS resolution (layer 1)", async () => {
+    const lookup = vi.fn(async () => [{ address: "93.184.216.34", family: 4 }]);
+    dnsStub.override = lookup;
+
+    await expect(assertUrlAllowed("ftp://public.example.test/file")).rejects.toBeInstanceOf(
+      UrlNotAllowedError,
+    );
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unresolvable host (NXDOMAIN) as a UrlNotAllowedError", async () => {
+    dnsStub.override = vi.fn(async () => {
+      throw Object.assign(new Error("getaddrinfo ENOTFOUND nope.example.test"), {
+        code: "ENOTFOUND",
+      });
+    });
+
+    await expect(assertUrlAllowed("https://nope.example.test/")).rejects.toBeInstanceOf(
+      UrlNotAllowedError,
+    );
+  });
+
+  it("literal PUBLIC ip: accepted WITHOUT any DNS lookup (the literal path skips resolution)", async () => {
+    const lookup = vi.fn(async () => [{ address: "93.184.216.34", family: 4 }]);
+    dnsStub.override = lookup;
+
+    await expect(assertUrlAllowed("http://203.0.113.10/")).resolves.toBeUndefined();
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it("literal PRIVATE ip: rejected WITHOUT any DNS lookup", async () => {
+    const lookup = vi.fn(async () => [{ address: "93.184.216.34", family: 4 }]);
+    dnsStub.override = lookup;
+
+    await expect(assertUrlAllowed("http://192.168.1.5/")).rejects.toBeInstanceOf(UrlNotAllowedError);
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it("resolver-level infrastructure failures propagate UNWRAPPED (caller answers 500, never a silent accept)", async () => {
+    dnsStub.override = vi.fn(async () => {
+      throw Object.assign(new Error("getaddrinfo EAI_AGAIN resolver outage"), {
+        code: "EAI_AGAIN",
+      });
+    });
+
+    const err: unknown = await assertUrlAllowed("https://flaky.example.test/").then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(err).not.toBeInstanceOf(UrlNotAllowedError);
+    expect((err as Error).message).toContain("EAI_AGAIN");
   });
 });

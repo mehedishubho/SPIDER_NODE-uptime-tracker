@@ -11,6 +11,7 @@ import {
   USER_A_ID,
   USER_B_ID,
 } from "./_harness";
+import { UrlNotAllowedError } from "@/lib/ssrf";
 
 // ---------------------------------------------------------------------------
 // Characterization suite: src/app/api/monitors/route.ts (GET list + POST
@@ -26,10 +27,32 @@ import {
 // Pitfall 3). The 429 + same-IP follow-up cases below prove cross-case
 // isolation through that flush.
 //
-// ZERO production code is changed by this suite: every response body below —
-// including the misspellings — is pinned VERBATIM as today's contract. A
-// future "fix the typo" PR must update these assertions DELIBERATELY.
+// ZERO production code is changed by this suite except where a pin was
+// DELIBERATELY flipped alongside its fix (Pitfall 7): the 06-03 slice flipped
+// the POST 401 "Unauthirized" typo pin to the corrected spelling WITH the
+// route fix, and added the SSRF admission pins (D-23/D-33). Every other
+// response body below is pinned VERBATIM as today's contract.
+//
+// SSRF seam: @/lib/ssrf is mocked at assertUrlAllowed only (cached
+// importOriginal keeps UrlNotAllowedError's class identity stable across
+// vi.resetModules — the route's instanceof check must match the class this
+// file constructs).
 // ---------------------------------------------------------------------------
+
+// vi.hoisted: the vi.mock factory is hoisted above the module body, so every
+// binding it touches must exist at link time (the cron-suite pattern) — a
+// plain `let`/`const` would be TDZ. The cached actual keeps
+// UrlNotAllowedError's class identity stable across vi.resetModules — the
+// route's instanceof check must match the class this file constructs.
+const ssrfMocks = vi.hoisted(() => ({
+  assertUrlAllowed: vi.fn(),
+  actual: null as typeof import("@/lib/ssrf") | null,
+}));
+
+vi.mock("@/lib/ssrf", async (importOriginal) => {
+  ssrfMocks.actual ??= await importOriginal<typeof import("@/lib/ssrf")>();
+  return { ...ssrfMocks.actual, assertUrlAllowed: ssrfMocks.assertUrlAllowed };
+});
 
 /** Dedicated admin client for the per-case rl:* flush (separate from the limiter's). */
 const redisAdmin = new Redis(process.env.REDIS_URL!);
@@ -59,6 +82,8 @@ beforeEach(async () => {
   await flushLimiterKeys(); // limiter state lives in Redis now — flush rl:* per case
   mockSession(null); // default: unauthenticated
   resetPrismaMocks();
+  ssrfMocks.assertUrlAllowed.mockReset(); // default: admission passes (public URL)
+  ssrfMocks.assertUrlAllowed.mockResolvedValue(undefined);
 });
 
 /** Re-imports the route against the freshly reset module registry. */
@@ -126,15 +151,16 @@ describe("GET /api/monitors (list)", () => {
 });
 
 describe("POST /api/monitors (create)", () => {
-  it("401 without session — body pinned VERBATIM including today's misspelling", async () => {
+  it("401 without session — FLIPPED (06-03/D-17): the corrected spelling, pinned with the fix", async () => {
     const { POST } = await loadRoute();
 
     const res = await POST(buildRequest({ path: "/api/monitors", method: "POST", body: {} }));
 
     expect(res.status).toBe(401);
-    // "Unauthirized" — DELIBERATE pin. This misspelling is part of today's
-    // API contract until the Phase 6 thin-routes rewrite changes it on purpose.
-    await expect(res.json()).resolves.toEqual({ error: "Unauthirized" });
+    // The old "Unauthirized" misspelling was fixed in 06-03 (D-17); this pin
+    // flipped in the SAME change. Zero client string-matching existed on the
+    // typo (06-RESEARCH delegated verification #1).
+    await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
     expect(h.prisma.monitor.count).not.toHaveBeenCalled();
   });
 
@@ -193,6 +219,73 @@ describe("POST /api/monitors (create)", () => {
     await expect(res.json()).resolves.toEqual({
       error: "Invalid URL format (e.g., https://example.com)",
     });
+    expect(h.prisma.monitor.create).not.toHaveBeenCalled();
+  });
+
+  it("400 when SSRF admission denies the URL — monitor never created (D-23)", async () => {
+    mockSession(sessionA);
+    h.prisma.monitor.count.mockResolvedValue(0);
+    ssrfMocks.assertUrlAllowed.mockRejectedValueOnce(
+      new UrlNotAllowedError("URL is not allowed: only public http(s) targets are permitted"),
+    );
+
+    const { POST } = await loadRoute();
+    const res = await POST(
+      buildRequest({
+        path: "/api/monitors",
+        method: "POST",
+        body: { name: "Internal Target", url: "http://10.0.0.5/" },
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    // The typed rejection's message surfaces verbatim — actionable, never
+    // internals-bearing (D-32).
+    await expect(res.json()).resolves.toEqual({
+      error: "URL is not allowed: only public http(s) targets are permitted",
+    });
+    expect(ssrfMocks.assertUrlAllowed).toHaveBeenCalledWith("http://10.0.0.5/");
+    expect(h.prisma.monitor.create).not.toHaveBeenCalled();
+  });
+
+  it("the 201 path runs assertUrlAllowed on the TRIMMED url before create (D-23)", async () => {
+    mockSession(sessionA);
+    h.prisma.monitor.count.mockResolvedValue(0);
+    h.prisma.monitor.create.mockResolvedValue({ id: 45 });
+
+    const { POST } = await loadRoute();
+    const res = await POST(
+      buildRequest({
+        path: "/api/monitors",
+        method: "POST",
+        body: { name: "Public Target", url: "  https://public.example.test/  " },
+      }),
+    );
+
+    expect(res.status).toBe(201);
+    // What gets STORED is what gets validated — the trimmed form.
+    expect(ssrfMocks.assertUrlAllowed).toHaveBeenCalledWith("https://public.example.test/");
+    expect(h.prisma.monitor.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("assertUrlAllowed infra failure (not a UrlNotAllowedError) → 500, monitor NOT created (fail closed)", async () => {
+    mockSession(sessionA);
+    h.prisma.monitor.count.mockResolvedValue(0);
+    ssrfMocks.assertUrlAllowed.mockRejectedValueOnce(new Error("getaddrinfo EAI_AGAIN resolver outage"));
+
+    const { POST } = await loadRoute();
+    const res = await POST(
+      buildRequest({
+        path: "/api/monitors",
+        method: "POST",
+        body: { name: "Flaky Target", url: "https://flaky.example.test/" },
+      }),
+    );
+
+    // A resolver outage must not be laundered into a user-error 400 — and
+    // must never create the row (fail closed).
+    expect(res.status).toBe(500);
+    await expect(res.json()).resolves.toEqual({ error: "Failed to create monitor" });
     expect(h.prisma.monitor.create).not.toHaveBeenCalled();
   });
 

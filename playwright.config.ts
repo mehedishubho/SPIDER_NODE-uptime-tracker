@@ -57,10 +57,6 @@ export default defineConfig({
     reuseExistingServer: true,
     timeout: 120_000,
     env: {
-      // CRITICAL (Pitfall 1): CRON_MODE=vercel makes src/instrumentation.ts
-      // return before any cron registration — the booted test server must
-      // never make real Telegram or monitor-URL calls.
-      CRON_MODE: "vercel",
       NODE_ENV: "production",
       DATABASE_URL: TEST_DATABASE_URL,
       // Server-side module-load validation in src/lib/redis.ts throws without

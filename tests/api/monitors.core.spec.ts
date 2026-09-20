@@ -10,11 +10,13 @@ import {
 // ---------------------------------------------------------------------------
 // HTTP-level core-route contracts (D-16 hybrid split — the HTTP half of FND-06).
 // Runs in Playwright's `api` project against the webServer booted from the
-// built artifact with CRON_MODE=vercel (no cron, no egress).
+// built artifact (no cron, no egress — the CRON_MODE=vercel writer was
+// deleted with the legacy cron surface at the 06-05 deletion release).
 //
-// SCOPE DISCIPLINE (T-02-09): no HTTP test touches /api/cron/check,
-// /api/cron/cleanup, or /api/monitors/{id}/check — those would execute real
-// checks. Their contracts live in the *.handler.test.ts files with the
+// SCOPE DISCIPLINE (T-02-09): no HTTP test touches /api/monitors/{id}/check —
+// it would enqueue a real check. (The /api/cron/* routes no longer exist:
+// deleted at 06-05, their absence gate-enforced by check-cron-remnants.)
+// Contracts live in the *.handler.test.ts files with the
 // check seams mocked.
 //
 // Login follows the NextAuth quirks recorded in 02-02-SUMMARY: seeded

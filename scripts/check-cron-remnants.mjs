@@ -14,13 +14,29 @@
 //      scheduler entrypoint (D-03's deletion target);
 //   2. any import/require specifier ending in node-cron or .../instrumentation;
 //   3. the CRON_MODE token in any scanned source or build artifact;
-//   4. a package.json still declaring node-cron or @types/node-cron.
+//   4. a package.json still declaring node-cron or @types/node-cron;
+//   5. (D-27, 06-05 deletion release) any file recreating a deleted cron
+//      route path (…/app/api/cron/…) — source OR build artifact;
+//   6. (D-27) the retired CRON_SECRET env token in any scanned source,
+//      build artifact, or repo-root config file;
+//   7. (D-27) any import/require specifier resolving to one of the four
+//      deleted legacy modules: cron-logic, db-batcher, cleanup-logic, mail.
+//
+// IN-06/D-19 asymmetry note (kept current with the D-27 extension): the
+// token checks (CRON_MODE, CRON_SECRET) count occurrences INCLUDING comment
+// lines, while the import checks skip comment lines — a comment naming a
+// retired token is still a remnant signal worth failing on; historical
+// prose in the excluded prose homes (docs/, .planning/) is never scanned.
 //
 // Scan scope: src/ recursively, dist/worker.js and .next/server when
-// present (defaults) — or explicit dir/file arguments (fixture-testable,
-// check-worker-boundary pattern). NEVER scanned, even when nested inside a
-// scanned root: docs/, .planning/, node_modules/, .git/, .snapshots/ (and
-// the .env.example file) — historical prose legitimately names the tokens.
+// present, plus the repo-root config files playwright.config.ts,
+// next.config.ts and ecosystem.config.js (each when present — D-27 "src or
+// config"; the playwright file is watched so the stale CRON_MODE writer
+// deleted at 06-05 stays out per Pitfall 9) — or explicit dir/file
+// arguments (fixture-testable, check-worker-boundary pattern). NEVER
+// scanned, even when nested inside a scanned root: docs/, .planning/,
+// node_modules/, .git/, .snapshots/ (and the .env.example file) —
+// historical prose legitimately names the tokens.
 //
 // Usage: node scripts/check-cron-remnants.mjs [dir|file ...] [--advisory]
 //   Enforcement (default): any finding exits 1 listing file + reason.
@@ -40,10 +56,27 @@ const EXCLUDED_DIR_NAMES = new Set(["docs", ".planning", "node_modules", ".git",
 const EXCLUDED_FILE_NAMES = new Set([".env.example"]);
 const INSTRUMENTATION_FILE_NAMES = new Set(["instrumentation.ts", "instrumentation.js"]);
 
+// D-27 (06-05 deletion release): the deleted cron-route path, the four
+// deleted legacy modules, and the retired secret token. The module set is
+// BASENAME-matched so relative ("./mail"), alias ("@/lib/cron-logic") and
+// deep ("../../lib/db-batcher") specifiers all trip the gate. A future
+// module legitimately reusing one of these names is a conscious act —
+// rename or amend DELETED_MODULE_BASENAMES deliberately.
+const DELETED_CRON_ROUTE_PATH = /(^|[\\/])app[\\/]api[\\/]cron([\\/]|$)/;
+const DELETED_MODULE_BASENAMES = new Set(["cron-logic", "db-batcher", "cleanup-logic", "mail"]);
+const RETIRED_SECRET_TOKEN = "CRON_SECRET";
+const ROOT_CONFIG_FILES = ["playwright.config.ts", "next.config.ts", "ecosystem.config.js"];
+
 const DEFAULT_ROOTS = () => {
   const roots = [path.join("src")];
   if (existsSync(path.join("dist", "worker.js"))) roots.push(path.join("dist", "worker.js"));
   if (existsSync(path.join(".next", "server"))) roots.push(path.join(".next", "server"));
+  // D-27: repo-root config files ride the default scan so the retired
+  // playwright CRON_MODE writer (Pitfall 9) and any config-level
+  // CRON_SECRET reference stay gate-enforced. Each is optional.
+  for (const name of ROOT_CONFIG_FILES) {
+    if (existsSync(name)) roots.push(name);
+  }
   return roots;
 };
 const DEFAULT_PACKAGE_JSON = path.join("package.json");
@@ -52,9 +85,13 @@ function usage() {
   return [
     `Usage: node scripts/${SCRIPT_NAME} [dir|file ...] [--advisory]`,
     "",
-    "D-41 cron-remnant gate. Flags instrumentation.ts/js files, node-cron /",
-    ".../instrumentation imports, CRON_MODE tokens, and node-cron dependency",
-    "declarations. Default targets: src/, dist/worker.js, .next/server (each",
+    "D-41/D-27 cron-remnant gate. Flags instrumentation.ts/js files,",
+    "node-cron / .../instrumentation imports, CRON_MODE and the retired",
+    "CRON_SECRET tokens, deleted cron route paths (app/api/cron/*), imports",
+    "of the four deleted legacy modules (cron-logic, db-batcher,",
+    "cleanup-logic, mail), and node-cron dependency declarations. Default",
+    "targets: src/, dist/worker.js, .next/server, and the repo-root config",
+    "files playwright.config.ts / next.config.ts / ecosystem.config.js (each",
     "when present) plus ./package.json. docs/, .planning/, node_modules/,",
     ".git/, .snapshots/ and .env.example are NEVER scanned.",
     "",
@@ -88,6 +125,13 @@ function legacySchedulerImport(specifier) {
   // "./instrumentation", "../instrumentation", "@/instrumentation", ...
   if (specifier.endsWith("/instrumentation")) return true;
   return false;
+}
+
+// D-27: basename match so "@/lib/cron-logic", "../lib/db-batcher",
+// "./cleanup-logic" and "./mail" (at any depth) are all caught.
+function deletedModuleImport(specifier) {
+  const base = specifier.split("/").pop() ?? "";
+  return DELETED_MODULE_BASENAMES.has(base);
 }
 
 function isCommentLine(line) {
@@ -131,11 +175,23 @@ function scanCodeFile(file) {
       if (legacySchedulerImport(specifier)) {
         reasons.push(`imports the legacy scheduler ("${specifier}") at line ${index + 1}`);
       }
+      if (deletedModuleImport(specifier)) {
+        reasons.push(
+          `imports a deleted legacy module ("${specifier}") at line ${index + 1} (D-27)`
+        );
+      }
     }
   });
-  const tokenHits = content.split("CRON_MODE").length - 1;
-  if (tokenHits > 0) {
-    reasons.push(`references the CRON_MODE env token (${tokenHitText(tokenHits)})`);
+  const cronModeHits = content.split("CRON_MODE").length - 1;
+  if (cronModeHits > 0) {
+    reasons.push(`references the CRON_MODE env token (${tokenHitText(cronModeHits)})`);
+  }
+  // Comments-inclusive by design (IN-06/D-19 asymmetry — see header).
+  const cronSecretHits = content.split(RETIRED_SECRET_TOKEN).length - 1;
+  if (cronSecretHits > 0) {
+    reasons.push(
+      `references the retired ${RETIRED_SECRET_TOKEN} env token (${tokenHitText(cronSecretHits)})`
+    );
   }
   return reasons;
 }
@@ -192,6 +248,20 @@ function main(argv) {
   }
 
   const findings = [];
+  // D-27 check 5: the deleted cron route path applies to EVERY walked file
+  // (source or build artifact) by path shape, content regardless.
+  const seenPathChecked = new Set();
+  for (const file of [...entrypointFiles, ...codeFiles]) {
+    if (seenPathChecked.has(file)) continue;
+    seenPathChecked.add(file);
+    if (DELETED_CRON_ROUTE_PATH.test(file)) {
+      findings.push({
+        file,
+        reason:
+          "recreates a deleted cron route path (app/api/cron/*) — retired at the 06-05 deletion release (SEC-06, D-27)",
+      });
+    }
+  }
   for (const file of entrypointFiles) {
     findings.push({ file, reason: "legacy scheduler entrypoint file (instrumentation.ts/js) still present" });
   }
@@ -225,7 +295,7 @@ function main(argv) {
   console.log(
     `[cron-remnants] green — ${scannedCount} code file(s) scanned across ${roots.join(", ")}` +
       (packageJsonRelative ? ` (+ ${packageJsonRelative})` : "") +
-      ", no cron remnants (D-41)"
+      ", no cron remnants (D-41/D-27)"
   );
   return 0;
 }

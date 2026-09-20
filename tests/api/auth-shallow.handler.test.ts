@@ -20,23 +20,16 @@ import { buildRequest, h, resetPrismaMocks } from "./_harness";
 // (Pitfall 6 / 03-01 Pitfall 3) — same discipline as
 // monitors.handler.test.ts.
 //
-// 06-02: @/lib/mail stays mocked ONLY as a must-NOT-fire tripwire (the
-// queue-backed routes must make ZERO direct transport calls); the enqueue
-// path goes through @/lib/queue-producer, mocked via producerMocks below —
-// the route's pre-flight ping() and the email lane's add() both ride it.
-// NEXTAUTH_URL is pinned to a deterministic value because render.ts reads it
-// at module scope (render-at-enqueue, D-07).
+// 06-05: @/lib/mail itself was DELETED at the Phase-6 deletion release — the
+// 06-02 must-NOT-fire tripwire (a vi.mock asserting zero direct transport
+// calls) retires with it: the guarantee is now STRUCTURAL (any direct
+// transport import fails typecheck) plus gate-enforced (the extended
+// check-cron-remnants gate fails on imports of the deleted module — see
+// 06-PIN-INVENTORY.md). The enqueue path goes through @/lib/queue-producer,
+// mocked via producerMocks below — the route's pre-flight ping() and the
+// email lane's add() both ride it. NEXTAUTH_URL is pinned to a deterministic
+// value because render.ts reads it at module scope (render-at-enqueue, D-07).
 // ---------------------------------------------------------------------------
-
-const authMocks = vi.hoisted(() => ({
-  sendVerificationEmail: vi.fn(),
-  sendPasswordResetEmail: vi.fn(),
-}));
-
-vi.mock("@/lib/mail", () => ({
-  sendVerificationEmail: authMocks.sendVerificationEmail,
-  sendPasswordResetEmail: authMocks.sendPasswordResetEmail,
-}));
 
 const producerMocks = vi.hoisted(() => ({
   ping: vi.fn(),
@@ -91,8 +84,6 @@ beforeEach(async () => {
   vi.resetModules(); // fresh route-module registry per case (mock seams — Pitfall 6)
   await flushLimiterKeys(); // limiter state lives in Redis now — flush rl:* per case
   resetPrismaMocks();
-  authMocks.sendVerificationEmail.mockReset();
-  authMocks.sendPasswordResetEmail.mockReset();
   // Happy-path producer defaults per case; individual cases flip to reject.
   producerMocks.ping.mockReset();
   producerMocks.ping.mockResolvedValue("PONG");
@@ -170,8 +161,6 @@ describe("POST /api/auth/register (shallow — validation codes only, D-17)", ()
       token: "generated-token-value",
       expires: new Date(Date.now() + 86_400_000),
     });
-    authMocks.sendVerificationEmail.mockResolvedValue(undefined);
-
     const { POST } = await loadRoute();
     const res = await POST(
       buildRequest({
@@ -210,7 +199,6 @@ describe("POST /api/auth/register (shallow — validation codes only, D-17)", ()
     expect((emailJobData as { html: string }).html).toContain(
       "https://route.spidernode.test/verify-email?token=generated-token-value"
     );
-    expect(authMocks.sendVerificationEmail).not.toHaveBeenCalled();
 
     await expect(res.json()).resolves.toEqual({
       message: "User registered. Please check your email to verify your account.",
@@ -404,7 +392,6 @@ describe("POST /api/auth/forgot-password (06-02 — limiter + enqueue + 503 degr
     expect((jobData as { html: string }).html).toContain(
       "https://route.spidernode.test/reset-password?token=reset-token-value"
     );
-    expect(authMocks.sendPasswordResetEmail).not.toHaveBeenCalled();
   });
 
   it("503 when the producer ping rejects (Redis down — bounded, loud, D-29)", async () => {

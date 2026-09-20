@@ -22,8 +22,9 @@ import { NextRequest } from "next/server";
 // "next-auth/next" is additionally mocked because feedback/route.ts imports
 // getServerSession from that specifier (a separate module id); both share one
 // underlying fn so a single mockSession() call covers every route shape.
-// Per-file extra seams (cron-logic, cleanup-logic, db-batcher, telegram,
-// mail) are declared in the test files that need them (D-16 hybrid split).
+// Per-file extra seams (e.g. @/lib/telegram) are declared in the test files
+// that need them (D-16 hybrid split); the cron-era seams (cron-logic,
+// cleanup-logic, db-batcher, mail) died with the 06-05 deletion release.
 //
 // Mock instances are plain module-scope consts (NOT vi.hoisted — vitest
 // forbids exporting hoisted variables). This is safe on two counts:
@@ -131,7 +132,7 @@ export function resetPrismaMocks(): void {
 // ---------------------------------------------------------------------------
 
 export interface BuildRequestOptions {
-  /** Path (with optional query string), e.g. "/api/cron/check?secret=x". */
+  /** Path (with optional query string), e.g. "/api/monitors?page=2". */
   path: string;
   /** HTTP method, default "GET". */
   method?: string;

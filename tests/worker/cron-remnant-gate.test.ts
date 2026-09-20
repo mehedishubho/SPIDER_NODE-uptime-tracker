@@ -8,11 +8,13 @@ import { describe, expect, it } from "vitest";
 // ---------------------------------------------------------------------------
 // Cron-remnant gate suite (D-41, WRK-11): proves scripts/check-cron-remnants.mjs
 // — the verify-chain leg that keeps instrumentation/cron remnants out of the
-// build from the deletion release (05-09) onward. Inert until then: this plan
-// does NOT wire it into pnpm verify (it would fail while instrumentation.ts
-// legitimately exists). Fixture-driven via explicit dir args
-// (check-worker-boundary pattern); docs/ and .planning/ prose naming the
-// tokens is NEVER flagged (D-41 prohibition).
+// build from the deletion release (05-09) onward. Extended at the 06-05
+// deletion release (D-27): the gate also fails on files recreating the
+// deleted /api/cron route paths, the retired CRON_SECRET token, and imports
+// of the four deleted legacy modules (cron-logic, db-batcher, cleanup-logic,
+// mail). Fixture-driven via explicit dir args (check-worker-boundary
+// pattern); docs/ and .planning/ prose naming the tokens is NEVER flagged
+// (D-41 prohibition).
 // ---------------------------------------------------------------------------
 
 const execFileAsync = promisify(execFile);
@@ -55,6 +57,24 @@ function writeViolatingFixture(): string {
     dir,
     path.join("src", "lib", "env.ts"),
     ['export const cronMode = process.env.CRON_MODE;', ""].join("\n")
+  );
+  // D-27 check 5: a file recreating a deleted cron route path.
+  write(
+    dir,
+    path.join("src", "app", "api", "cron", "check", "route.ts"),
+    ['export async function GET() { return new Response("ok"); }', ""].join("\n")
+  );
+  // D-27 check 6: the retired CRON_SECRET token.
+  write(
+    dir,
+    path.join("src", "lib", "env-legacy.ts"),
+    ['export const cronSecret = process.env.CRON_SECRET;', ""].join("\n")
+  );
+  // D-27 check 7: an import of a deleted legacy module.
+  write(
+    dir,
+    path.join("src", "lib", "legacy-queue.ts"),
+    ['import { flushBatches } from "@/lib/db-batcher";', "export { flushBatches };", ""].join("\n")
   );
   write(
     dir,
@@ -118,6 +138,11 @@ describe("cron-remnant gate — scripts/check-cron-remnants.mjs (D-41)", () => {
       expect(out).toContain("CRON_MODE");
       // Check 4: the dependency declaration.
       expect(out).toContain("package.json");
+      // D-27 (06-05): deleted route path, retired secret token, deleted-module import.
+      expect(out).toContain("recreates a deleted cron route path");
+      expect(out).toContain("CRON_SECRET");
+      expect(out).toContain("deleted legacy module");
+      expect(out).toContain("db-batcher");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -194,6 +219,60 @@ describe("cron-remnant gate — scripts/check-cron-remnants.mjs (D-41)", () => {
     const out = `${result.stdout}${result.stderr}`;
     expect(out).toContain("green");
     expect(out).not.toContain("instrumentation.ts");
+  });
+
+  it("5b. token asymmetry: CRON_SECRET inside a COMMENT still trips, a deleted-module mention in a comment does NOT", async () => {
+    // IN-06/D-19 asymmetry pinned: token counts are comments-INCLUSIVE (a
+    // comment naming the retired secret is still a remnant signal), while
+    // import checks skip comment lines (historical provenance prose in
+    // comments is legitimate — e.g. the email module's relocation notes).
+    const dir = makeDir();
+    try {
+      write(
+        dir,
+        path.join("src", "lib", "noted.ts"),
+        [
+          "// Back in the day CRON_SECRET guarded the cron routes.",
+          'export const fine = true;',
+          "",
+        ].join("\n")
+      );
+      write(
+        dir,
+        path.join("src", "lib", "provenance.ts"),
+        [
+          "// Render functions relocated BYTE-VERBATIM from src/lib/mail.ts.",
+          'export const render = () => "html";',
+          "",
+        ].join("\n")
+      );
+      const result = await runRemnants([dir]);
+      expect(result.code).not.toBe(0);
+      const out = `${result.stdout}${result.stderr}`;
+      expect(out).toContain("CRON_SECRET");
+      // The comment-only mail mention must NOT be flagged.
+      expect(out).not.toContain("provenance.ts");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("5c. require-form import of a deleted module basename trips the gate", async () => {
+    const dir = makeDir();
+    try {
+      write(
+        dir,
+        path.join("src", "lib", "sneaky.ts"),
+        ['const { sendVerificationEmail } = require("./mail");', "export { sendVerificationEmail };", ""].join("\n")
+      );
+      const result = await runRemnants([dir]);
+      expect(result.code).not.toBe(0);
+      const out = `${result.stdout}${result.stderr}`;
+      expect(out).toContain("deleted legacy module");
+      expect(out).toContain("./mail");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("6. --help prints usage and exits 0", async () => {

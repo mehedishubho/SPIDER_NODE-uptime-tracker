@@ -63,8 +63,9 @@ export async function seedE2EUser(
 /**
  * Creates one UP monitor for the given user. Fresh timestamps only (minutes
  * old, never >30 days — the retention cleanup purges old rows, Pitfall 2).
- * The URL is never fetched: cron is suppressed in the test server
- * (CRON_MODE=vercel) and no spec drives a monitor check.
+ * The URL is never fetched: the test server runs no cron at all (the legacy
+ * CRON_MODE suppression writer and the /api/cron routes are gone — Phase-5
+ * and 06-05 deletion releases) and no spec drives a monitor check.
  */
 export async function seedMonitor(userId: string, name: string): Promise<number> {
   const { rows } = await pool.query(

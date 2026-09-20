@@ -43,11 +43,15 @@ const dnsStub = vi.hoisted(() => ({
 
 vi.mock("node:dns/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:dns/promises")>();
+  // dns.promises.lookup is overloaded (the last overload is single-argument),
+  // so Parameters<>[1] is unusable — narrow through a plain call signature.
+  const realLookup = actual.lookup as unknown as (
+    hostname: string,
+    options: unknown,
+  ) => Promise<Array<{ address: string; family: number }>>;
   return {
     lookup: ((hostname: string, options: unknown) =>
-      dnsStub.override
-        ? dnsStub.override(hostname)
-        : actual.lookup(hostname, options as Parameters<typeof actual.lookup>[1])) as unknown as typeof actual.lookup,
+      dnsStub.override ? dnsStub.override(hostname) : realLookup(hostname, options)) as unknown as typeof actual.lookup,
   };
 });
 

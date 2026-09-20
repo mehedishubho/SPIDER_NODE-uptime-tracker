@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { rateLimit, getIP } from "@/lib/rate-limit";
+import { apiError } from "@/lib/api-error";
+import { assertUrlAllowed, UrlNotAllowedError } from "@/lib/ssrf";
 // ----------------------------------------------------
 // 1. GET ALL MONITORS FOR LOGGED-IN USER (GET)
 // ----------------------------------------------------
@@ -46,7 +48,8 @@ export async function POST(req: Request) {
 
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthirized" }, { status: 401 })
+      // 06-03/D-17: the "Unauthirized" typo fixed WITH its flipped pin.
+      return apiError(401, "Unauthorized");
     }
 
     // Check Monitor Limit
@@ -83,6 +86,20 @@ export async function POST(req: Request) {
       )
     }
 
+    // SSRF admission (06-03/D-23): DNS-only validation on the TRIMMED url —
+    // the exact string that gets stored. Target refusals (private range,
+    // forbidden scheme, NXDOMAIN) answer 400 with the typed message verbatim
+    // (D-32); infrastructure failures propagate to the catch below → 500 —
+    // admission fails closed, never a silent accept.
+    try {
+      await assertUrlAllowed(url.trim());
+    } catch (error) {
+      if (error instanceof UrlNotAllowedError) {
+        return apiError(400, error.message);
+      }
+      throw error;
+    }
+
     const newMonitor = await prisma.monitor.create({
       data: {
         name: name.trim(),
@@ -100,11 +117,7 @@ export async function POST(req: Request) {
 
   } catch (error) {
     console.error("Create Monitor Error", error);
-    return NextResponse.json(
-      { error: "Failed to create monitor" },
-      { status: 500 }
-    );
-
+    return apiError(500, "Failed to create monitor");
   }
 
 }

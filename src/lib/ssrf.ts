@@ -679,3 +679,51 @@ export async function performCheck(req: CheckRequest): Promise<CheckOutcome> {
     });
   }
 }
+
+// --- DNS-only admission (Phase 6 / D-23) ---------------------------------------
+
+/**
+ * D-32/D-23: the typed admission refusal. The message is the user-actionable
+ * body routes forward VERBATIM as a 400 — it must never carry resolution
+ * internals (resolved addresses, the queried hostname, denylist tokens).
+ */
+export class UrlNotAllowedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UrlNotAllowedError";
+  }
+}
+
+/** User-facing refusal message per admission failure class (D-32). */
+const ADMISSION_MESSAGES: Record<"ssrf_blocked" | "dns" | "timeout", string> = {
+  ssrf_blocked: "URL is not allowed: only public http(s) targets are permitted",
+  dns: "URL host could not be found — check the address and try again",
+  timeout: "URL could not be verified in time — please try again",
+};
+
+/**
+ * D-23: DNS-only admission for user-supplied monitor URLs at create/update.
+ * Runs layers 1-2 of the check pipeline — scheme allowlist, then
+ * resolve-then-denylist — and NOTHING else: admission never dials the target,
+ * it only resolves the name (no fetch, no redirect walk, no body read).
+ * Literal-IP hosts skip resolution entirely (the literal is validated as-is).
+ *
+ * Rejects with UrlNotAllowedError for every target-side refusal — private
+ * range, forbidden scheme, NXDOMAIN, admission timeout. Resolver-level
+ * infrastructure failures (EAI_AGAIN/...) propagate UNWRAPPED so the caller
+ * answers 500: admission fails closed and is never laundered into a pass or
+ * a user-error 400.
+ */
+export async function assertUrlAllowed(url: string): Promise<void> {
+  const blocks = parseDenylist(DENYLIST);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DEFAULT_CHECK_TIMEOUT_MS);
+  try {
+    const hop = await validateHop(url, blocks, controller.signal);
+    if (!hop.ok) {
+      throw new UrlNotAllowedError(ADMISSION_MESSAGES[hop.errorClass]);
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+}

@@ -2,6 +2,8 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth"
 import { NextResponse } from "next/server";
+import { apiError } from "@/lib/api-error";
+import { assertUrlAllowed, UrlNotAllowedError } from "@/lib/ssrf";
 
 
 interface RouteParams {
@@ -26,7 +28,10 @@ export async function GET(req: Request, { params }: RouteParams) {
             return NextResponse.json({ error: "Invalid monitor ID" }, { status: 400 });
         }
 
-        const monitor = await prisma.monitor.findUnique({
+        // 06-03/D-17: findFirst — the compound { id, userId } scope is not a
+        // unique lookup, and findUnique cannot express it; the ownership
+        // WHERE clause IS the defense.
+        const monitor = await prisma.monitor.findFirst({
             where: { id: monitorId, userId: session.user.id }
         });
 
@@ -59,7 +64,9 @@ export async function PATCH(req: Request, { params }: RouteParams) {
 
         const monitorId = parseInt(id, 10);
         if (isNaN(monitorId)) {
-            return
+            // 06-03/D-17: the old bare `return` surfaced as a 500 over the
+            // wire — a descriptive 400 instead.
+            return apiError(400, "Invalid monitor ID");
         }
 
         let body: { name?: string; url?: string; interval?: string; isActive?: boolean } = {};
@@ -84,12 +91,27 @@ export async function PATCH(req: Request, { params }: RouteParams) {
 
         if (name !== undefined) updateData.name = name.trim();
         if (url !== undefined) {
+            // 06-03/D-25: url re-validation is CONDITIONAL — only when the
+            // request carries a url field. A name/interval-only patch never
+            // re-validates the stored URL.
             try {
                 new URL(url);
-                updateData.url = url.trim();
             } catch (_) {
                 return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
             }
+            // SSRF admission (06-03/D-23): DNS-only check on the TRIMMED url —
+            // the exact string that gets stored. Target refusals answer 400
+            // with the typed message verbatim; infra failures propagate to the
+            // catch below → 500 (fail closed).
+            try {
+                await assertUrlAllowed(url.trim());
+            } catch (error) {
+                if (error instanceof UrlNotAllowedError) {
+                    return apiError(400, error.message);
+                }
+                throw error;
+            }
+            updateData.url = url.trim();
         }
         if (interval) updateData.interval = parseInt(interval);
         if (isActive !== undefined) updateData.isActive = Boolean(isActive);
@@ -129,7 +151,8 @@ export async function DELETE(req: Request, { params }: RouteParams) {
 
         const monitorId = parseInt(id, 10);
         if (isNaN(monitorId)) {
-            return
+            // 06-03/D-17: same fix as PATCH — descriptive 400, not a bare return.
+            return apiError(400, "Invalid monitor ID");
         }
 
         const existingMonitor = await prisma.monitor.findFirst({

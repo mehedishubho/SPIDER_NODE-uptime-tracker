@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import Redis from "ioredis";
 import "./_harness";
 import { buildRequest, h, resetPrismaMocks } from "./_harness";
 
@@ -12,13 +13,19 @@ import { buildRequest, h, resetPrismaMocks } from "./_harness";
 //     proxy logs, and browser history. Pinned as-is below — do NOT "fix".
 //   DEFECT 2 (S-4 family): the cron routes' 500 handler echoes err.message
 //     AND the full err.stack into the response body. Pinned as-is.
-//   DEFECT 3 (S-2, Phase 6 SEC-03): the Telegram webhook processes requests
-//     with NO authentication/secret at all (Telegram's signed-path check is
-//     absent). Pinned as-is — the 200s below must turn red when the fix lands.
+//   DEFECT 3 (S-2, Phase 6 SEC-03): RESOLVED (06-03) — the webhook half below
+//     now PINS the enforced contract: X-Telegram-Bot-Api-Secret-Token
+//     constant-time authentication (SEC-03/D-20), a per-IP limiter ahead of
+//     any DB write (D-21), and HTML-escaped user.name in the confirmation
+//     (D-24). The old red marker (unauthenticated /start processed end-to-end)
+//     flipped green WITH the fix in the same change (Pitfall 7).
 //
 // All check/cleanup/alert internals are mocked (@/lib/cron-logic,
 // @/lib/cleanup-logic, @/lib/db-batcher, @/lib/telegram) and global.fetch is
-// stubbed to reject — these tests make ZERO real network calls.
+// stubbed to reject — these tests make ZERO real network calls. The webhook's
+// per-IP limiter (D-21) runs against the REAL docker test Redis like every
+// limiter suite (03-01 pattern), with a per-case rl:* flush via the admin
+// client below.
 // ---------------------------------------------------------------------------
 
 const cronMocks = vi.hoisted(() => ({
@@ -39,8 +46,36 @@ import { POST as POST_WEBHOOK } from "@/app/api/telegram/webhook/route";
 
 const SECRET = "test-cron-secret-value";
 
-beforeEach(() => {
+/** The pinned webhook secret value (SEC-03/D-20) — Telegram charset, 25 chars. */
+const WEBHOOK_SECRET = "test-webhook-secret-value";
+
+/** Dedicated admin client for the per-case rl:* flush (separate from the limiter's). */
+const redisAdmin = new Redis(process.env.REDIS_URL!);
+
+/** Flushes limiter keys on the test Redis — the fresh-state reset per case. */
+async function flushLimiterKeys(): Promise<void> {
+  let cursor = "0";
+  do {
+    const [next, batch] = await redisAdmin.scan(cursor, "MATCH", "rl:*", "COUNT", 100);
+    if (batch.length > 0) {
+      await redisAdmin.del(...batch);
+    }
+    cursor = next;
+  } while (cursor !== "0");
+}
+
+afterAll(async () => {
+  await redisAdmin.quit();
+  // Drop the limiter singleton's socket so the worker process can exit cleanly.
+  const globalForRedis = global as unknown as { redis?: Redis };
+  globalForRedis.redis?.disconnect();
+  delete globalForRedis.redis;
+});
+
+beforeEach(async () => {
   delete process.env.CRON_SECRET; // each case sets exactly the env it pins
+  delete process.env.TELEGRAM_WEBHOOK_SECRET;
+  await flushLimiterKeys(); // webhook limiter state lives in Redis — flush rl:* per case
   resetPrismaMocks();
   for (const fn of [
     cronMocks.runCronChecks,
@@ -58,6 +93,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.CRON_SECRET;
+  delete process.env.TELEGRAM_WEBHOOK_SECRET;
   vi.unstubAllGlobals();
 });
 
@@ -229,11 +265,73 @@ describe("GET /api/cron/cleanup", () => {
 });
 
 describe("POST /api/telegram/webhook", () => {
-  it("PINNED DEFECT (S-2): an UNAUTHENTICATED /start deep-link is processed end-to-end — Phase 6 SEC-03 red→green", async () => {
-    // No secret, no signature, no auth header — today the webhook trusts the
-    // body completely. An attacker POSTing this exact shape links ANY user id
-    // to an arbitrary Telegram chat. Deliberately pinned as-is (D-17); the
-    // Phase 6 secret check makes this case red.
+  /** The enforced deep-link payload shape used by the auth cases below. */
+  const startMessage = (userId: string) => ({
+    message: { chat: { id: 556677 }, text: `/start ${userId}` },
+  });
+
+  /** Request headers carrying the CORRECT secret token. */
+  const withSecret = (headers: Record<string, string> = {}) => ({
+    "x-telegram-bot-api-secret-token": WEBHOOK_SECRET,
+    ...headers,
+  });
+
+  it("FLIPPED (was the S-2 red marker): a POST WITHOUT the secret header → 401, the chat-binding write NEVER runs (SEC-03/D-20)", async () => {
+    process.env.TELEGRAM_WEBHOOK_SECRET = WEBHOOK_SECRET;
+
+    const res = await POST_WEBHOOK(
+      buildRequest({
+        path: "/api/telegram/webhook",
+        method: "POST",
+        body: startMessage("user-to-link"),
+      }),
+    );
+
+    expect(res.status).toBe(401);
+    await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
+    expect(h.prisma.user.update).not.toHaveBeenCalled();
+    expect(cronMocks.sendTelegramAlert).not.toHaveBeenCalled();
+  });
+
+  it("wrong-VALUE header (same length) → the identical 401 (constant-time compare path)", async () => {
+    process.env.TELEGRAM_WEBHOOK_SECRET = WEBHOOK_SECRET;
+
+    const res = await POST_WEBHOOK(
+      buildRequest({
+        path: "/api/telegram/webhook",
+        method: "POST",
+        body: startMessage("user-to-link"),
+        headers: { "x-telegram-bot-api-secret-token": "test-webhook-secret-WRONG" },
+      }),
+    );
+
+    expect(res.status).toBe(401);
+    await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
+    expect(h.prisma.user.update).not.toHaveBeenCalled();
+    expect(cronMocks.sendTelegramAlert).not.toHaveBeenCalled();
+  });
+
+  it("wrong-LENGTH header → 401, NOT a 500 (the timingSafeEqual length guard — Pitfall 4)", async () => {
+    process.env.TELEGRAM_WEBHOOK_SECRET = WEBHOOK_SECRET;
+
+    const res = await POST_WEBHOOK(
+      buildRequest({
+        path: "/api/telegram/webhook",
+        method: "POST",
+        body: startMessage("user-to-link"),
+        headers: { "x-telegram-bot-api-secret-token": "short" },
+      }),
+    );
+
+    // An unguarded timingSafeEqual would RangeError → the catch's 500. The
+    // length comparison MUST precede the constant-time call.
+    expect(res.status).toBe(401);
+    await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
+    expect(h.prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it("CORRECT header → the deep-link binding runs end-to-end; the confirmation is byte-identical for a plain name (D-24)", async () => {
+    process.env.TELEGRAM_WEBHOOK_SECRET = WEBHOOK_SECRET;
     const linkedUser = { id: "user-to-link", name: "Telegram User" };
     h.prisma.user.update.mockResolvedValue(linkedUser);
     cronMocks.sendTelegramAlert.mockResolvedValue({ ok: true });
@@ -242,9 +340,8 @@ describe("POST /api/telegram/webhook", () => {
       buildRequest({
         path: "/api/telegram/webhook",
         method: "POST",
-        body: {
-          message: { chat: { id: 556677 }, text: "/start user-to-link" },
-        },
+        body: startMessage("user-to-link"),
+        headers: withSecret(),
       }),
     );
 
@@ -254,22 +351,99 @@ describe("POST /api/telegram/webhook", () => {
       where: { id: "user-to-link" },
       data: { telegramChatId: "556677" },
     });
+    // Byte-identical plain-name pin — characters outside the escape set
+    // render unchanged (D-24 content escaping, not redesign).
     expect(cronMocks.sendTelegramAlert).toHaveBeenCalledWith(
       "556677",
-      expect.stringContaining("Account Connected!"),
-    );
-    expect(cronMocks.sendTelegramAlert).toHaveBeenCalledWith(
-      "556677",
-      expect.stringContaining("Telegram User"),
+      "🎉 <b>Account Connected!</b>\n\nHello <b>Telegram User</b>, your Telegram account is now successfully linked to SpiderNode.",
     );
   });
 
+  it("D-24: a user.name containing & < > is HTML-escaped in the confirmation message", async () => {
+    process.env.TELEGRAM_WEBHOOK_SECRET = WEBHOOK_SECRET;
+    h.prisma.user.update.mockResolvedValue({ id: "user-to-link", name: "Alfa & <Beta>" });
+    cronMocks.sendTelegramAlert.mockResolvedValue({ ok: true });
+
+    const res = await POST_WEBHOOK(
+      buildRequest({
+        path: "/api/telegram/webhook",
+        method: "POST",
+        body: startMessage("user-to-link"),
+        headers: withSecret(),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(cronMocks.sendTelegramAlert).toHaveBeenCalledWith(
+      "556677",
+      "🎉 <b>Account Connected!</b>\n\nHello <b>Alfa &amp; &lt;Beta&gt;</b>, your Telegram account is now successfully linked to SpiderNode.",
+    );
+  });
+
+  it("TELEGRAM_WEBHOOK_SECRET unset → loud 500 config error — the body is NEVER processed (D-20 no-fail-open)", async () => {
+    delete process.env.TELEGRAM_WEBHOOK_SECRET;
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const res = await POST_WEBHOOK(
+        buildRequest({
+          path: "/api/telegram/webhook",
+          method: "POST",
+          body: startMessage("user-to-link"),
+          headers: { "x-telegram-bot-api-secret-token": WEBHOOK_SECRET },
+        }),
+      );
+
+      expect(res.status).toBe(500);
+      await expect(res.json()).resolves.toEqual({ error: "Webhook Handler Failed" });
+      expect(h.prisma.user.update).not.toHaveBeenCalled();
+      expect(cronMocks.sendTelegramAlert).not.toHaveBeenCalled();
+      // LOUD: the config error is named in the log, never swallowed.
+      expect(errSpy).toHaveBeenCalled();
+      expect(String(errSpy.mock.calls[0]?.[1])).toContain("TELEGRAM_WEBHOOK_SECRET");
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+
+  it("D-21: over the 30/min per-IP limit → 429 BEFORE any DB write", async () => {
+    process.env.TELEGRAM_WEBHOOK_SECRET = WEBHOOK_SECRET;
+    // A dedicated IP keeps this case self-contained. The filler requests
+    // carry NO secret — every one must 401 (and still count against the
+    // window: the limiter admission sits above the secret check).
+    const ip = "198.51.100.77";
+    for (let i = 1; i <= 30; i++) {
+      const res = await POST_WEBHOOK(
+        buildRequest({ path: "/api/telegram/webhook", method: "POST", body: startMessage("user-to-link"), ip }),
+      );
+      expect(res.status).toBe(401);
+    }
+
+    const res = await POST_WEBHOOK(
+      buildRequest({
+        path: "/api/telegram/webhook",
+        method: "POST",
+        body: startMessage("user-to-link"),
+        headers: withSecret(),
+        ip,
+      }),
+    );
+
+    expect(res.status).toBe(429);
+    await expect(res.json()).resolves.toEqual({ error: "Too many requests. Please try again later." });
+    expect(h.prisma.user.update).not.toHaveBeenCalled();
+    expect(cronMocks.sendTelegramAlert).not.toHaveBeenCalled();
+  });
+
   it("non-/start message text → 200 ok with NO linking and NO alert", async () => {
+    process.env.TELEGRAM_WEBHOOK_SECRET = WEBHOOK_SECRET;
+
     const res = await POST_WEBHOOK(
       buildRequest({
         path: "/api/telegram/webhook",
         method: "POST",
         body: { message: { chat: { id: 1 }, text: "hello there" } },
+        headers: withSecret(),
       }),
     );
 
@@ -280,11 +454,14 @@ describe("POST /api/telegram/webhook", () => {
   });
 
   it("message without text, and /start with an EMPTY deep-link payload, are both tolerated as 200 ok", async () => {
+    process.env.TELEGRAM_WEBHOOK_SECRET = WEBHOOK_SECRET;
+
     const noText = await POST_WEBHOOK(
       buildRequest({
         path: "/api/telegram/webhook",
         method: "POST",
         body: { message: { chat: { id: 1 } } },
+        headers: withSecret(),
       }),
     );
     expect(noText.status).toBe(200);
@@ -295,6 +472,7 @@ describe("POST /api/telegram/webhook", () => {
         path: "/api/telegram/webhook",
         method: "POST",
         body: { message: { chat: { id: 1 }, text: "/start " } }, // no id after the prefix
+        headers: withSecret(),
       }),
     );
     expect(emptyDeepLink.status).toBe(200);
@@ -304,6 +482,7 @@ describe("POST /api/telegram/webhook", () => {
   });
 
   it("500 when the prisma update fails — body VERBATIM", async () => {
+    process.env.TELEGRAM_WEBHOOK_SECRET = WEBHOOK_SECRET;
     h.prisma.user.update.mockRejectedValue(new Error("record not found"));
 
     const res = await POST_WEBHOOK(
@@ -311,6 +490,7 @@ describe("POST /api/telegram/webhook", () => {
         path: "/api/telegram/webhook",
         method: "POST",
         body: { message: { chat: { id: 556677 }, text: "/start missing-user" } },
+        headers: withSecret(),
       }),
     );
 

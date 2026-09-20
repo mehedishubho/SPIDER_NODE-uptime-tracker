@@ -270,3 +270,74 @@ Pending in-window evidence (expected, not yet due at window-open):
   be consumed by the autonomous `maintenance-cleanup` pass with the D-18 counts line.
   That is the D-14 autonomous-retention soak proof.
 - Real-user check-now traffic and a real registration → delivery on the production env.
+
+---
+
+## 11. 06-05 Task 1 — cutover + soak gate: checkpoint record (2026-09-20T20:47Z)
+
+**Status: BLOCKING CHECKPOINT OPEN — awaiting the operator.** The executor records
+below everything verifiable from the executing topology and stops; the remaining
+cutover/soak items are operator-side. Nothing in this section was self-approved.
+
+### Window-clock election (left to this plan by §10)
+
+The ~24 h D-31 window counts from the **window-open record, 2026-09-20T20:00Z** (not
+from worker live-since 19:28:22Z) — both are inside a 32-minute span, the longer bound
+is the conservative one. **Earliest gate-close: 2026-09-21T20:00Z.** The 03:15 UTC
+2026-09-21 retention pass falls inside the window.
+
+### §4b cutover ledger — state at this checkpoint
+
+| §4b step-4 item | State | Where evidenced |
+| --- | --- | --- |
+| Full `pg_dump` backup before deploy | DONE (pre-deploy, 19:19:35Z) | §3 / §9 |
+| Deploy web + worker from approved SHA `31a56df` | DONE — live since 19:28:22Z, re-verified below | §3 / §9 / below |
+| Mint `TELEGRAM_WEBHOOK_SECRET` into production env | Stand-in mint DONE; **production (real-Telegram) mint = OPERATOR** | §9; awaiting item 2 |
+| One-time `setWebhook` with `secret_token` | **OPERATOR** — not executable from this topology (worker holds no real bot token by design, §1; loopback URL unreachable by Telegram) | §9; awaiting item 2 |
+| Smoke: synthetic check / check-now 202+poll / webhook refusal shape | DONE on stand-in (§4 legs a/c) | §4 |
+| Real Telegram webhook acceptance | Deferred to soak per plan step 4's explicit deferral form | awaiting item 2 |
+| `curl /api/monitors` unauthenticated liveness (plan verify) | **PASS — 401** observed 2026-09-20T20:45Z from this machine | below |
+
+### Machine-verifiable posture at T+~47 min (2026-09-20T20:45–20:47Z)
+
+| Check | Observed |
+| --- | --- |
+| `GET /api/monitors` (unauthenticated) | **401** — liveness + auth gate intact |
+| `GET /login` | **200** |
+| Worker `:9090/readyz` | `{"ok":true,"redis":{"ok":true},"db":{"ok":true}}` |
+| `/metrics.json` | `sha:"31a56df"`, builtAt `2026-09-20T19:24:32.761Z`, uptime ≈ 3816 s, pid 71388 |
+| Queue depths | all six lanes wait 0 / prioritized 0 / stalled 0 (one `delayed` per scheduler lane = next tick — normal) |
+| Breaker | CLOSED, consecutiveFailures 0, backlogDrops 0 |
+| Outbox | unsent 0, failed 1 (the known inert leg-a dead-letter, §5), oldestUnsent null |
+| Pings since window-open (20:00Z) | **34** across all monitors — check path flowing (m2 + smoke monitor) |
+| Monitor 3 | status UP, `lastChecked 2026-09-20 20:33:56Z` |
+| Retention seed (monitor 3) | intact: 40 pings > 30 d + 1 RESOLVED incident > 90 d — awaiting tonight's 03:15Z autonomous pass |
+| Registrations since window-open | 0 (criterion 2 needs real traffic) |
+| Ongoing incidents | 0 |
+
+### D-31 soak criteria — all PENDING at checkpoint-open
+
+| # | Criterion (§4b step 5) | Status at 20:47Z |
+| --- | --- | --- |
+| 1 | Real users exercising check-now (202 + poll completions) | PENDING — real-traffic window barely opened |
+| 2 | ≥ 1 real registration with verification email delivered | PENDING — 0 registrations in-window so far |
+| 3 | 03:15 UTC retention pass observed in worker logs (counts line) | PENDING — fires 2026-09-21T03:15Z; seed in place |
+| 4 | All three worker dead-men quiet | PENDING — healthchecks.io dashboards are operator-side |
+| 5 | Queue depths ≈ 0 in `/metrics.json` | GREEN NOW (table above) — must hold through close |
+
+### Awaiting from the operator
+
+1. **Soak elapse** — hold until ≥ 2026-09-21T20:00Z with criteria 1–4 evidenced
+   (criterion 5 re-confirmed at close). Any failure → runbook §7 rollback and stop
+   for re-planning; if webhook enforcement must be backed out, re-run `setWebhook`
+   WITHOUT `secret_token`.
+2. **Production Telegram cutover (operator-only)** — mint `TELEGRAM_WEBHOOK_SECRET`
+   into the production env (strong value, `[A-Za-z0-9_-]`, never committed) and run
+   the one-time `setWebhook` **with** `secret_token` inside this window (Pitfall 5 —
+   enforcement and registration ship together). Record the outcome (never the value)
+   in this file.
+3. **Approval** — with 1–2 evidenced, reply "approved" to authorize the deletion
+   release (06-05 Task 2). Or describe issues to rework.
+
+**Resume signal:** "approved" (soak evidenced + production mint/setWebhook done) →
+Task 2 deletion release; or describe issues.

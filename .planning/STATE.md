@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 05
-current_phase_name: worker-cutover-operational-hardening
-status: verifying
-stopped_at: Completed 05-09-PLAN.md
-last_updated: "2026-09-19T20:49:31.683Z"
-last_activity: 2026-09-15
-last_activity_desc: Phase 05 execution started
+current_phase: 6
+current_phase_name: Thin API Routes & Email Abstraction
+status: ready_to_plan
+stopped_at: Phase 5 complete — ready to plan Phase 6
+last_updated: "2026-09-20T10:58:59.241Z"
+last_activity: 2026-09-20
+last_activity_desc: Phase 5 complete, transitioned to Phase 6
 progress:
   total_phases: 8
   completed_phases: 5
@@ -21,25 +21,25 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-13)
+See: .planning/PROJECT.md (updated 2026-09-19)
 
 **Core value:** Modernize the infrastructure without breaking existing monitoring — never lose or corrupt uptime data, silently stop checking, or lock users out irrecoverably.
-**Current focus:** Phase 05 — worker-cutover-operational-hardening
+**Current focus:** Phase 06 — Thin API Routes & Email Abstraction
 
 ## Current Position
 
-Phase: 05 (worker-cutover-operational-hardening) — EXECUTING
-Plan: 9 of 9
-Status: Phase complete — ready for verification
-Last activity: 2026-09-15 — Phase 05 execution started
+Phase: 6 — Thin API Routes & Email Abstraction
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-09-20 — Phase 5 complete, transitioned to Phase 6
 
-Progress: [████████████████████] 36/36 plans (100%)
+Progress: [████████████████████] 45/45 plans (100%)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 36
+- Total plans completed: 45
 - Average duration: —
 - Total execution time: —
 
@@ -51,6 +51,7 @@ Progress: [████████████████████] 36/36 p
 | 2 | 10 | - | - |
 | 03 | 8 | - | - |
 | 4 | 9 | - | - |
+| 5 | 9 | - | - |
 
 **Recent Trend:**
 
@@ -267,10 +268,10 @@ None yet.
 
 ### Blockers/Concerns
 
-- Research flags requiring `--research-phase` during planning: Phase 4 (BullMQ 6 `upsertJobScheduler`, breaker/backlog tuning, PM2 handshake), Phase 7 (social `providerId` casing, token-flow cutover, cookieCache revocation lag) — Phase 3's flags were resolved in 03-RESEARCH.md (Pattern 4 journal/hash verification; D-19 in-transaction indexes)
+- Research flags requiring `--research-phase` during planning: Phase 7 (social `providerId` casing, token-flow cutover, cookieCache revocation lag) — Phase 3's flags were resolved in 03-RESEARCH.md (Pattern 4 journal/hash verification; D-19 in-transaction indexes) and Phase 4's in 04-RESEARCH.md (BullMQ 6 semantics verified against docs.bullmq.io)
 - Live production system: every cutover step needs a full `pg_dump` backup and an anonymized-snapshot rehearsal first (D-9/D-10)
-- [Phase 4] Code-review carry-forwards (03-REVIEW.md, committed cf9daeb) are planning inputs, not phase-03 blockers: CR-01 (stale `drizzle/meta/0001_snapshot.json`) + WR-01 (`timestamptz_ops` on boolean `idx_monitors_due` in schema.ts) MUST be repaired before the next `drizzle-kit generate`/migration is authored — otherwise the first generate emits duplicate 0001 DDL; WR-05 (hard-coded journal count 2 in rehearse-migrations.mjs) before Phase 7 rehearsal reuse; WR-02 (rehearsal port binds 0.0.0.0 — PII LAN-reachable) is a one-line fix, fix opportunistically; WR-06 (limiter keys on raw `x-forwarded-for`) pairs with Phase 6's S-series security work. Fix via `/gsd-code-review 03 --fix` before Phase 4 planning
-- [Phase 4/5] Design-debt register (01-VERIFICATION.md): CR-01 (`uptime_percent` has no writer — displayed lifetime uptime would freeze at cutover) and CR-02 (runbook §4a "disable nothing" vs audit M4 ordering) are must-resolve inputs at Phase 4/5 planning, before any plan transcribes §16 or the §4a overlap path; advisory register WR-01..05 / IN-01..07 / RR2-01..03 rides along
+- [Phase 6/7] 03-REVIEW carry-forwards still open: WR-05 (hard-coded journal count 2 in rehearse-migrations.mjs) — fix before Phase 7 rehearsal reuse; WR-06 (limiter keys on raw `x-forwarded-for`) pairs with Phase 6's S-series security work. (CR-01 stale 0001_snapshot.json + WR-01 `bool_ops` on `idx_monitors_due` were repaired in Phase 3/4 — snapshot refreshed 2026-09-13, schema.ts:98 carries `bool_ops`; WR-02 rehearsal 0.0.0.0 bind was fixed by 05-06 D-45.) The 01-VERIFICATION design-debt register CR-01/CR-02 was consumed at Phase 4/5 planning (04-04 D-35 in-UPDATE `uptime_percent`; 05-04 D-08 gated-window §20.1 amendment)
+- [Phase 6] Code-review inputs from 05-REVIEW.md (committed 5128d49): WR-01 (enqueue-maintenance.mjs hangs forever on unreachable Redis), WR-02 (relayRedis() second ioredis client never quit in drainAndTeardown), WR-03 (daily maintenance hardcoded dryRun:true — no autonomous retention post-cutover) + 9 Info findings; deferred-items.md (playwright.config.ts:63 stale CRON_MODE=vercel writer; stand-in CRON_SECRET mint; junction-shim procedure)
 - [Phase 8] WR-02 accepted input: light-mode legibility of unmigrated marketing surfaces + light dashboard/toast polish notes are Phase-8 planning inputs (02-UAT.md Decision Record, 2026-09-12); mixed emerald/rose ternaries flagged for Phase 8 UI-03 review also ride along
 
 ## Deferred Items
@@ -283,6 +284,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-19T20:49:31.676Z
-Stopped at: Completed 05-09-PLAN.md
+Last session: 2026-09-20
+Stopped at: Phase 5 complete (UAT 4/4, security 35/35 closed), ready to plan Phase 6
 Resume file: None

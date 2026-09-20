@@ -274,7 +274,7 @@ Plans:
   3. No endpoint accepts a secret via query string and no `CRON_SECRET` reference remains in the codebase; error responses never leak stack traces or internals
   4. With SMTP down, account registration still completes and the verification email arrives once SMTP recovers (queued, bounded attempts, backoff); a permanently undeliverable address stops retrying via a typed unrecoverable error; the existing HTML template renders unchanged from its new location
 
-**Plans**: 3/5 plans executed
+**Plans**: 4/5 plans executed
 
 Plans:
 **Wave 1** *(no dependencies)*
@@ -288,7 +288,7 @@ Plans:
 
 **Wave 3** *(blocked on 06-01 + 06-02 + 06-03)*
 
-- [ ] 06-04-PLAN.md — Worker hardening (retention real deletes D-14/D-18, WR-01 script deadline) + runbook §4b + env + stand-in feature-release rehearsal + operator approval (API-01, API-02, SEC-03, EML-02)
+- [x] 06-04-PLAN.md — Worker hardening (retention real deletes D-14/D-18, WR-01 script deadline) + runbook §4b + env + stand-in feature-release rehearsal + operator approval (API-01, API-02, SEC-03, EML-02)
 
 **Wave 4** *(final — blocked on 06-04 approval)*
 

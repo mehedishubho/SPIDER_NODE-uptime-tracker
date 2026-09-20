@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 06
 current_phase_name: thin-api-routes-email-abstraction
 status: executing
-stopped_at: Completed 06-03-PLAN.md
-last_updated: "2026-09-20T18:20:50.225Z"
+stopped_at: Completed 06-04-PLAN.md (operator approval recorded; D-31 soak window open; 06-05 owns soak gate + production mint/setWebhook)
+last_updated: "2026-09-20T20:06:18.068Z"
 last_activity: 2026-09-20
 last_activity_desc: Phase 06 execution started
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 50
-  completed_plans: 48
+  completed_plans: 49
   percent: 63
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 ## Current Position
 
 Phase: 06 (thin-api-routes-email-abstraction) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-09-20 — Phase 06 execution started
 
@@ -106,6 +106,7 @@ Progress: [████████████████████] 45/45 p
 | Phase 06 P01 | 34m | 3 tasks | 10 files |
 | Phase 06 P02 | 26m | 3 tasks | 16 files |
 | Phase 06 P03 | 20m 30s | 3 tasks | 10 files |
+| Phase 06 P04 | ~30min (continuation leg; rehearsal leg prior session) | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -273,6 +274,8 @@ Recent decisions affecting current work:
 - [Phase ?]: assertUrlAllowed is DNS-only admission: reuses ssrf pipeline layers 1-2 (scheme + resolve-then-denylist), never dials the target; runs on the trimmed url at POST and only when PATCH carries a url field (06-03)
 - [Phase ?]: Admission failures: UrlNotAllowedError carries actionable internals-free 400 messages; infra failures propagate unwrapped so routes answer 500 — fail closed (06-03)
 - [Phase ?]: Webhook + alert renders share the D-24 escapeHtml trio (and ampersand/lt/gt): byte-neutral for plain values, D-48 parity pins stayed green (06-03)
+- [Phase 06]: 06-04: operator approval recorded from bare 'approved' under the 05-08 D-18 precedent; A3/Vercel residuals verified repo-side (no contradicting evidence) and routed to 06-05 Task 1 user_setup
+- [Phase 06]: 06-04: D-31 soak window opened 2026-09-20T20:00Z on release 31a56df (live since 19:28:22Z); gate enforcement at 06-05 Task 1 blocking checkpoint; setWebhook + production secret mint remain 06-05 Task 1 by plan
 
 ### Pending Todos
 
@@ -296,6 +299,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-20T18:20:50.219Z
-Stopped at: Completed 06-03-PLAN.md
+Last session: 2026-09-20T20:06:08.135Z
+Stopped at: Completed 06-04-PLAN.md (operator approval recorded; D-31 soak window open; 06-05 owns soak gate + production mint/setWebhook)
 Resume file: None

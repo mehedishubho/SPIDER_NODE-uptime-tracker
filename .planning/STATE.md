@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 06
 current_phase_name: thin-api-routes-email-abstraction
 status: executing
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-09-20T17:56:51.790Z"
+stopped_at: Completed 06-03-PLAN.md
+last_updated: "2026-09-20T18:20:50.225Z"
 last_activity: 2026-09-20
 last_activity_desc: Phase 06 execution started
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 50
-  completed_plans: 47
+  completed_plans: 48
   percent: 63
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 ## Current Position
 
 Phase: 06 (thin-api-routes-email-abstraction) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-09-20 — Phase 06 execution started
 
@@ -105,6 +105,7 @@ Progress: [████████████████████] 45/45 p
 | Phase 05 P09 | 3h20m | - tasks | - files |
 | Phase 06 P01 | 34m | 3 tasks | 10 files |
 | Phase 06 P02 | 26m | 3 tasks | 16 files |
+| Phase 06 P03 | 20m 30s | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -269,6 +270,9 @@ Recent decisions affecting current work:
 - [Phase 06]: Email lane uses Worker settings.backoffStrategy with the exact D-09 table [30s,2m,8m,30m,2h]; EMAIL_JOB_OPTIONS lives only in src/lib/email/enqueue.ts (queues.ts re-export dropped — module-scope cycle)
 - [Phase 06]: EML-03 conservative error taxonomy: only EAUTH/EENVELOPE/EMESSAGE/responseCode>=500 dead-letter via UnrecoverableError; timeouts/4xx/unknown retry per D-09
 - [Phase 06]: Register/forgot pre-flight ping placed before the Redis-backed limiter so Redis-down deterministically yields the bounded 503 (D-29/Pitfall 6)
+- [Phase ?]: assertUrlAllowed is DNS-only admission: reuses ssrf pipeline layers 1-2 (scheme + resolve-then-denylist), never dials the target; runs on the trimmed url at POST and only when PATCH carries a url field (06-03)
+- [Phase ?]: Admission failures: UrlNotAllowedError carries actionable internals-free 400 messages; infra failures propagate unwrapped so routes answer 500 — fail closed (06-03)
+- [Phase ?]: Webhook + alert renders share the D-24 escapeHtml trio (and ampersand/lt/gt): byte-neutral for plain values, D-48 parity pins stayed green (06-03)
 
 ### Pending Todos
 
@@ -292,6 +296,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-20T17:56:51.784Z
-Stopped at: Completed 06-02-PLAN.md
+Last session: 2026-09-20T18:20:50.219Z
+Stopped at: Completed 06-03-PLAN.md
 Resume file: None

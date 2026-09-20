@@ -218,3 +218,55 @@ operator's explicit answers. The executor does not self-approve.
 
 **Resume signal:** reply "approved" (with A3/vercel-cron confirmations) to proceed to
 cutover; or describe issues found in this record to rework before approval.
+
+---
+
+## 8. OPERATOR APPROVAL — VERDICT: APPROVED (§4b step 3 closed)
+
+**Decision received 2026-09-20T20:00Z — verbatim operator reply: "approved", relayed
+via the coordinator against the checkpoint delivering this record** (the §4a step-9 /
+05-08 D-18 precedent form, where the same bare "approved" authorized the Phase-5
+deletion release). The operator had §1–§7 in hand: six green gates, four passed smoke
+legs with concrete evidence, the healthy steady posture, and the full deviation list.
+**The Phase-6 feature release (`31a56df`) is approved for production.**
+
+**Confirmation disposition — the reply did not restate §7 items 2–3 (A3, Vercel-cron);
+each was verified to the depth this machine allows, with the residual routed to the
+plan step that can actually close it:**
+
+| Item | Repo-side verification performed | Result | Residual and where it closes |
+| --- | --- | --- | --- |
+| A3 — production webhook NOT registered without a secret | Tracked-repo sweep for `setWebhook`: design/doc mentions only; no record of any production `setWebhook` ever having been run. On the executing topology the state is definitive — no real Telegram egress has ever left this machine (dummy token by design, §1), so no webhook is registered here at all | **No contradicting evidence** | The production-env registration state is closed BY the 06-05 Task 1 cutover itself: the one-time `setWebhook` **with** `secret_token` runs INSIDE that sequence (Pitfall 5) — behavior-identical for greenfield and re-register |
+| Vercel-cron absence | `vercel.json` absent from the working tree; `git log --all` shows it existed only before 2026-08-06 (cron `* * * * *` → `/api/cron/check`) and was deliberately **removed** in `56b2155` when the internal-cron strategy landed; no `.vercel/` directory; the app's runtime is the VPS (PM2), not a Vercel deployment | **No contradicting evidence** | Dashboard-side confirmation (if a Vercel project was ever connected) rides to 06-05 Task 1's `user_setup` checklist — its blocking checkpoint gates the deletion release, the only step a stray external cron could break |
+
+## 9. §4b production cutover — state on the executing topology
+
+Per the operator-ratified local-only release topology (03-08 decision; 05-DEPLOY-RECORD
+precedent — every Phase 3–5 release executed on this stand-in-production stack, VPS-only
+mechanisms dispositioned N/A-locally), §4b step 4 maps onto this machine as follows:
+
+| §4b step-4 action | State | Evidence |
+| --- | --- | --- |
+| Full `pg_dump` backup before deploy | DONE (pre-deploy) | `.snapshots/pre-0604-release-20260920-191935.dump`, taken 19:19:35Z (§3) |
+| Deploy web + worker from the approved SHA | DONE — live since the rehearsal; posture re-verified post-approval | worker `readyz` `{"ok":true,"redis":{"ok":true},"db":{"ok":true}}` + web `/login` → 200 at 19:58:56Z on 2026-09-20 (§5 posture holds, no redeploy performed — the approved release already IS the live bytes) |
+| Mint `TELEGRAM_WEBHOOK_SECRET` into the production env | DONE for the executing topology (stand-in-only mint; value never recorded — §1) | Leg-c ladder passed against it (§4) |
+| One-time `setWebhook` with `secret_token` | **REMAINS — 06-05 Task 1, by plan** | 06-05 Task 1 action step 3: the production mint uses the **operator-provided** value and the registration runs inside that cutover (Pitfall 5; rollback = re-run without `secret_token`). Not executable from this topology before then: the worker deliberately holds no real bot token (§1) and a loopback URL is unreachable by Telegram — a real `setWebhook` call here could only mutate the operator's real bot against an address it can never deliver to |
+| Synthetic-check smoke + real-webhook acceptance | Smoke legs DONE (§4 legs a/c; §6 defines the synthetic form); real-webhook acceptance remains 06-05 Task 1 step 4's explicit deferral form | §4 |
+
+## 10. D-31 soak window — OPENED
+
+| Field | Value |
+| --- | --- |
+| Window | **OPEN** — recorded 2026-09-20T20:00Z |
+| Release SHA | `31a56df` (web + worker from one SHA — §2 provenance) |
+| Live since | 19:28:22Z 2026-09-20 (worker boot, §3) — the 06-05 gate owns electing whether the ~24 h window counts from live-since or from this approval record |
+| Close gate | ~24 h with ALL five criteria green, evaluated at the **06-05 Task 1 blocking checkpoint** — this plan does not block on the clock |
+| Criteria (§4b step 5) | real-user check-now 202 + poll completions · ≥ 1 real registration with its email delivered · the 03:15 UTC retention pass observed in worker logs (counts line) · all three worker dead-men quiet · queue depths ≈ 0 in `/metrics.json` |
+
+Pending in-window evidence (expected, not yet due at window-open):
+
+- **03:15 UTC 2026-09-21 retention pass** — the monitor-3 stand-in seed (40 pings
+  @ 40 d + 1 RESOLVED incident @ 100 d, deliberately left in place, §4 leg d) should
+  be consumed by the autonomous `maintenance-cleanup` pass with the D-18 counts line.
+  That is the D-14 autonomous-retention soak proof.
+- Real-user check-now traffic and a real registration → delivery on the production env.

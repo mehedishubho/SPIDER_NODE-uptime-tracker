@@ -1,5 +1,24 @@
 # Deferred Items — Phase 06
 
+## Open operator confirmations riding into 06-05 Task 1 (from the 06-04 approval)
+
+**Found during:** 06-04 Task 3 continuation (approval recorded 2026-09-20T20:00Z)
+
+The operator's bare "approved" closed the release approval (D-30) but did not restate
+the two §7 confirmations. Repo-side verification found **no contradicting evidence**
+for either (full disposition in 06-DEPLOY-RECORD.md §8); the residuals MUST be closed
+at the 06-05 Task 1 blocking checkpoint, before the deletion release:
+
+1. **A3 answer** — production Telegram webhook registration state (the 06-05 frontmatter
+   `user_setup` expected it "captured at the 06-04 checkpoint"; it was not). The
+   setWebhook-with-secret step inside the 06-05 cutover is behavior-identical either
+   way, but the answer belongs in the deploy record.
+2. **Vercel-cron dashboard confirmation** — no live Vercel cron calls `/api/cron/*`
+   (repo shows the config was removed in `56b2155`, 2026-08-06; dashboard state is not
+   repo-verifiable). The deletion release (06-05 Task 2) breaks silently if a stray
+   external cron survives.
+
+
 ## Vitest forks-pool worker crash flake (pre-existing, environment-level)
 
 **Found during:** 06-01 plan-level verification (`pnpm test` full suite)

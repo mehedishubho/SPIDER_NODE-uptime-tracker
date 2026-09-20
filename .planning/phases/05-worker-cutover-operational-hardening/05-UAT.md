@@ -1,15 +1,15 @@
 ---
-status: testing
+status: complete
 phase: 05-worker-cutover-operational-hardening
 source: [05-VERIFICATION.md (human_verification items 1–4)]
 started: 2026-09-19T21:35:00Z
-updated: 2026-09-19T21:35:00Z
+updated: 2026-09-20T03:45:00Z
 ---
 
 ## Current Test
 <!-- OVERWRITE each test - shows where we are -->
 
-Test 2 — confirm the three REAL healthchecks.io checks (worker-heartbeat, worker-outbox-age, worker-redis-memory) have paging/notification integrations enabled in the hc.io dashboard.
+[testing complete]
 
 ## Tests
 
@@ -23,9 +23,10 @@ evidence: Root cause: the host's 4th Docker Desktop death of the window week (en
 ### 2. Confirm paging integrations are ON for the three real hc.io checks (D-25 trio)
 expected: All three checks (worker-heartbeat grace 10 min, worker-outbox-age grace 5 min, worker-redis-memory grace 30 min) show notification channels/integrations enabled in the hc.io dashboard, so a dead tick actually pages a human. The flips themselves are proven (heartbeat's first real firing 2026-09-16T22:25:28Z; outbox-age firings 20:40:28Z and 22:20:28Z) — only page delivery is unproven, because the read-only API key does not expose integration config.
 how: hc.io dashboard → the one remaining project → each of the three worker checks → Integrations/channels tab → confirm at least one channel (e.g. email/Telegram) is connected and enabled.
-result: pending
+result: pass
 source: manual
 coverage_id: 05-VERIF/H2
+evidence: Operator confirmed in the hc.io dashboard that the three worker checks have notification integrations enabled (2026-09-20).
 
 ### 3. Runbook §7 disposition — RESOLVED by amendment commit dd5db7b
 expected: The junction-shim rehearsal finding (fresh-install restore of the pre-cutover tarball needs 2 node_modules junctions: `mklink /J node_modules\node-cron-5efbb29b9a4eb14a node_modules\node-cron` + `mklink /J node_modules\pg-4c0d8067d674414d node_modules\pg`) lives in docs/DEPLOY-RUNBOOK.md §7 where 05-09-SUMMARY claims it, not only in the deploy record + deferred-items.
@@ -36,16 +37,17 @@ evidence: §7 now carries the "Tier-2 restore-from-scratch amendment (05-09 rehe
 
 ### 4. mvp-mode goal-format bookkeeping decision
 expected: A recorded decision: either reformat the Phase 5 goal into User Story format (`/gsd mvp-phase 5`) or drop the `Mode: mvp` tag from Phase 5 in ROADMAP.md. The goal is backend-infrastructure phrased and fails user-story validation; Phase 3 dropped its tag and Phase 4 recorded the identical finding (04-VERIFICATION human item 2) — dropping the tag is the established precedent. Informational: affects future MVP-mode UAT framing only, no codebase truth.
-result: pending
+result: pass
 source: manual decision
 coverage_id: 05-VERIF/H4
+evidence: Operator selected Option 1 — drop the tag (2026-09-20). `**Mode:** mvp` line removed from Phase 5 in ROADMAP.md (Phase 3/4 precedent); goal text unchanged; `phase.mvp-mode 5` now resolves false.
 
 ## Summary
 
 total: 4
-passed: 2
+passed: 4
 issues: 0
-pending: 2
+pending: 0
 skipped: 0
 
 ## Notes

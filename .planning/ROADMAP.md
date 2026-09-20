@@ -219,7 +219,6 @@ Plans:
 ### Phase 5: Worker Cutover & Operational Hardening
 
 **Goal**: The worker becomes the only monitoring path through a gated overlap window, and operators gain early-warning signals plus a rehearsed rollback story.
-**Mode:** mvp
 **Depends on**: Phase 4
 **Requirements**: WRK-09, WRK-11, DEP-03, DEP-05, OBS-03, OBS-05
 **Success Criteria** (what must be TRUE):

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import Redis from "ioredis";
 
 // ---------------------------------------------------------------------------
@@ -72,8 +72,12 @@ describe("rate-limit — Redis-backed limiter (D-20, RDS-02)", () => {
       const rl = await freshRateLimit();
       const first = await rl.rateLimit(identifier, options);
       const second = await rl.rateLimit(identifier, options);
-      expect(first).toEqual({ success: true, remaining: 2 });
-      expect(second).toEqual({ success: true, remaining: 1 });
+      // resetSeconds now rides along (06-01 D-06) — the count/remaining
+      // semantics are pinned field-wise, identically to before.
+      expect(first.success).toBe(true);
+      expect(first.remaining).toBe(2);
+      expect(second.success).toBe(true);
+      expect(second.remaining).toBe(1);
 
       // Simulate a process restart: drop the singleton (socket + cache) and
       // re-import the module tree from scratch. A Map-based limiter forgets
@@ -137,7 +141,9 @@ describe("rate-limit — Redis-backed limiter (D-20, RDS-02)", () => {
         const rlDead = await freshRateLimit();
 
         const start = Date.now();
-        // Must RESOLVE — the limiter never rethrows (D-01).
+        // Must RESOLVE — the limiter never rethrows (D-01). The exact shape
+        // also pins that the degraded path carries NO resetSeconds (Redis was
+        // never reached — there is no window to report a Retry-After from).
         const result = await rlDead.rateLimit(identifier, options);
         const elapsed = Date.now() - start;
 
@@ -204,4 +210,151 @@ describe("rate-limit — Redis-backed limiter (D-20, RDS-02)", () => {
     },
     15_000
   );
+});
+
+// ---------------------------------------------------------------------------
+// 06-01 extensions: the resetSeconds TTL return (the Retry-After basis,
+// D-06), the two ratified manual-check buckets (SEC-05), and the D-22 getIP
+// spoof trio (03-REVIEW WR-06 closure — selection logic verified against
+// next@16's base-server stamping semantics; the pins below bound the spoofed
+// keyspace). All asserted against the REAL test Redis.
+// ---------------------------------------------------------------------------
+
+/** SCAN+DEL every rl:* key — per-case flush discipline (03-01 precedent). */
+async function flushRlKeys(): Promise<void> {
+  let cursor = "0";
+  do {
+    const [next, batch] = await admin.scan(cursor, "MATCH", "rl:*", "COUNT", 100);
+    cursor = next;
+    if (batch.length > 0) await admin.del(...batch);
+  } while (cursor !== "0");
+}
+
+describe("rate-limit — resetSeconds return (D-06 Retry-After basis, 06-01)", () => {
+  it("first hit reports ~the full window; a repeat hit counts down (one atomic PTTL, no second round trip)", async () => {
+    const identifier = `manual_ttl_${crypto.randomUUID()}`;
+
+    const rl = await freshRateLimit();
+    const first = await rl.rateLimit(identifier, { limit: 5, windowMs: 60_000 });
+    expect(first.success).toBe(true);
+    // PTTL right after EXPIRE(60): ceil is the full 60s window (>= 58 guards
+    // scheduling jitter without weakening the pin).
+    expect(first.resetSeconds).toBeGreaterThanOrEqual(58);
+    expect(first.resetSeconds).toBeLessThanOrEqual(60);
+
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    const second = await rl.rateLimit(identifier, { limit: 5, windowMs: 60_000 });
+    expect(second.success).toBe(true);
+    expect(second.resetSeconds!).toBeGreaterThan(0);
+    // The window COUNTS DOWN: the repeat hit's remaining reset is strictly
+    // smaller than the first hit's.
+    expect(second.resetSeconds!).toBeLessThan(first.resetSeconds!);
+  },
+  15_000);
+});
+
+describe("rate-limit — manual-check buckets (SEC-05, 06-01 Task 2)", () => {
+  beforeEach(async () => {
+    await flushRlKeys();
+  });
+
+  it("manual_{userId}_{monitorId} 1/30s: first admitted, second in-window rejected with a positive resetSeconds", async () => {
+    const userId = "11111111-1111-4111-8111-111111111111";
+    const rl = await freshRateLimit();
+
+    const first = await rl.rateLimit(`manual_${userId}_5`, { limit: 1, windowMs: 30_000 });
+    expect(first.success).toBe(true);
+    expect(first.remaining).toBe(0);
+
+    const second = await rl.rateLimit(`manual_${userId}_5`, { limit: 1, windowMs: 30_000 });
+    expect(second.success).toBe(false);
+    expect(second.remaining).toBe(0);
+    expect(second.resetSeconds).toBeGreaterThan(0);
+    expect(second.resetSeconds).toBeLessThanOrEqual(30);
+
+    // The key landed in the REAL Redis under the ratified identifier shape.
+    expect(await admin.exists(`rl:manual_${userId}_5`)).toBe(1);
+  },
+  15_000);
+
+  it("manual-user_{userId} 6/min: six in-window checks admitted, the seventh rejected", async () => {
+    const userId = "22222222-2222-4222-8222-222222222222";
+    const rl = await freshRateLimit();
+
+    for (let i = 1; i <= 6; i++) {
+      const result = await rl.rateLimit(`manual-user_${userId}`, { limit: 6, windowMs: 60_000 });
+      expect(result.success).toBe(true);
+    }
+
+    const seventh = await rl.rateLimit(`manual-user_${userId}`, { limit: 6, windowMs: 60_000 });
+    expect(seventh.success).toBe(false);
+    expect(seventh.remaining).toBe(0);
+    expect(seventh.resetSeconds).toBeGreaterThan(0);
+    expect(seventh.resetSeconds).toBeLessThanOrEqual(60);
+  },
+  15_000);
+});
+
+describe("getIP spoof trio (D-22 / WR-06 closure — keys land in the real Redis per derived literal)", () => {
+  const realTrustProxy = process.env.TRUST_PROXY;
+
+  beforeEach(async () => {
+    delete process.env.TRUST_PROXY;
+    await flushRlKeys();
+  });
+
+  afterEach(() => {
+    if (realTrustProxy === undefined) delete process.env.TRUST_PROXY;
+    else process.env.TRUST_PROXY = realTrustProxy;
+  });
+
+  function requestWithXff(value?: string): Request {
+    return new Request("http://localhost/api/x", {
+      headers: value === undefined ? {} : { "x-forwarded-for": value },
+    });
+  }
+
+  it("no x-forwarded-for header → the loopback fallback (the harness stand-in for Next's socket-peer stamp)", async () => {
+    const rl = await freshRateLimit();
+    const ip = rl.getIP(requestWithXff());
+    expect(ip).toBe("127.0.0.1");
+
+    await rl.rateLimit(`spoof_noxff_${ip}`, { limit: 5, windowMs: 60_000 });
+    expect(await admin.exists("rl:spoof_noxff_127.0.0.1")).toBe(1);
+  },
+  15_000);
+
+  it("multi-entry XFF with TRUST_PROXY unset → FIRST entry (client-supplied on today's direct topology)", async () => {
+    const rl = await freshRateLimit();
+    const ip = rl.getIP(requestWithXff("1.2.3.4, 5.6.7.8"));
+    expect(ip).toBe("1.2.3.4");
+
+    await rl.rateLimit(`spoof_multi_${ip}`, { limit: 5, windowMs: 60_000 });
+    expect(await admin.exists("rl:spoof_multi_1.2.3.4")).toBe(1);
+    // The unselected entry never mints its own keyspace.
+    expect(await admin.exists("rl:spoof_multi_5.6.7.8")).toBe(0);
+  },
+  15_000);
+
+  it("multi-entry XFF with TRUST_PROXY=true → LAST entry (the sanitizing proxy's stamp)", async () => {
+    process.env.TRUST_PROXY = "true";
+    const rl = await freshRateLimit();
+    const ip = rl.getIP(requestWithXff("1.2.3.4, 5.6.7.8"));
+    expect(ip).toBe("5.6.7.8");
+
+    await rl.rateLimit(`spoof_proxy_${ip}`, { limit: 5, windowMs: 60_000 });
+    expect(await admin.exists("rl:spoof_proxy_5.6.7.8")).toBe(1);
+    expect(await admin.exists("rl:spoof_proxy_1.2.3.4")).toBe(0);
+  },
+  15_000);
+
+  it("unparseable XFF value → the single shared unknown bucket (arbitrary strings never enter a Redis key)", async () => {
+    const rl = await freshRateLimit();
+    const ip = rl.getIP(requestWithXff("definitely-not-an-ip"));
+    expect(ip).toBe("unknown");
+
+    await rl.rateLimit(`spoof_junk_${ip}`, { limit: 5, windowMs: 60_000 });
+    expect(await admin.exists("rl:spoof_junk_unknown")).toBe(1);
+  },
+  15_000);
 });

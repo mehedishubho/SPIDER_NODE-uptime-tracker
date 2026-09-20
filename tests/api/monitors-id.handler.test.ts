@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { NextResponse } from "next/server";
 import "./_harness";
 import {
@@ -14,39 +14,27 @@ import {
 
 // ---------------------------------------------------------------------------
 // Characterization suite: src/app/api/monitors/[id]/route.ts (GET / PATCH /
-// DELETE), src/app/api/monitors/[id]/details/route.ts (GET), and
-// src/app/api/monitors/[id]/check/route.ts (POST).
+// DELETE) and src/app/api/monitors/[id]/details/route.ts (GET).
 //
-// The check route would run a real monitor check; per the D-16 hybrid split
-// it is tested at the handler seam with @/lib/cron-logic and @/lib/db-batcher
-// mocked (never over HTTP — the HTTP scope excludes routes that execute
-// real checks). These two extra seams are declared here, on top of the
-// harness's next-auth/@/lib/prisma mocks.
+// The check route (src/app/api/monitors/[id]/check/route.ts) was rewritten in
+// Phase 6 (06-01) as the enqueue + 202 producer — its contract now lives in
+// tests/api/check-route.handler.test.ts, and the old runCronChecks/flushBatches
+// pins were removed WITH the rewrite (Pitfall 7 — the suite never asserts
+// removed behavior mid-wave).
 //
 // Ownership cases pin what the code REALLY does: user B asking for user A's
 // monitor gets the not-found path, and the scoping WHERE clause is asserted
 // through the prisma mock's call args (the D-21 mutation target).
 // ---------------------------------------------------------------------------
 
-const cronMocks = vi.hoisted(() => ({
-  runCronChecks: vi.fn(),
-  flushBatches: vi.fn(),
-}));
-
-vi.mock("@/lib/cron-logic", () => ({ runCronChecks: cronMocks.runCronChecks }));
-vi.mock("@/lib/db-batcher", () => ({ flushBatches: cronMocks.flushBatches }));
-
-// Imported AFTER the harness (mocks registered) and after the file-local
-// cron mocks — vitest hoists these vi.mock calls above the imports anyway.
+// Imported AFTER the harness (mocks registered) — vitest hoists these
+// vi.mock calls above the imports anyway.
 import { DELETE, GET, PATCH } from "@/app/api/monitors/[id]/route";
 import { GET as GET_DETAILS } from "@/app/api/monitors/[id]/details/route";
-import { POST as POST_CHECK } from "@/app/api/monitors/[id]/check/route";
 
 beforeEach(() => {
   mockSession(null);
   resetPrismaMocks();
-  cronMocks.runCronChecks.mockReset();
-  cronMocks.flushBatches.mockReset();
 });
 
 /**
@@ -321,117 +309,5 @@ describe("GET /api/monitors/[id]/details", () => {
 
     expect(res.status).toBe(500);
     await expect(res.json()).resolves.toEqual({ error: "Internal Server Error" });
-  });
-});
-
-describe("POST /api/monitors/[id]/check (manual force check — mocked seams, D-16)", () => {
-  it("401 without session", async () => {
-    const res = await POST_CHECK(
-      buildRequest({ path: "/api/monitors/5/check", method: "POST" }),
-      routeParams({ id: "5" }),
-    );
-
-    expect(res.status).toBe(401);
-    await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
-    expect(cronMocks.runCronChecks).not.toHaveBeenCalled();
-  });
-
-  it("400 on non-numeric id", async () => {
-    mockSession(sessionA);
-    const res = await POST_CHECK(
-      buildRequest({ path: "/api/monitors/abc/check", method: "POST" }),
-      routeParams({ id: "abc" }),
-    );
-
-    expect(res.status).toBe(400);
-    await expect(res.json()).resolves.toEqual({ error: "Invalid monitor ID" });
-  });
-
-  it("ownership: B checking A's monitor → 404 with this route's DISTINCT message", async () => {
-    mockSession(sessionB);
-    h.prisma.monitor.findUnique.mockResolvedValue(null);
-
-    const res = await POST_CHECK(
-      buildRequest({ path: "/api/monitors/5/check", method: "POST" }),
-      routeParams({ id: "5" }),
-    );
-
-    expect(res.status).toBe(404);
-    // 'Monitor not found or unauthorized' — unique to the check route.
-    await expect(res.json()).resolves.toEqual({ error: "Monitor not found or unauthorized" });
-    expect(h.prisma.monitor.findUnique).toHaveBeenCalledWith({
-      where: { id: 5, userId: USER_B_ID },
-    });
-    expect(cronMocks.runCronChecks).not.toHaveBeenCalled();
-  });
-
-  it("200 for the owner — force-check (true, id), flush AWAITED before the response settles, order force-then-flush, body shape (D-04 pin)", async () => {
-    mockSession(sessionA);
-    h.prisma.monitor.findUnique.mockResolvedValue(monitorOfA);
-    const result = [{ monitorId: 5, status: "UP" }];
-    cronMocks.runCronChecks.mockResolvedValue({
-      message: "Successfully checked all monitors",
-      result,
-    });
-    // D-04 deferred-mock pin: flushBatches returns a promise resolved ONLY
-    // by hand. The route awaits the flush INSIDE its try/catch (route line
-    // ~38), so the 200 cannot settle until this gate opens — de-awaiting,
-    // reordering, or deleting the flush fails the held-response assertion.
-    let releaseFlush!: () => void;
-    const flushGate = new Promise<void>((resolve) => {
-      releaseFlush = resolve;
-    });
-    cronMocks.flushBatches.mockReturnValueOnce(flushGate);
-
-    let settled = false;
-    const pending = POST_CHECK(
-      buildRequest({ path: "/api/monitors/5/check", method: "POST" }),
-      routeParams({ id: "5" }),
-    ).then((res) => {
-      settled = true;
-      return res;
-    });
-
-    // While the flush is in flight the response must NOT settle — this is
-    // the await pin, not just a call-count pin.
-    await new Promise((resolve) => setTimeout(resolve, 25));
-    expect(settled).toBe(false);
-    expect(cronMocks.flushBatches).toHaveBeenCalledTimes(1);
-
-    releaseFlush();
-    const res = await pending;
-
-    expect(res.status).toBe(200);
-    expect(cronMocks.runCronChecks).toHaveBeenCalledWith(true, 5);
-    expect(cronMocks.flushBatches).toHaveBeenCalledTimes(1);
-    // Invocation order: the force check precedes the flush (the flush
-    // exists to land what the force check queued).
-    expect(cronMocks.runCronChecks.mock.invocationCallOrder[0]).toBeLessThan(
-      cronMocks.flushBatches.mock.invocationCallOrder[0],
-    );
-    await expect(res.json()).resolves.toEqual({
-      message: "Monitor checked successfully",
-      result,
-    });
-  });
-
-  it("a rejecting flushBatches surfaces through the 500 path — the await sits inside the try/catch (D-04 pin)", async () => {
-    mockSession(sessionA);
-    h.prisma.monitor.findUnique.mockResolvedValue(monitorOfA);
-    cronMocks.runCronChecks.mockResolvedValue({
-      message: "Successfully checked all monitors",
-      result: [],
-    });
-    cronMocks.flushBatches.mockRejectedValueOnce(new Error("flush exploded"));
-
-    const res = await POST_CHECK(
-      buildRequest({ path: "/api/monitors/5/check", method: "POST" }),
-      routeParams({ id: "5" }),
-    );
-
-    // The flush failure is never silently swallowed: an unawaited flush
-    // (void / fire-and-forget) would return 200 here instead.
-    expect(res.status).toBe(500);
-    await expect(res.json()).resolves.toEqual({ error: "Failed to check monitor" });
   });
 });

@@ -5,16 +5,32 @@ export interface RateLimitOptions {
   windowMs: number;
 }
 
-// Fixed-window counter in ONE atomic Lua script: INCR + EXPIRE-on-first-hit.
-// Separate INCR/EXPIRE round-trips can strand a TTL-less counter between the
-// two calls and permanently limit a user (Phase 01 IN-01/OBS-04 pin) — the
+export interface RateLimitResult {
+  success: boolean;
+  remaining: number;
+  /**
+   * Whole seconds until the fixed window resets (the Retry-After basis,
+   * D-06) — ceil(PTTL/1000) from the SAME atomic command, 0 when the ttl is
+   * negative/absent. Absent on the fail-open degraded path (Redis was never
+   * reached, so there is no window to report).
+   */
+  resetSeconds?: number;
+}
+
+// Fixed-window counter in ONE atomic Lua script: INCR + EXPIRE-on-first-hit,
+// returning the count AND the key's PTTL so callers get everything (admission
+// + Retry-After) from one atomic round trip — a second PTTL call would break
+// the Phase-01 IN-01 single-command pin and add a round trip. Separate
+// INCR/EXPIRE round-trips can strand a TTL-less counter between the two
+// calls and permanently limit a user (Phase 01 IN-01/OBS-04 pin) — the
 // whole script executes as a single atomic command server-side.
 const WINDOW_LUA = `
 local current = redis.call("INCR", KEYS[1])
 if current == 1 then
   redis.call("EXPIRE", KEYS[1], ARGV[1])
 end
-return current
+local ttl = redis.call("PTTL", KEYS[1])
+return { current, ttl }
 `;
 
 redis.defineCommand("rlIncr", { numberOfKeys: 1, lua: WINDOW_LUA });
@@ -23,17 +39,24 @@ redis.defineCommand("rlIncr", { numberOfKeys: 1, lua: WINDOW_LUA });
 // surface custom commands on the client (03-RESEARCH A9 quirk), so the call
 // goes through this typed view of the same instance.
 const limiterRedis = redis as typeof redis & {
-  rlIncr(key: string, windowSeconds: number): Promise<number>;
+  rlIncr(key: string, windowSeconds: number): Promise<[number, number]>;
 };
 
-export async function rateLimit(identifier: string, options: RateLimitOptions) {
+export async function rateLimit(
+  identifier: string,
+  options: RateLimitOptions
+): Promise<RateLimitResult> {
   // Identifiers already carry the monitors_/register_ bucket (D-04 parity —
   // only the backing store changed, never the key semantics or parameters).
   const key = `rl:${identifier}`;
   const windowSeconds = Math.ceil(options.windowMs / 1000);
   try {
-    const count = await limiterRedis.rlIncr(key, windowSeconds);
-    return { success: count <= options.limit, remaining: Math.max(0, options.limit - count) };
+    const [count, ttl] = await limiterRedis.rlIncr(key, windowSeconds);
+    return {
+      success: count <= options.limit,
+      remaining: Math.max(0, options.limit - count),
+      resetSeconds: ttl > 0 ? Math.ceil(ttl / 1000) : 0,
+    };
   } catch (err) {
     // D-01/D-02: fail-open, fast, with the greppable marker — never rethrow,
     // never fall back to an in-memory Map (that would re-import the

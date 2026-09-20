@@ -173,9 +173,21 @@ export interface HealthServer {
   shutdown(): Promise<void>;
 }
 
+/**
+ * WORKER_HEALTH_PORT resolution (D-13 / IN-01): unset OR EMPTY STRING mean
+ * the default 9090 — Number("") === 0 would bind an EPHEMERAL port and
+ * silently break PM2 wait_ready. Shared by index.ts's boot flow and this
+ * module's option resolution so the two reads can never drift.
+ */
+export function resolveWorkerHealthPort(raw: string | undefined): number {
+  const trimmed = (raw ?? "").trim();
+  if (trimmed === "") return 9090;
+  return Number(trimmed);
+}
+
 export function startHealthServer(options: StartHealthServerOptions = {}): Promise<HealthServer> {
   const host = options.host ?? "127.0.0.1";
-  const port = options.port ?? Number(process.env.WORKER_HEALTH_PORT ?? 9090);
+  const port = options.port ?? resolveWorkerHealthPort(process.env.WORKER_HEALTH_PORT);
   const pool = options.pool ?? workerPgPool;
   // Default client comes from the worker factory (throw-early REDIS_URL);
   // ownership is tracked so shutdown only quits what it created.

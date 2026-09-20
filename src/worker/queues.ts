@@ -363,6 +363,23 @@ export function stalledEventCount(queueName: string): number {
   return stalledEvents.get(queueName) ?? 0;
 }
 
+/**
+ * In-process PERMANENT email-failure counters, keyed by queue name — the
+ * stalledEvents precedent applied to the email lane's dead-letter path
+ * (D-10/D-34: permanent failure is log + metric only, no user-facing
+ * surface; BullMQ's failed set already retains the jobs themselves).
+ */
+const emailFailures = new Map<string, number>();
+
+/** Called from processEmailJob's permanent-failure path; monotonic per process. */
+export function noteEmailFailure(queueName: string): void {
+  emailFailures.set(queueName, (emailFailures.get(queueName) ?? 0) + 1);
+}
+
+export function emailFailureCount(queueName: string): number {
+  return emailFailures.get(queueName) ?? 0;
+}
+
 /** Per-queue gauge surfaced on /metrics.json (OBS-01). */
 export interface QueueGauge {
   /**
@@ -555,6 +572,73 @@ export function startMaintenanceLaneWorker(
 ): LaneWorkerHandle {
   return startLaneWorker(QUEUE_NAMES.maintenance, processor, opts.concurrency ?? MAINTENANCE_LANE_CONCURRENCY);
 }
+
+// ---------------------------------------------------------------------------
+// Email lane (06-02, EML-02/EML-03) — transactional sends enqueued by the
+// web routes via enqueueTransactionalEmail. The ONE lane-family deviation:
+// its Worker carries settings.backoffStrategy (D-09's exact table) because
+// email jobs use backoff { type: "custom" } — the built-in exponential
+// yields 30s/1m/2m/4m/8m and fails the hour-or-two SMTP outage reach
+// (Pitfall 2).
+// ---------------------------------------------------------------------------
+
+/** Email-lane concurrency (planner pin per research A4 — trivially tunable). */
+export const EMAIL_LANE_CONCURRENCY = 1;
+
+/**
+ * D-09's exact retry table: 30s / 2m / 8m / 30m / 2h (≈2.7h total reach —
+ * "an hour-or-two SMTP outage still delivers"). NOT a 2^(n-1) progression.
+ */
+export const EMAIL_BACKOFF_MS = [30_000, 120_000, 480_000, 1_800_000, 7_200_000] as const;
+
+/**
+ * The Worker-side custom backoff strategy (Pitfall 2): the exact per-attempt
+ * table value, clamped — beyond the table the LAST value (2h) repeats.
+ */
+export function emailBackoffDelay(attemptsMade: number): number {
+  const index = Math.min(Math.max(attemptsMade, 1), EMAIL_BACKOFF_MS.length) - 1;
+  return EMAIL_BACKOFF_MS[index];
+}
+
+/**
+ * Starts the email-lane consumer (06-02's processEmailJob over the
+ * env-selected provider). Follows the startMaintenanceLaneWorker factory
+ * shape with one deviation: settings.backoffStrategy — the D-09 table.
+ */
+export function startEmailLaneWorker(
+  processor: LaneProcessor,
+  opts: { concurrency?: number } = {}
+): LaneWorkerHandle {
+  const worker = new Worker(QUEUE_NAMES.email, async (job) => processor({ id: job.id, name: job.name, data: job.data }), {
+    connection: workerConnection(),
+    concurrency: opts.concurrency ?? EMAIL_LANE_CONCURRENCY,
+    lockDuration: 30_000,
+    stalledInterval: 30_000,
+    maxStalledCount: 1,
+    settings: {
+      backoffStrategy: emailBackoffDelay,
+    },
+  });
+  worker.on("stalled", (jobId) => {
+    noteStalledEvent(QUEUE_NAMES.email);
+    log.warn({ jobId, queueName: QUEUE_NAMES.email }, "lane job stalled — redelivered at-least-once (idempotent persistence absorbs it)");
+  });
+  worker.on("error", (err) => {
+    log.error({ queueName: QUEUE_NAMES.email, err: err.message }, "lane worker error");
+  });
+  return {
+    close: () => worker.close(),
+  };
+}
+
+// The enqueue contract (EMAIL_JOB_OPTIONS — priority LANE_PRIORITY.email,
+// attempts 5, backoff { type: "custom" }) lives in the web-side module
+// src/lib/email/enqueue.ts and is NOT re-exported from here: a re-export
+// would make enqueue.ts a dependency of this module, and enqueue.ts reads
+// LANE_PRIORITY at module scope — the cycle would evaluate it BEFORE this
+// module's body runs (undefined.email at import time; verified in vitest).
+// The lone enqueue → queues direction stays safe: queue-producer references
+// QUEUE_NAMES/LANE_PRIORITY only inside function bodies (ESM live bindings).
 
 // ---------------------------------------------------------------------------
 // Maintenance enqueue (WRK-13 / D-16)

@@ -83,7 +83,7 @@ describe("console provider — D-12 one structured stdout line", () => {
 
 describe("enqueueTransactionalEmail — enqueue contract (Pitfall 3 / D-09)", () => {
   it("adds a \"send\" job with priority/attempts/backoff-custom and NO jobId, on the injectable queue", async () => {
-    const add = vi.fn(async () => ({ id: "job-1" }));
+    const add = vi.fn(async (_name: string, _data: unknown, _opts?: unknown) => ({ id: "job-1" }));
     const { enqueueTransactionalEmail, EMAIL_JOB_OPTIONS } = await import("@/lib/email/enqueue");
 
     const payload = { to: "x@y.test", subject: "s", html: "<b>h</b>" };

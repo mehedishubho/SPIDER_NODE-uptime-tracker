@@ -2,12 +2,13 @@ import "dotenv/config"; // D-12 — FIRST import, before anything else
 import { buildLogger } from "./logger";
 import { workerConnection } from "./connection";
 import { workerPgPool } from "./db";
-import { startHealthServer, WORKER_BUILD_SHA, WORKER_BUILD_TS } from "./health";
+import { startHealthServer, resolveWorkerHealthPort, WORKER_BUILD_SHA, WORKER_BUILD_TS } from "./health";
 import { collectQueueMetrics, workerQueues } from "./queues";
-import { startAlertsLaneWorker, startCheckLaneWorker, startDbWritesLaneWorker, startMaintenanceLaneWorker } from "./queues";
+import { startAlertsLaneWorker, startCheckLaneWorker, startDbWritesLaneWorker, startEmailLaneWorker, startMaintenanceLaneWorker } from "./queues";
 import { startTickWorker, upsertSchedulersAtBoot } from "./scheduler";
 import { fromLaneJob, makeFlushProcessor, processCheckJob } from "./engine/check";
-import { collectOutboxMetrics, processRelayJob } from "./persist/outbox";
+import { collectOutboxMetrics, disposeRelayRedis, processRelayJob } from "./persist/outbox";
+import { processEmailJob } from "./email";
 import { processMaintenanceJob } from "./maintenance";
 import { state as breakerState } from "./breaker";
 import { createMetricsRegistry } from "./metrics";
@@ -64,6 +65,10 @@ export interface ShutdownDeps {
 export async function drainAndTeardown(deps: ShutdownDeps): Promise<void> {
   await deps.closeHealth();
   await Promise.allSettled(drainables.map((drainable) => drainable.close()));
+  // WR-02 (06-02): the outbox relay's Redis singleton is a second worker-owned
+  // connection — dispose it BEFORE the pool ends, alongside the lane workers
+  // (queueing-side resources go down before persistence does).
+  disposeRelayRedis();
   await deps.endPool();
   await deps.quitRedis();
 }
@@ -85,7 +90,10 @@ async function main(): Promise<void> {
   // queue would block operator smoke enqueues too; Pitfall 12). Read here so
   // the boot log records the launch mode from day one.
   const schedulerEnabled = process.env.WORKER_SCHEDULER_ENABLED === "true";
-  const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 9090); // D-13
+  // D-13 via the shared resolver (IN-01): an EMPTY-STRING WORKER_HEALTH_PORT
+  // means unset -> 9090 — Number("") === 0 would bind an ephemeral port and
+  // silently break PM2 wait_ready.
+  const healthPort = resolveWorkerHealthPort(process.env.WORKER_HEALTH_PORT);
 
   const redis = workerConnection();
   const pool = workerPgPool;
@@ -160,6 +168,12 @@ async function main(): Promise<void> {
   registerDrainable(alertsWorker);
   const maintenanceWorker = startMaintenanceLaneWorker((job) => processMaintenanceJob(job));
   registerDrainable(maintenanceWorker);
+  // 06-02: the email lane consumes transactional sends the web routes
+  // rendered at request time (D-07 render-at-enqueue) and transports them
+  // through the env-selected provider (D-11) — the SMTP socket lives only
+  // here. Concurrency 1; retries per D-09's exact backoff table.
+  const emailWorker = startEmailLaneWorker((job) => processEmailJob(job));
+  registerDrainable(emailWorker);
   try {
     const schedulers = await upsertSchedulersAtBoot({ schedulerEnabled });
     if (schedulers.upserted.length > 0) {

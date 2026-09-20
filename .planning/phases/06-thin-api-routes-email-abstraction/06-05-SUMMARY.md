@@ -202,6 +202,17 @@ None. This plan only deletes surface and adds enforcement (gate + inventory + ev
 - Blockers/concerns for Phase 7: none new. Standing deferrals (IN-01 environmental; vitest forks-pool crash flake; queue-producer never-connected-Redis hang latent; local .env NEXT_PUBLIC drift) ride in deferred-items.md
 - Rollback posture note: restoring the pre-deletion release re-introduces the cron path (reverses SEC-06) — requires explicit operator sign-off (§13 posture table)
 
+## Self-Check: PASSED
+
+Verified 2026-09-20T22:19Z before completion:
+
+1. **Files exist:** 06-05-SUMMARY.md, 06-PIN-INVENTORY.md found; 06-DEPLOY-RECORD.md carries the single RECORD CLOSED marker (§13)
+2. **Commits exist:** all eight plan commits found in git log — c376b8b, 89540a1, 46df8a3, e448245, 51a9fbb, b1fe108, 157ee14, 93cfbbc
+3. **Measured commits from ledger** (`gsd-plan-head-before-06-05` = 89540a1): **6** (46df8a3, e448245, 51a9fbb, b1fe108, 157ee14, 93cfbbc) — matches the frontmatter actuals
+4. **Deletion contract holds:** all 8 deleted files confirmed absent from the tree; diff 89540a1..HEAD contains no deletions beyond the 8 intentional ones
+5. **Production surface re-confirmed live:** `/api/cron/check` → 404, `/api/cron/cleanup` → 404 (post-deploy re-probe at self-check time)
+6. **Working tree clean of plan scope:** only the three pre-existing out-of-scope modifications remain unstaged and untouched (.planning/config.json, skills-lock.json, tests/resilience/observations.json)
+
 ---
 *Phase: 06-thin-api-routes-email-abstraction*
 *Completed: 2026-09-21*

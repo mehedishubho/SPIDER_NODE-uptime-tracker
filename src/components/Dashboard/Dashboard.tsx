@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { pollMonitorCheckResult } from "@/lib/check-now-poll";
 import { Activity01Icon as Activity, PlusSignIcon as Plus, RefreshIcon as RefreshCw, Delete02Icon as Trash2, LinkSquare01Icon as ExternalLink, Logout01Icon as LogOut, Shield01Icon as ShieldCheck, GlobeIcon as Globe, Clock01Icon as Clock, ArrowUpRight01Icon as TrendingUp, Loading01Icon as Loader2, Cancel01Icon as X, Edit02Icon as Edit2, EcoPowerIcon as Power } from "hugeicons-react";
 import Link from "next/link";
 
@@ -52,14 +53,15 @@ export function Dashboard() {
     }
   }, [status, router]);
 
-  // Fetch monitors
-  const fetchMonitors = useCallback(async () => {
+  // Fetch monitors — returns the list so the check-now poll can reuse the
+  // same read (D-01: poll monitor data, never job state).
+  const fetchMonitors = useCallback(async (): Promise<Monitor[]> => {
     try {
       const res = await fetch("/api/monitors");
       if (!res.ok) {
         if (res.status === 401) {
           router.push("/login");
-          return;
+          return [];
         }
         let errorMsg = "Failed to fetch monitors";
         try {
@@ -69,10 +71,13 @@ export function Dashboard() {
         throw new Error(errorMsg);
       }
       const data = await res.json();
-      setMonitors(data.monitors || []);
+      const list: Monitor[] = data.monitors || [];
+      setMonitors(list);
+      return list;
     } catch (err) {
       console.error(err);
       toast.error("Failed to load monitors.");
+      return [];
     } finally {
       setLoadingMonitors(false);
     }
@@ -180,22 +185,54 @@ export function Dashboard() {
     }
   };
 
-  // Re-check single monitor status
+  // Abort any in-flight check poll on unmount — the poll loop may never
+  // outlive the component (UI-SPEC timer discipline).
+  const checkPollAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    return () => {
+      checkPollAbortRef.current?.abort();
+    };
+  }, []);
+
+  // Re-check single monitor status: enqueue + 202 + poll (D-01..D-06). The
+  // route never executes the check; this handler never reads job state —
+  // completion is the row's lastChecked advancing past the enqueue time.
   const handleCheckMonitor = async (id: number) => {
     setCheckingId(id);
+    const abort = new AbortController();
+    checkPollAbortRef.current = abort;
     try {
-      const res = await fetch(
-        `/api/monitors/${id}/check`,
-        {
-          method: "POST",
-        },
-      );
-      const data = await res.json();
-      if (res.ok) {
-        toast.success(`Check triggered manually`);
-        fetchMonitors();
-      } else {
+      const res = await fetch(`/api/monitors/${id}/check`, {
+        method: "POST",
+      });
+      if (res.status === 429) {
+        const retryAfter = Number(res.headers.get("Retry-After")) || 30;
+        toast.error(`You're checking too often — try again in ${retryAfter}s`);
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}) as { error?: string });
         toast.error(data.error || "Failed to ping monitor.");
+        return;
+      }
+      const { queuedAt } = (await res.json()) as { jobId: string; queuedAt: number };
+      const monitor = await pollMonitorCheckResult<Monitor>({
+        monitorId: id,
+        queuedAt,
+        fetchMonitors,
+        signal: abort.signal,
+      });
+      if (abort.signal.aborted) return;
+      if (!monitor) {
+        // D-04 quiet handoff: the job may still land — never an error, never
+        // a re-enqueue; the periodic refresh surfaces the result.
+        toast.info("Still checking — the result will appear when ready");
+        return;
+      }
+      if (monitor.status === "DOWN") {
+        toast.error(`${monitor.name}: DOWN (${monitor.responseTime}ms)`);
+      } else {
+        toast.success(`${monitor.name}: UP (${monitor.responseTime}ms)`);
       }
     } catch (err) {
       console.error(err);
@@ -606,7 +643,16 @@ export function Dashboard() {
                                 checkingId === monitor.id || !monitor.isActive
                               }
                               className="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-primary transition-colors cursor-pointer disabled:opacity-50"
-                              title="Re-check endpoint status"
+                              title={
+                                checkingId === monitor.id
+                                  ? "Checking…"
+                                  : "Re-check endpoint status"
+                              }
+                              aria-label={
+                                checkingId === monitor.id
+                                  ? "Checking…"
+                                  : "Re-check endpoint status"
+                              }
                             >
                               <RefreshCw
                                 className={`w-3.5 h-3.5 ${

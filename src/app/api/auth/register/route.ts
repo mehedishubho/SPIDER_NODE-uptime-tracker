@@ -3,10 +3,28 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { rateLimit, getIP } from "@/lib/rate-limit";
 import { generateVerificationToken } from "@/lib/tokens";
-import { sendVerificationEmail } from "@/lib/mail";
+import { renderVerificationEmail } from "@/lib/email/render";
+import { enqueueTransactionalEmail } from "@/lib/email/enqueue";
+import { webQueueProducer } from "@/lib/queue-producer";
+import { apiError } from "@/lib/api-error";
 
 export async function POST(req: Request) {
     try {
+        // 06-02 (D-29 / Pitfall 6): bounded pre-flight liveness probe. An
+        // unreachable Redis fails FAST here — BEFORE the durable user write —
+        // because without the queue there is no verification email, and an
+        // unverifiable account would be stranded. A 503 "try again shortly"
+        // is the honest answer. The residual race between this ping and the
+        // enqueue below (Redis dropping mid-request) is accepted and
+        // documented: Redis-down already pages via the dead-man's switch,
+        // and forgot-password re-requests enqueue a fresh email once Redis
+        // returns.
+        try {
+            await webQueueProducer().ping();
+        } catch {
+            return apiError(503, "Service temporarily unavailable — try again shortly");
+        }
+
         const ip = getIP(req);
         // Max 5 registration attempts per IP per hour (3600000 ms)
         const { success, remaining } = await rateLimit(`register_${ip}`, { limit: 5, windowMs: 3600000 });
@@ -66,9 +84,18 @@ export async function POST(req: Request) {
             }
         });
 
-        // Generate verification token and send email
+        // 06-02 (D-07 render-at-enqueue): render the verification email here
+        // and enqueue it — the SMTP socket lives ONLY in the worker process,
+        // so an SMTP outage can no longer fail this request. A Redis-side
+        // enqueue rejection surfaces as a loud 503 (never a silent no-op).
         const verificationToken = await generateVerificationToken(normalizedEmail);
-        await sendVerificationEmail(verificationToken.email, verificationToken.token);
+        const emailPayload = renderVerificationEmail(verificationToken.email, verificationToken.token);
+        try {
+            await enqueueTransactionalEmail(emailPayload);
+        } catch (error) {
+            console.error("Registration email enqueue error:", error)
+            return apiError(503, "Service temporarily unavailable — try again shortly")
+        }
 
         return NextResponse.json(
             {

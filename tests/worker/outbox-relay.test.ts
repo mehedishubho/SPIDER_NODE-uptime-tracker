@@ -392,6 +392,73 @@ describe("outbox relay — DAT-05/DAT-06 + D-44..D-48", () => {
   );
 
   it(
+    "2c. IN-04/D-16: monitorName and monitorUrl are HTML-escaped at every interpolation site — plain values stay byte-identical",
+    () => {
+      // Direct render over all three templates: every monitorName/monitorUrl
+      // interpolation site escapes the HTML-significant trio (& < > — the
+      // D-24 escape set; characters outside it render byte-identically).
+      const hostile = makePayload({
+        monitorName: "Alfa & <Beta>",
+        monitorUrl: "https://x.test/?a=1&b=<2>",
+      });
+      for (const eventType of [
+        "monitor.first_check",
+        "incident.down",
+        "incident.recovered",
+      ] as const) {
+        const rendered = renderAlertMessage({
+          eventType,
+          monitorId: 7,
+          incidentId: "abc",
+          payload: hostile as never,
+        });
+        expect(rendered).toContain("Alfa &amp; &lt;Beta&gt;");
+        expect(rendered).toContain("https://x.test/?a=1&amp;b=&lt;2&gt;");
+        // Raw metacharacters never survive interpolation into the parse_mode
+        // HTML body — Telegram would reject or misparse the markup.
+        expect(rendered).not.toContain("<Beta>");
+        expect(rendered).not.toContain("b=<2>");
+      }
+
+      // Escape is byte-neutral for plain values (D-48 discipline): the
+      // pinned plain-value template keeps rendering character-for-character.
+      const plain = makePayload();
+      const rendered = renderAlertMessage({
+        eventType: "incident.down",
+        monitorId: 7,
+        incidentId: "abc",
+        payload: plain as never,
+      });
+      expect(rendered).toBe(expectedMessage("down", plain));
+    },
+    10_000
+  );
+
+  it(
+    "2d. IN-04 relay-level: a special-char monitor name flows through the full pass — sent, not dead-lettered (D-16)",
+    async () => {
+      const monitorId = await seedMonitor(testUserId, "relay-hostile-&-name");
+      const incidentId = await seedIncident(monitorId);
+      const payload = makePayload({ monitorName: "Alfa & <Beta>" });
+      const rowId = await seedOutbox({ monitorId, eventType: "incident.down", incidentId, payload });
+
+      const send = okSendMock();
+      const result = await runPass(send);
+      expect(result.sent).toBe(1);
+      expect(send).toHaveBeenCalledTimes(1);
+      // The delivered body carries the ESCAPED form — a raw <Beta> would be a
+      // Telegram parse error (400-class permanent failure) in production.
+      expect(send.mock.calls[0][1]).toContain("Alfa &amp; &lt;Beta&gt;");
+      expect(send.mock.calls[0][1]).not.toContain("<Beta>");
+
+      const row = await fetchOutboxRow(rowId);
+      expect(row?.sent_at).not.toBeNull();
+      expect(row?.payload).not.toHaveProperty(RELAY_FAILURE_KEY);
+    },
+    20_000
+  );
+
+  it(
     "3. dedup: pre-held key skips the send but still marks the row sent; a confirmed send sets the key with the 7-day TTL (D-47)",
     async () => {
       const monitorId = await seedMonitor(testUserId, "relay-parity-monitor");

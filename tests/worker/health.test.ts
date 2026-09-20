@@ -152,3 +152,35 @@ describe("worker health server — :healthz/:readyz/:metrics.json (WRK-08, D-13)
     expect(post.status).toBe(405);
   });
 });
+
+describe("WORKER_HEALTH_PORT resolution — IN-01 empty-string guard (06-02)", () => {
+  it("empty string resolves to 9090 — never Number('') === 0 (ephemeral port)", async () => {
+    const { resolveWorkerHealthPort } = await import("@/worker/health");
+    expect(resolveWorkerHealthPort("")).toBe(9090);
+    expect(resolveWorkerHealthPort(undefined)).toBe(9090);
+    expect(resolveWorkerHealthPort("9099")).toBe(9099);
+  });
+
+  it("startHealthServer with WORKER_HEALTH_PORT set to the EMPTY STRING binds 9090", async () => {
+    const previous = process.env.WORKER_HEALTH_PORT;
+    process.env.WORKER_HEALTH_PORT = "";
+    try {
+      const server = await startHealthServer({
+        // port option deliberately absent — the env path under test.
+        redis: trackClient(new Redis(process.env.REDIS_URL!)),
+        pool: workerPgPool,
+      });
+      try {
+        expect(server.port).toBe(9090);
+      } finally {
+        await server.shutdown().catch(() => {});
+      }
+    } finally {
+      if (previous === undefined) {
+        delete process.env.WORKER_HEALTH_PORT;
+      } else {
+        process.env.WORKER_HEALTH_PORT = previous;
+      }
+    }
+  });
+});

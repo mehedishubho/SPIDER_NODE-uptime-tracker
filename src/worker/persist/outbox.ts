@@ -131,6 +131,15 @@ function formatAlertTime(occurredAt: string, userTimezone: string): string {
  * captured in the Tier 1 transaction) through the same pinned formatting call
  * cron-logic applied to its render-time now().
  */
+/**
+ * IN-04/D-16: escape the HTML-significant trio (& < >) before interpolation
+ * into a parse_mode HTML body — the D-24 webhook discipline. Characters
+ * outside the escape set render byte-identically (D-48 parity preserved).
+ */
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 export function renderAlertMessage(event: OutboxEvent): string {
   const p = event.payload;
   const time = formatAlertTime(p.occurredAt, p.userTimezone);
@@ -139,8 +148,8 @@ export function renderAlertMessage(event: OutboxEvent): string {
       return `
 🚀 <b>MONITORING STARTED: Website is Online!</b>
 
-📌 <b>Name:</b> ${p.monitorName}
-🌐 <b>URL:</b> ${p.monitorUrl}
+📌 <b>Name:</b> ${escapeHtml(p.monitorName)}
+🌐 <b>URL:</b> ${escapeHtml(p.monitorUrl)}
 ⚡ <b>Response Time:</b> ${p.responseTimeMs}ms
 🕒 <b>Time:</b> ${time}
           `.trim();
@@ -148,8 +157,8 @@ export function renderAlertMessage(event: OutboxEvent): string {
       return `
 🚨 <b>ALERT: Website Down!</b>
 
-📌 <b>Name:</b> ${p.monitorName}
-🌐 <b>URL:</b> ${p.monitorUrl}
+📌 <b>Name:</b> ${escapeHtml(p.monitorName)}
+🌐 <b>URL:</b> ${escapeHtml(p.monitorUrl)}
 ⚠️ <b>Status Code:</b> ${p.statusCode || "No Response / Timeout"}
 ⏱️ <b>Response Time:</b> ${p.responseTimeMs}ms
 🕒 <b>Time:</b> ${time}
@@ -158,8 +167,8 @@ export function renderAlertMessage(event: OutboxEvent): string {
       return `
 ✅ <b>RECOVERY: Website Back Online!</b>
 
-📌 <b>Name:</b> ${p.monitorName}
-🌐 <b>URL:</b> ${p.monitorUrl}
+📌 <b>Name:</b> ${escapeHtml(p.monitorName)}
+🌐 <b>URL:</b> ${escapeHtml(p.monitorUrl)}
 ⚡ <b>Response Time:</b> ${p.responseTimeMs}ms
 🕒 <b>Time:</b> ${time}
           `.trim();

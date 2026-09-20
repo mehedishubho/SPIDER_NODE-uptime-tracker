@@ -433,12 +433,32 @@ export async function processMaintenanceJob(
     return report;
   }
 
-  const pings = await deleteInBatches(db, deletePingsBatchSql, logger, "pings");
-  report.pings.deleted = pings.deleted;
-  report.pings.batches = pings.batches;
-  const incidents = await deleteInBatches(db, deleteIncidentsBatchSql, logger, "incidents");
-  report.incidents.deleted = incidents.deleted;
-  report.incidents.batches = incidents.batches;
+  try {
+    const pings = await deleteInBatches(db, deletePingsBatchSql, logger, "pings");
+    report.pings.deleted = pings.deleted;
+    report.pings.batches = pings.batches;
+    const incidents = await deleteInBatches(db, deleteIncidentsBatchSql, logger, "incidents");
+    report.incidents.deleted = incidents.deleted;
+    report.incidents.batches = incidents.batches;
+  } catch (err) {
+    // D-18 (06-04): a failed REAL pass logs at ERROR level before the
+    // rethrow — the throw is what drives BullMQ's attempts/backoff retry,
+    // and the log line makes the failure and its partial state (the rows
+    // already deleted before the failing statement) visible in the job log.
+    // Never a silent failure; no new dead-man — the worker heartbeat covers
+    // a dead tick loop (D-18/D-34).
+    logger.error(
+      {
+        jobId,
+        dryRun: false,
+        deletedPings: report.pings.deleted,
+        deletedIncidents: report.incidents.deleted,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      "maintenance REAL run FAILED — partial deletes may have applied; rethrowing for BullMQ retry"
+    );
+    throw err;
+  }
 
   logger.info(
     {

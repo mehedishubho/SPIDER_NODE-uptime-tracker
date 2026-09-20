@@ -364,14 +364,19 @@ export async function upsertSchedulersAtBoot(opts: {
     }
   );
 
-  // The maintenance cleanup: daily 03:15 UTC, dry-run until its processor
-  // lands (04-07) — WRK-13 mandates the dry-run default.
+  // The maintenance cleanup: daily 03:15 UTC — REAL retention deletes since
+  // 06-04 (D-14, WR-03 closure): the hardcoded template payload carries
+  // dryRun false, restoring legacy daily-cleanup parity (pings >30d,
+  // RESOLVED incidents >90d — the 04-07 batched real-delete logic, looped
+  // LIMIT-bounded statements, D-18 count logging). The operator's manual
+  // enqueue-maintenance.mjs keeps its own explicit dry-run/apply flags, so
+  // drills never inherit this autonomous posture.
   await queues.maintenance.upsertJobScheduler(
     MAINTENANCE_CLEANUP_SCHEDULER_ID,
     { pattern: MAINTENANCE_CLEANUP_PATTERN },
     {
       name: "cleanup",
-      data: { dryRun: true },
+      data: { dryRun: false },
       opts: {
         priority: LANE_PRIORITY.maintenance,
         attempts: 5,

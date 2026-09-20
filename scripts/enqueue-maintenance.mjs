@@ -48,11 +48,17 @@
 //     LANE_PRIORITY.maintenance (5), attempts 5, exponential backoff 5000 ms,
 //     removeOnComplete age 86400, removeOnFail age 604800.
 //
-// Zero new dependencies: bullmq + ioredis are already installed; the Queue is
-// constructed directly with the workerConnection profile (maxRetriesPerRequest
-// null, enableReadyCheck on — src/worker/connection.ts). Fail-loud: exits
-// non-zero on a refused stack, an unreachable Redis, or (with --wait) a job
-// that fails or exceeds its budget. Never prints connection strings.
+// Zero new dependencies: bullmq + ioredis are already installed. WR-01/D-15
+// (06-04): the script is a PRODUCER — it never blocks on the queue — so it
+// must NOT keep the worker connection profile: maxRetriesPerRequest null lets
+// queue.add() hang FOREVER against an unreachable Redis (the exact WR-01
+// defect). Two bounded layers replace it: the web-producer profile (06-01's
+// queue-producer.ts: maxRetriesPerRequest 1, connectTimeout/commandTimeout
+// 1 s) bounds every sent command, and the ENQUEUE_DEADLINE_MS ceiling turns a
+// never-ready connection into a loud non-zero exit within seconds (the
+// 05-REVIEW deadline form). Fail-loud: exits non-zero on a refused stack, an
+// unreachable Redis, or (with --wait) a job that fails or exceeds its budget.
+// Never prints connection strings.
 
 import IORedis from "ioredis";
 import { Queue } from "bullmq";
@@ -72,6 +78,24 @@ const MAINTENANCE_JOB_OPTIONS = {
 };
 
 const REFUSED_PORT_TOKENS = [":6391", ":5454"]; // production stand-ins
+
+// WR-01/D-15: hard ceiling on the enqueue itself. The bounded profile above
+// bounds every SENT command, but a command queued while the connection never
+// becomes ready is not yet "sent" — ioredis would hold it (and reconnect)
+// indefinitely. The deadline turns any such never-ready state into a loud
+// non-zero exit within seconds, independent of the failure mode.
+const ENQUEUE_DEADLINE_MS = 5000;
+
+/** Rejects when the wrapped promise outlives `ms` (05-REVIEW WR-01 deadline form). */
+function withDeadline(promise, ms, label) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} exceeded its ${ms} ms deadline`)), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
 
 function usage() {
   return [
@@ -153,7 +177,13 @@ if (!args.allowProd) {
 // ---------------------------------------------------------------------------
 
 const connection = new IORedis(redisUrl, {
-  maxRetriesPerRequest: null, // workerConnection profile (src/worker/connection.ts)
+  // Bounded producer profile (WR-01/D-15, 06-04) — NOT the worker's
+  // null-retry blocking profile (src/worker/connection.ts): this script is
+  // producer-only, so every command must stay rejectable. On an unreachable
+  // Redis the enqueue rejects in seconds and fail() exits non-zero.
+  maxRetriesPerRequest: 1,
+  connectTimeout: 1000,
+  commandTimeout: 1000,
   enableReadyCheck: true,
 });
 connection.on("error", (err) => {
@@ -166,10 +196,10 @@ const dryRun = !args.apply; // absent/true = zero-write report; --apply = real d
 const jobId = `manual-maintenance:${dryRun ? "dryrun" : "apply"}:${Date.now()}`;
 
 try {
-  const job = await queue.add(
-    MAINTENANCE_JOB_NAME,
-    { dryRun },
-    { ...MAINTENANCE_JOB_OPTIONS, jobId }
+  const job = await withDeadline(
+    queue.add(MAINTENANCE_JOB_NAME, { dryRun }, { ...MAINTENANCE_JOB_OPTIONS, jobId }),
+    ENQUEUE_DEADLINE_MS,
+    "enqueue"
   );
   console.log(
     `JOB ${JSON.stringify({ jobId: job.id, lane: MAINTENANCE_LANE, name: MAINTENANCE_JOB_NAME, dryRun, priority: MAINTENANCE_PRIORITY })}`

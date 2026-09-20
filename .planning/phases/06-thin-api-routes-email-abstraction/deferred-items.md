@@ -57,3 +57,72 @@ the warning cannot fire there; tests stay green (13/13).
 pre-existing globalThis-singleton + resetModules discipline). Candidate follow-up:
 a one-time listener guard or `setMaxListeners` in `src/worker/db.ts` when the test
 suite grows further.
+
+## 06-01 queue-producer latent: never-connected Redis hang instead of 503
+
+**Found during:** 06-04 Task 3 rehearsal (leg-a first run diagnosis)
+
+**Symptom:** The API-01 check-now route's pre-flight ping (`src/app/api/monitors/[id]/check/route.ts`
+→ queue producer) can **hang indefinitely** against a never-connectable Redis instead
+of failing fast with the designed 503. The 202 contract's failure path is only
+exercised when Redis actively refuses; a silently unreachable endpoint (firewall drop)
+leaves the route suspended. Rehearsal evidence path: the worker's breaker covers the
+consumer side, but the producer side has no deadline of its own.
+
+**Scope decision:** Out of scope for 06-04 (pre-existing 06-01 shape; the rehearsal
+could not reproduce a 503 without breaking Redis in an active-refuse mode, and changing
+queue-producer deadline semantics is a design change, not a bug fix). Candidate
+follow-up: wrap the producer enqueue/ping in a short deadline (e.g. 2–3s) → 503;
+candidate plan: next hardening phase or 06-05 follow-up.
+
+## Machine-local `.env` NEXT_PUBLIC drift (operator action)
+
+**Found during:** 06-04 pre-flight (`pnpm verify` build leg failed at prerender)
+
+**Symptom:** This machine's `.env` lost its `NEXT_PUBLIC_BASE_URL` /
+`NEXT_PUBLIC_DEV_BASE_URL` entries, so `next build` crashed at module-load of
+`src/redux/api/baseApi.ts`. The rehearsal worked around it with build-shell-only
+overrides (see 06-DEPLOY-RECORD.md §2-D1); **no repo file was changed** and the
+production VPS `.env` is unaffected. The last full `pnpm verify` before 06-04 was
+05-09 — 06-01..06-03 ran narrower gates, which is how the drift went unnoticed.
+
+**Operator action:** restore the two NEXT_PUBLIC entries in the local `.env`.
+**Process follow-up (see item 4):** run full `pnpm verify` per phase gate.
+
+## Manual check-now on an already-UP monitor does not advance `lastChecked`
+
+**Found during:** 06-04 leg (a), first run (documented, working-as-designed)
+
+**Behavior:** `POST /api/monitors/[id]/check` on a monitor whose status equals the
+check result (UP→UP) inserts the evidence ping but the Tier-1 dedup guard
+(`src/worker/persist/tier1.ts`, `AND status <> targetStatus`) leaves `lastChecked`
+and counters untouched (DAT-04). A user clicking "Check now" on a healthy monitor
+sees the spinner resolve without the "last checked" stamp moving (D-04 quiet handoff
+covers the UX pause, not the stamp).
+
+**Scope decision:** Correct per the pinned DAT-04 semantics — recorded as a product
+observation for the operator/planner, not a defect. Candidate follow-up: decide
+whether manual checks should bypass the dedup guard for `lastChecked` only.
+
+## Full `pnpm verify` gap across 06-01..06-03 executions
+
+**Found during:** 06-04 pre-flight
+
+**Symptom:** Plans 06-01..06-03 each ran their own plan-level suites, but the full
+`pnpm verify` chain (including the build leg and e2e) did not run between 05-09 and
+06-04. The drift compound effect: machine `.env` rot went unseen (item above) and the
+stale e2e fixture (`created.test.example.com`) survived two plans until 06-04's hard
+pre-condition forced a full run (fixed in `31a56df`).
+
+**Process follow-up:** executors should run the full `pnpm verify` as the phase-gate
+pre-condition whenever a plan's verification section names it — and planners should
+keep naming it at least once per phase.
+
+## e2e fixtures must respect the 06-03 DNS-only admission contract
+
+**Found during:** 06-04 e2e run 1 (16/18)
+
+**Rule going forward:** e2e create-monitor fixtures must use **resolvable** hosts
+(e.g. `https://example.com/`), because 06-03 admission (`assertUrlAllowed`) is
+fail-closed on NXDOMAIN by design and returns 400 before the create. `.test.example.com`-
+style synthetic hosts belong only in unit tests that mock the DNS probe.

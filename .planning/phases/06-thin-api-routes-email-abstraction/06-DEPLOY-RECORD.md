@@ -392,3 +392,85 @@ machine verification in the table above.
   blocking checkpoint with its own operator gate.
 - Rollback posture for the deletion release: runbook §7 (prior tarball `d55cad5`
   form) — the §3 backup and the release artifacts discipline carry forward.
+
+---
+
+## 13. 06-05 Task 3 — deletion-release deploy, smoke, and phase closeout (2026-09-20T21:52–22:11Z)
+
+**Verbatim operator reply: "approved"** — from the operator (mehedishubho), relayed
+via the coordinator against the Task 3 checkpoint after the 21:49Z pause (received
+in the 21:49–21:53Z window; UTC date 2026-09-20, +06 local date 2026-09-21).
+Recorded under the **05-08 D-18 / 06-04 §8 / §12 bare-approval precedent**.
+
+### Approval-vs-state reconciliation (recorded plainly, per the §12 honesty form)
+
+At approval time the executing topology still ran the **Task-1 posture**: probes at
+21:53:30Z showed the worker (pid 71388, uptime continuous since ~19:40Z) reporting
+`sha:"31a56df"`, the live web answering the retired cron paths **401
+"Unauthorized Cron Request"** (pre-deletion bytes), and no fresh pre-deploy pg_dump
+in `.snapshots/`. No operator-side deploy artifacts existed on the ratified
+topology. The executor therefore took the bare approval as what the gate exists to
+give — **authorization to execute the deletion release** (the plan's Task 3 action
+assigns the deploy to the executor, as Task 1's deploy was) — and executed it with
+the machine evidence below. No operator-side attestation was recorded where machine
+evidence contradicted it, and no production state was claimed that this topology
+cannot see.
+
+### Machine-verified execution (all executor-run; UTC stamps)
+
+| Step | Evidence |
+| --- | --- |
+| Step 1 — resilience on the deletion tree | `pnpm test:resilience` fresh: **7/7, exit 0, 242.44s** (`0605-resilience-task3.log`, run ~21:57–22:01Z); the suite's tsup leg rebuilt `dist/worker.js` at 21:59:17Z (sha256 prefix `e582552a8d70d524baa4913013`) |
+| Release build provenance | Built from **HEAD `51a9fbb`** — code-identical to release commit **`e448245`** (`git diff e448245..HEAD` = 2 `.planning/` docs files only); shell-only `NEXT_PUBLIC_*` overrides per the §2-D1 form; `.next/BUILD_ID` `fX5KMtHDLVhbXLOXQ8bsX` written 22:05:00Z; `dist/worker.js` rebuilt 22:05:01Z, `WORKER_BUILD_SHA="51a9fbb"`, sha256 prefix `c289bf5f6b9ed4f9419bbc4101`; `pnpm build` exit 0 (`0605-build-deletion.log`) |
+| Step 2 — backup BEFORE deploy (DEP-03) | `docker exec spidernode-dev-db pg_dump -U postgres -F c uptime_dev` → `.snapshots/pre-0605-deletion-20260920-215941.dump` (127,682 bytes, PGDMP header) at 21:59:41Z — before any restart |
+| Worker-first swap (§4) | Old worker pid 71388 (sha `31a56df`) terminated; `:9090` verified free; new worker booted **22:08:00.540Z** from the deletion bundle — **readyz GREEN attempt 1** (`{"ok":true,"redis":{"ok":true},"db":{"ok":true}}`), all four schedulers registered (`check-tick`, `maintenance-cleanup`, `tier2-flush-sweep`, `relay-pass`); boot log `0605-worker-deletion.log` carries `sha:"51a9fbb"`, `builtAt 2026-09-20T22:05:01.814Z` |
+| **IN-01 re-check in the free window** | With the soak worker retired and 9090 free: `tests/worker/health.test.ts` **7/7 passed in 1.34s** — the deferral record's predicted real re-check, machine-verified. Disposition: GREEN with the port free; the steady-posture worker re-holds 9090 from 22:08Z, so the deferral remains environmental for full-suite runs while a worker is live (otherwise unchanged) |
+| Web swap | Old web pid 69788 terminated; `next start -p 3007` serving the deletion build — `/login` → **200** attempt 1 (`0605-web-deletion.log`) |
+| Smoke: retired paths | `GET /api/cron/check` → **404**; `GET /api/cron/cleanup` → **404** (fresh-build not-found payload carrying BUILD_ID `fX5KMtHDLVhbXLOXQ8bsX`) — the query-string-secret surface no longer exists in production (**SEC-06**) |
+| Smoke: auth gate | `GET /api/monitors` unauthenticated → **401**; `/login` → 200 |
+| Smoke: synthetic check + check-now 202 + poll | Sentinel `spidernode-ops-smoke` re-armed with throwaway credentials on the stand-in DB (value never recorded); monitor 3 flipped PENDING first (transition path); `POST /api/monitors/3/check` → **202** `{"jobId":"check-manual:3:1789942177817","queuedAt":1789942177815}` → first poll (~2s): status **UP**, `lastChecked 22:09:37.861Z` **> queuedAt**, **1 fresh ping row** past queuedAt — instant 202 + poll completion (API-01) |
+| Smoke: registration enqueues email | `POST /api/auth/register` (synthetic timestamped address) → **201**, user row created; worker processed the `email-transactional` job → single `[email-console]` verification render **within ~6s** (queue-payload `{to,subject,html}` — EML-02 through the new email module) |
+| Scheduler tick + queue-drain observation | 60s check cadence observed on the new worker (`check:2` staged at 22:08:00 / 22:09:26 / 22:10:26 — Tier-2 staging + flush); **4 pings inserted since 22:08:00Z**; all six lanes wait 0 / stalled 0 (one `delayed` per scheduler lane = next tick); breaker **CLOSED**, `backlogDrops 0`, outbox unsent 0 |
+| Stand-in mint hygiene (plan Task 2 step 7) | `.snapshots/standin-web-env.sh` CRON_SECRET line **removed** — count 1 → 0 at ~22:11Z (gitignored local file, never committed; value never recorded) |
+
+### D-14 soak proof materialized in-window (machine evidence, correcting the label)
+
+The autonomous `maintenance-cleanup` pass fired at **2026-09-20T21:15:00.143Z**
+(epoch `1789938900143`): `dryRun:false`, deleted **exactly the monitor-3 seed —
+40 pings + 1 RESOLVED incident — in batched deletes with `auditDiscrepancies:0`**
+("maintenance REAL run complete", `0604-worker-final.log`). Note the label
+correction: the cron `"15 3 * * *"` fires in **host-local +06**, i.e. 03:15 local =
+21:15Z — the prior sections' "03:15 UTC" phrasing was the intended schedule in UTC
+notation; the actual firing observed here is 21:15Z. D-14 autonomous retention is
+proven live.
+
+### Operator-attested BY the approval (not machine-verifiable from this topology)
+
+1. The three healthchecks.io dead-man dashboards quiet through the deploy window
+   (operator-side dashboards).
+2. The Task-1 real-Telegram-side states (production `TELEGRAM_WEBHOOK_SECRET`
+   mint; the one-time `setWebhook` with `secret_token`) stand as recorded in §12
+   and are untouched by this release.
+
+### Post-release steady posture (verified 22:11:16Z)
+
+| Check | Value |
+| --- | --- |
+| Worker | pid 69140, `sha:"51a9fbb"`, uptime ~196 s, readyz green |
+| Web | pid 52028 on :3007, `/login` 200, deletion BUILD_ID `fX5KMtHDLVhbXLOXQ8bsX` |
+| Retired surface | `/api/cron/check`, `/api/cron/cleanup` → **404** |
+| Queues | all lanes 0/0; breaker CLOSED; backlogDrops 0; outbox unsent 0 |
+| Monitoring continuity | check cadence flowing within one tick of the swap; 4 pings since 22:08:00Z; monitor 3 UP |
+| Rollback | `.snapshots/pre-0605-deletion-20260920-215941.dump` + runbook §7 (prior tarball restore; NOTE — the prior release re-introduces the cron path, so a rollback reverses SEC-06 and requires operator sign-off) |
+
+### Evidence map for the phase verification pass (plan Task 3 step 5)
+
+- **SEC-06** = commit `e448245` (deleted surface: routes, modules, mail.ts,
+  CRON_SECRET env, playwright writer) + extended D-41/D-27 gate (441 files, RED
+  spot-checked at Task 2) + **production 404s (this section)**.
+- **API-01/02, SEC-03/05, EML-01/02/03/05** = the 06-01..06-04 suites + the
+  feature-release soak record (§10–§12) + the fresh smoke legs above.
+- **D-26/D-27/D-30/D-31** executed as pinned; monitoring continuity held through
+  the deletion deploy (core value).
+
+**RECORD CLOSED — Phase 6 releases complete, evidenced, and operator-approved.**

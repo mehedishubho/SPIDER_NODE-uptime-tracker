@@ -580,23 +580,29 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 
 **All other claims in this research were verified (repo read, package.json, or cited primary documentation) or are locked decisions quoted verbatim from CONTEXT.md.**
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All four questions are dispositioned by the phase plans:
 
 1. **Is a Telegram webhook actually registered in production today, and with what URL?**
    - What we know: the `/start {userId}` deep-link flow and the webhook route exist; users have connected (production has telegram-bound users per 05-07's "ZERO telegram-bound users" snapshot note — that was the ANONYMIZED snapshot; live prod state unverified).
    - What's unclear: whether `setWebhook` was ever called against production, and with which URL.
    - Recommendation: operator confirms at feature-release window-open; the runbook step (re-)registers with `secret_token` regardless — making the answer non-blocking either way.
+   - Resolution: 06-04 Task 3 checkpoint captures the operator's A3 answer (registration state); the runbook §4b setWebhook step — executed inside the 06-05 Task 1 cutover — (re-)registers with `secret_token` regardless, so both possible answers are non-blocking.
 2. **Exact 503-before-write shape for register (Pitfall 6).**
    - What we know: D-29 locks 503-on-Redis-unreachable; today's route writes the user before the email step; no resend-verification route exists.
    - What's unclear: pre-flight PING vs accepting the small post-create race.
    - Recommendation: pre-flight PING on the producer connection at route top (bounded, ~1ms when healthy); disposition the residual race in the plan. Planner decides.
+   - Resolution: 06-02 Task 3 — pre-flight `webQueueProducer().ping()` at the route top returns 503 BEFORE `prisma.user.create`; the small residual post-create race is accepted and documented in a code comment (dead-men already page Redis outages; forgot-password re-requests enqueue fresh).
 3. **Limiter TTL return shape for `Retry-After` (D-06).**
    - What we know: `WINDOW_LUA` returns only the count; the window-reset seconds need PTTL from the same key.
    - What's unclear: none conceptually — extend the script to return `{count, ttl}` (or two KEYS-free returns) and update the two existing call sites' destructuring.
    - Recommendation: extend the script in the same change as the manual-check route; pin with a limiter unit test (count + ttl semantics under first-hit/repeat).
+   - Resolution: 06-01 Task 2 — `WINDOW_LUA` extended to also return the key's PTTL in the same atomic command; `rateLimit` returns `{ success, remaining, resetSeconds }` with existing call-site destructuring unchanged (no register/monitors edits in 06-01); pinned by the extended `tests/integration/rate-limit.test.ts` (first-hit vs repeat-hit semantics).
 4. **Does the check route keep a `BreakerOpenError` → 503 mapping?**
    - What we know: `enqueueManualCheck` throws `BreakerOpenError` when the breaker is open; in the web process the breaker module is a separate instance whose state is always CLOSED (nothing feeds it), so the gate is inert — Postgres-down surfaces via the route's own prisma read (500 today).
    - Recommendation: keep the catch branch (correct if ever wired) but don't rely on it; the prisma-read failure path governs. Planner disposition, zero code risk.
+   - Resolution: 06-01 Task 2 (check-route catch) — the `BreakerOpenError` → 503 branch is kept (correct if ever wired) but not relied upon; the prisma-read failure path governs the 500. Zero code risk, as recommended.
 
 ## Environment Availability
 

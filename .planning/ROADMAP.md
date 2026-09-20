@@ -277,13 +277,13 @@ Plans:
 **Plans**: 5 plans
 
 Plans:
-**Wave 1** *(parallel, no file overlap)*
+**Wave 1** *(no dependencies)*
 
 - [ ] 06-01-PLAN.md — Check-now enqueue slice: RED tests, web bounded queue producer + limiter TTL/Retry-After + apiError, check route 202 + next_check_at advance, Dashboard poll UX (API-01, API-02, SEC-05)
+
+**Wave 2** *(blocked on 06-01 — queue producer + api-error helper; parallel, no file overlap)*
+
 - [ ] 06-02-PLAN.md — Email queue slice: lib/email module (byte-verbatim template, provider selection), email lane worker with exact D-09 backoff + typed dead-lettering, register/forgot enqueue + 503, WR-02 + IN-01 (EML-01, EML-02, EML-03, EML-05, API-02)
-
-**Wave 2** *(blocked on 06-01 — api-error helper + rate-limit test ownership)*
-
 - [ ] 06-03-PLAN.md — Boundary security: webhook secret-token constant-time auth + limiter + name escape, SSRF validate-at-create, D-17 pinned-defect flips, IN-04 alert escaping (SEC-03)
 
 **Wave 3** *(blocked on 06-01 + 06-02 + 06-03)*

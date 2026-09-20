@@ -386,6 +386,37 @@ The first release that introduces `uptime-worker` is not a restart: the app does
 
 ---
 
+## 4b. Phase-6 feature release (enqueue boundary + email queue + webhook secret)
+
+The Phase-6 feature release ships four behavior changes at once (plans 06-01..06-04): manual check-now becomes a stateless **202-enqueue + client poll** (API-01, D-01..D-06), transactional email leaves the request path behind the `EMAIL_PROVIDER` interface and the `email-transactional` queue (EML-01/02, D-07..D-13), the Telegram webhook enforces `TELEGRAM_WEBHOOK_SECRET` (SEC-03/S-2, D-20) alongside DNS-only SSRF admission at monitor create/update, and the daily 03:15 UTC maintenance scheduler runs **real retention deletes** (D-14 — the 05-REVIEW WR-03 closure). **Zero schema migrations ride this release** (phase lock: the release diff touches no `drizzle/` path). Structure (D-26): **pre-flight → stand-in rehearsal + blocking operator approval (D-30) → production cutover → ~24 h soak (D-31) → deletion release (06-05)**.
+
+1. **Pre-flight — all gates green before anything deploys.**
+   - *Action:* run `pnpm verify` **and** `pnpm test:resilience` (04-08 discipline — verify is what the code does, resilience is what breakage it survives) — both must exit 0. Confirm the release diff contains zero schema migrations.
+   - *Verification:* both gate chains green; `git diff --name-only <previous-release>..` touches no `drizzle/` or `src/db/migrations` path. Record the timings and the release SHA in `.planning/phases/06-thin-api-routes-email-abstraction/06-DEPLOY-RECORD.md`.
+   - *Rollback:* nothing has deployed — fix and re-run.
+2. **Stand-in rehearsal (D-30 — no snapshot restore needed: zero migrations, no monitoring data-path changes).**
+   - *Action:* build web + worker from ONE SHA (§4 step 1 — one build produces both artifacts, D-06) and deploy to the localhost stand-in (the 05-06 topology), worker started readyz-gated, with `EMAIL_PROVIDER=console` for the email leg and a **stand-in-only** `TELEGRAM_WEBHOOK_SECRET` (never the production value; never in the evidence file). Execute the four smoke legs and record the evidence (commands + observed outcomes) in `06-DEPLOY-RECORD.md`:
+     - **(a) check-now round trip:** dashboard "check now" → POST `/api/monitors/[id]/check` returns **202 `{jobId, queuedAt}`** → the dashboard poll completes and toasts the fresh result (`lastChecked` advanced past `queuedAt`).
+     - **(b) email round trip + recover:** a registration with `EMAIL_PROVIDER=console` produces the one-line worker console dump (`[email-console] {to,subject,html}`); then the SMTP-fail-then-recover leg: point SMTP at a dead endpoint, register again, observe the first retry on the D-09 schedule (≈30 s; full table 30s/2m/8m/30m/2h), restore the endpoint, observe delivery.
+     - **(c) webhook secret refusal + acceptance:** POST the webhook with no / a wrong `X-Telegram-Bot-Api-Secret-Token` → **401** (payload never processed); with the correct secret → processed (the `/start <userId>` binding path completes).
+     - **(d) retention real delete:** seed rows older than the retention windows (pings >30 d, RESOLVED incidents >90 d), then `node scripts/enqueue-maintenance.mjs --apply --wait` → the manual pass deletes exactly the eligible rows and logs the deleted counts (`maintenance REAL run complete`).
+   - *Verification:* all four legs observed green with concrete evidence in the deploy record; the worker's `readyz` stayed green throughout.
+   - *Rollback:* none needed — the stand-in is disposable; rebuild and redeploy fixes anything.
+3. **Operator approval — BLOCKING (D-30; the §4a step-9 precedent).**
+   - *Action:* the operator reviews the four-leg evidence in `06-DEPLOY-RECORD.md` and **explicitly approves the production feature release**. The approval (name, date, verdict) is recorded in the deploy record. No approval, no production deploy.
+   - *Verification:* an affirmative approval entry referencing the evidence exists in `06-DEPLOY-RECORD.md`.
+   - *Rollback:* decline or defer — production keeps running the pre-Phase-6 release unchanged.
+4. **Production cutover (§4 ordering; `setWebhook` is INSIDE this sequence — Pitfall 5).**
+   - *Action:* §4 step 2 full `pg_dump` backup → deploy web (§4 step 5) → deploy worker + `readyz` wait (§4 step 4) → mint `TELEGRAM_WEBHOOK_SECRET` into the production env (generate strong, e.g. `openssl rand -base64 32`, restricted to Telegram's `secret_token` charset `[A-Za-z0-9_-]`) → **one-time `setWebhook` call including the `secret_token` parameter** (charset letters/digits/underscore/hyphen, length 1–256) → §4 step 6 synthetic-check smoke → if a Telegram-bound user flow is available, verify one real webhook acceptance. Enforcement and registration ship TOGETHER: until `setWebhook` runs, Telegram does not send the header and every real POST would 401 (Pitfall 5). **Rotation = re-running the same `setWebhook` call with the new token** (update the env in the same breath).
+   - *Verification:* `readyz` green post-restart; the smoke check passes; a real Telegram POST arrives carrying the header and is accepted.
+   - *Rollback:* §7 tarball restore (worker first, `readyz` gate, then web). If ONLY the webhook enforcement must be backed out, re-run `setWebhook` WITHOUT the `secret_token` parameter — Telegram stops sending the header and the old behavior resumes without a code rollback.
+5. **Soak window (D-31, ~24 h) — only then the deletion release.**
+   - *Action:* hold the release under observation ~24 h. The deletion release (06-05: `/api/cron/*` routes, `cron-logic.ts`, `db-batcher.ts`, `cleanup-logic.ts`, `CRON_SECRET`, the stale playwright `CRON_MODE=vercel` writer, D-41 remnant-gate extension) executes **only after every soak criterion is green**.
+   - *Verification:* real users exercising check-now (202 + poll completions); at least one real registration with its email delivered; the 03:15 UTC retention pass observed in the worker logs (real-delete counts line); all three worker dead-men quiet; queue depths ≈ 0 in `/metrics.json`.
+   - *Rollback:* §7 tarball restore pair; the soak clock restarts after any rollback.
+
+---
+
 ## 5. PM2 settings checklist (apply to both apps; values for `ecosystem.config.js`)
 
 | Setting | Value | Applies to | Why (one line) |
@@ -411,6 +442,8 @@ The target-topology smoke check is: **enqueue one synthetic check against a know
 **Seed values (D-19 — applied by `scripts/seed-synthetic.sql` after every migrate on a deploy topology):** the smoke target is an operator-owned monitor, never a user's. Its owner is the sentinel user `spidernode-ops-smoke` (email `ops-smoke@spidernode.internal`, **no telegram binding** — any outbox row its checks produce takes the relay's no-chat skip path, so a smoke can never page a human). The monitor's natural key is (`spidernode-ops-smoke`, `https://example.com/`): IANA's reserved documentation host — stable, publicly reachable, fast. `interval` is 1440 (once a day): `lastChecked` is seeded to `now()` because the legacy cron treats a NULL `lastChecked` as "check immediately", and `next_check_at` is seeded one interval ahead because the worker claim treats NULL as due (NULLS FIRST). The seed is idempotent (ON CONFLICT / WHERE NOT EXISTS) — re-running never resets `lastChecked`. Every Tier-1 smoke check re-advances `lastChecked`, keeping the 24 h quiet window rolling under both engines.
 
 **Re-drive (D-46 — `node scripts/redrive-outbox.mjs [--apply]`):** FAILED outbox rows are derived state (`sent_at IS NULL AND (payload ? '_relayFailure' OR attempts >= 3)`) and are RETAINED for the operator — the relay never revisits them. The re-drive lists them, and only with `--apply` re-marks them PENDING (`attempts = 0`, `_relayFailure` marker removed). **The dedup key is checked BEFORE any re-mark**: the relay writes `alert:{incidentId}:down|recovered` / `alert:{monitorId}:first_check` (TTL 7 d) only after a CONFIRMED send, so a held key means the human already got that alert — the row is reported and skipped, never double-sent. Default is dry-run (zero writes without `--apply`); rows that left the FAILED state concurrently are left untouched (idempotent UPDATE guard).
+
+**Retention note (D-14, since the Phase-6 feature release):** the worker's daily **03:15 UTC** maintenance scheduler runs REAL retention deletes autonomously — pings older than 30 days and RESOLVED incidents older than 90 days (legacy daily-cleanup parity) — in looped `≤5000`-row batched statements, with the deleted-row counts logged (`maintenance REAL run complete`). ONGOING incidents are never eligible. The manual `node scripts/enqueue-maintenance.mjs` keeps its dry-run default and explicit `--apply` flag for operator drills; the soak gate (§4b step 5) watches this log line.
 
 ---
 
@@ -447,6 +480,10 @@ curl -fsS "http://127.0.0.1:3007/api/cron/check" -H "Authorization: Bearer $CRON
 ```
 
 Prefer the `Authorization: Bearer` form — both routes accept it. The `?secret=` query-string form remains deliberately pinned as the Phase-6 red/green marker for SEC-06 (the 02-05 contract tests assert today's acceptance so Phase 6's removal is a visible behavior change); do not extend reliance on it in new tooling or docs beyond this historical note. **Death date: Phase 6** — until then the lever is part of the documented rollback posture (§4a step 11: with cron deleted, this curl is the emergency check path when the worker is paused or down).
+
+**Phase-6 execution status (amended by 06-04, per §4b):** the S-4 closure path runs in THIS phase — the feature release (§4b) puts the webhook enforcement live, and the **deletion release (06-05) retires `CRON_SECRET` together with the `/api/cron/*` routes** (API-01/SEC-06). After it, the emergency lever above is gone by design; the remaining levers are the worker pause (`WORKER_SCHEDULER_ENABLED=false` + restart) and a rollback tarball.
+
+**`TELEGRAM_WEBHOOK_SECRET` hygiene (S-2 closure, D-20):** generate strong (e.g. `openssl rand -base64 32`, restricted to Telegram's `secret_token` charset `[A-Za-z0-9_-]`), never commit it — env-only; `.env.example` documents the name, never a value — and **rotation is one `setWebhook` re-run with the new `secret_token`** (update the env and restart the web app in the same breath, then re-run the call; no code rollback involved). The stand-in mint is stand-in-only: rehearsal secrets never carry into production and never appear in evidence files (facts and hashes only).
 
 ---
 

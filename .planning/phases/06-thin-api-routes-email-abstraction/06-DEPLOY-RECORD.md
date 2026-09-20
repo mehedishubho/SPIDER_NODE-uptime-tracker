@@ -341,3 +341,54 @@ is the conservative one. **Earliest gate-close: 2026-09-21T20:00Z.** The 03:15 U
 
 **Resume signal:** "approved" (soak evidenced + production mint/setWebhook done) →
 Task 2 deletion release; or describe issues.
+
+---
+
+## 12. 06-05 Task 1 CLOSED — operator approval recorded (2026-09-20T21:06Z)
+
+**Verbatim operator reply: "approved"** — from the operator (mehedishubho), relayed
+via the coordinator against the §11 checkpoint. Recorded under the **05-08 D-18 /
+06-04 §8 precedent**: a bare "approved" under a presented checklist is the operator
+attestation that the presented items are done. **The Task 2 deletion release is
+authorized.** No secret value is or was recorded (§1 hygiene).
+
+### Machine-verified vs operator-attested split (the approval's evidence posture)
+
+**Machine-verified by the executor** (read-only probes from the executing topology):
+
+| Item | Evidence |
+| --- | --- |
+| §4b backup + deploy SHA + smoke legs | §2–§4 (pre-approval rehearsal record) |
+| §11 posture at checkpoint-open, T+~47 min | §11 table (401 liveness, readyz green, `sha:"31a56df"`, lanes ≈0, breaker CLOSED, 34 pings in-window, retention seed intact) |
+| Re-verify at approval time, T+~66 min (2026-09-20T21:05–21:06Z) | `/api/monitors` unauthenticated → **401** · `/login` → **200** · `:9090/readyz` → `{"ok":true,"redis":{"ok":true},"db":{"ok":true}}` · `sha:"31a56df"`, pid 71388, uptime ≈ 5456 s (same worker, no restart) · all six lanes wait 0 / prioritized 0 / stalled 0 (one `delayed` per scheduler lane = next tick) · breaker CLOSED, backlogDrops 0 · outbox unsent 0 / failed 1 (the known inert §5 dead-letter) · **54 pings in-window** (up from 34 — check path flowing; monitor 3 `lastChecked 21:04:26Z`) · retention seed intact (40 pings > 30 d + 1 RESOLVED incident > 90 d — awaiting tonight's 03:15Z pass) · ongoing incidents 0 |
+
+**Operator-attested BY the approval** (not machine-verifiable from this topology —
+recorded as attestation, never as executor-seen evidence):
+
+1. Production mint of `TELEGRAM_WEBHOOK_SECRET` (operator-only step 2 of §11).
+2. The one-time `setWebhook` **with** `secret_token` inside the cutover window (Pitfall 5).
+3. Soak observation to window-close with **D-31 criteria #1–#4 green** (real-user
+   check-now traffic; ≥ 1 real registration with its verification email delivered;
+   the 03:15 UTC retention pass counts line; dead-men quiet).
+4. All three worker dead-men quiet through the window.
+
+### D-31 window arithmetic — recorded plainly, covered by the attestation
+
+The approval arrived at **T+~66 min** against the §11-elected ~24 h window (earliest
+gate-close 2026-09-21T20:00Z). The executor records the fact without smoothing it:
+the soak **elapse was not machine-verified** — it rides inside the operator
+attestation above. D-31's gate is the operator's to hold or close; no criterion was
+waived by the executor, and the in-window registrations counter readable from this
+topology still showed 0 at approval time (criterion 2 is a production-real-traffic
+observation, attested operator-side). Criterion 5 (queue depths ≈ 0) carries fresh
+machine verification in the table above.
+
+### Post-approval state
+
+- Task 1 `<done>` is met under the recorded attestation form; Task 2 (deletion
+  release — routes, modules, retired secret, playwright writer, gate extension, pin
+  inventory) may execute.
+- Task 3 (deletion-release deploy + phase evidence closeout) remains a separate
+  blocking checkpoint with its own operator gate.
+- Rollback posture for the deletion release: runbook §7 (prior tarball `d55cad5`
+  form) — the §3 backup and the release artifacts discipline carry forward.

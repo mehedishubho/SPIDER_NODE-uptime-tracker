@@ -145,3 +145,24 @@ keep naming it at least once per phase.
 (e.g. `https://example.com/`), because 06-03 admission (`assertUrlAllowed`) is
 fail-closed on NXDOMAIN by design and returns 400 before the create. `.test.example.com`-
 style synthetic hosts belong only in unit tests that mock the DNS probe.
+
+## IN-01 test binds the real default port 9090 — collides with any live worker
+
+**Found during:** Wave-3 post-merge test gate (orchestrator run, post-06-04 cutover
+continuation)
+
+**Symptom:** `tests/worker/health.test.ts` — "startHealthServer with
+WORKER_HEALTH_PORT set to the EMPTY STRING binds 9090" fails with
+`EADDRINUSE 127.0.0.1:9090` whenever a worker is running locally. The D-31 soak
+posture (worker pid on release `31a56df`, health server on 9090) now occupies the
+port for the soak window's duration, so full-suite runs fail this one test while
+the soak worker is up (379/380 passed; zero assertion regressions).
+
+**Fix direction:** keep the unit-level pin (`resolveWorkerHealthPort("") === 9090`)
+and make the bind-path test port-configurable (or skip-with-reason when 9090 is
+held by a healthy `/readyz` responder), so the suite is green on machines running
+the steady-posture worker.
+
+**Decision:** wave gate continued per operator choice — environmental, soak worker
+intentionally untouched. Suite was fully green in every executor run while the
+port was free (06-02: 40/355+; 06-03: 40/376; 06-04 pre-flight resilience 7/7).

@@ -3,6 +3,10 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { Client } from "pg";
 import Redis from "ioredis";
 import type { Job } from "bullmq";
+import type { SQL } from "drizzle-orm";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type * as schema from "@/db/schema";
+import { workerDb } from "@/worker/db";
 import {
   INCIDENT_RETENTION_DAYS,
   PING_RETENTION_DAYS,
@@ -40,10 +44,14 @@ import { RELAY_PASS_EVERY_MS } from "@/worker/persist/outbox";
 //      stored uptime_percent unchanged before/after)
 //   3. real run — 5015 beyond-horizon pings delete in [5000, 15] batches
 //      (every statement ≤ RETENTION_BATCH), fresh rows untouched, ONGOING
-//      incident never eligible (T-04-27)
+//      incident never eligible (T-04-27); the pass logs its deleted-row
+//      counts at info level (D-18, 06-04)
 //   4. D-16 — WORKER_SCHEDULER_ENABLED=false: zero scheduler upserts, yet a
 //      manual enqueueMaintenance({dryRun}) processes end-to-end on the real
 //      maintenance-lane Worker
+//   5. D-18 (06-04) — a THROWING real pass logs at ERROR level (never a
+//      silent failure) and rethrows so BullMQ's attempts/backoff keep the
+//      retry contract
 // ---------------------------------------------------------------------------
 
 let pg: Client;
@@ -142,6 +150,20 @@ async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 10_000): P
 }
 
 const cleanupJob = (data: unknown) => ({ id: `maintenance-test-${crypto.randomUUID().slice(0, 8)}`, name: "cleanup", data });
+
+/** Renders a drizzle sql`` template's raw text chunks (test-only routing key). */
+function sqlText(query: SQL): string {
+  const chunks = (query as unknown as { queryChunks?: unknown[] }).queryChunks ?? [];
+  return chunks
+    .map((chunk) => {
+      if (chunk === null || chunk === undefined) return "";
+      const value = (chunk as { value?: unknown }).value;
+      if (Array.isArray(value)) return value.join("");
+      if (typeof chunk === "string") return chunk;
+      return "";
+    })
+    .join("");
+}
 
 beforeAll(async () => {
   admin = new Redis(process.env.REDIS_URL!);
@@ -322,9 +344,10 @@ describe("maintenance lane — WRK-13 / DAT-08 / D-37", () => {
       const recentResolvedId = await seedIncident(monitor, "RESOLVED", 10);
       const ongoingId = await seedIncident(monitor, "ONGOING");
 
+      const logger = fakeLogger();
       const report = await processMaintenanceJob(cleanupJob({ dryRun: false }), {
         redis: admin,
-        logger: fakeLogger(),
+        logger,
       });
 
       // Every statement capped at RETENTION_BATCH; the 5015 rows took exactly
@@ -335,6 +358,16 @@ describe("maintenance lane — WRK-13 / DAT-08 / D-37", () => {
       for (const batch of report.pings.batches) {
         expect(batch).toBeLessThanOrEqual(RETENTION_BATCH);
       }
+
+      // D-18 (06-04): the real pass logs its deleted-row counts — the
+      // structured summary line carries both tables' deleted numbers for the
+      // job log / operator.
+      const summaryLine = logger.info.mock.calls
+        .map((call) => JSON.stringify(call))
+        .find((line) => line.includes("maintenance REAL run complete"));
+      expect(summaryLine).toBeDefined();
+      expect(summaryLine).toContain('"deletedPings":5015');
+      expect(summaryLine).toContain('"deletedIncidents":1');
 
       // Incidents: only the 100-day RESOLVED went; recent RESOLVED and the
       // ONGOING incident survive (T-04-27).
@@ -390,6 +423,56 @@ describe("maintenance lane — WRK-13 / DAT-08 / D-37", () => {
       // Processing consumed the job but created ZERO recurring schedulers —
       // the D-16 invariant.
       expect(await queues.maintenance.getJobSchedulers()).toEqual([]);
+    },
+    20_000
+  );
+
+  it(
+    "5. D-18 (06-04): a throwing real pass logs at ERROR level and rethrows — never a silent failure",
+    async () => {
+      const monitor = await seedMonitor({ totalChecks: 1, failedChecks: 0, uptimePercent: 100 });
+      await seedPings(monitor, 2, 40); // beyond the 30-day horizon — eligible
+
+      // TEST-ONLY seam (04-08 discipline): wrap the real workerDb and inject
+      // the failure exactly at the pings DELETE statement. Everything before
+      // it (the deletable counts, D-37 audit, write_guards observation) runs
+      // against the real test database.
+      const failingDb = {
+        execute: async (query: SQL) => {
+          if (sqlText(query).includes("DELETE FROM pings")) {
+            throw new Error("injected pings DELETE failure (D-18 error-path pin)");
+          }
+          return workerDb.execute(query);
+        },
+      };
+
+      const logger = fakeLogger();
+      await expect(
+        processMaintenanceJob(cleanupJob({ dryRun: false }), {
+          db: failingDb as unknown as NodePgDatabase<typeof schema>,
+          redis: admin,
+          logger,
+        })
+      ).rejects.toThrow(/injected pings DELETE failure/);
+
+      // D-18: the failure is LOUD — one error-level line naming the job and
+      // the partial state, before the rethrow that drives BullMQ's retry.
+      const errLine = logger.error.mock.calls
+        .map((call) => JSON.stringify(call))
+        .find((line) => line.includes("maintenance REAL run FAILED"));
+      expect(errLine).toBeDefined();
+      expect(errLine).toContain('"dryRun":false');
+      expect(errLine).toContain("injected pings DELETE failure");
+
+      // Zero silent partial loss: the injected failure fired on the FIRST
+      // pings batch, so nothing was deleted.
+      expect(await countRows("pings")).toBe(2);
+
+      // No success summary for a failed pass.
+      const successLine = logger.info.mock.calls
+        .map((call) => JSON.stringify(call))
+        .find((line) => line.includes("maintenance REAL run complete"));
+      expect(successLine).toBeUndefined();
     },
     20_000
   );

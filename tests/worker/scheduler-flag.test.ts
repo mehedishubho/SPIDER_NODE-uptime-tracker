@@ -34,7 +34,10 @@ import { startHealthServer } from "@/worker/health";
 //      SCHEDULING only — never a paused queue, Pitfall 12)
 //   2. flag true -> exactly one check-tick + one maintenance-cleanup
 //      scheduler; re-upsert is idempotent; after a simulated Redis restart
-//      (flush) the next boot re-declares, still exactly one (RES-05)
+//      (flush) the next boot re-declares, still exactly one (RES-05);
+//      the maintenance template carries DRYRUN FALSE (D-14, 06-04) — the
+//      daily 03:15 pass runs REAL retention deletes, restoring legacy
+//      daily-cleanup parity (05-REVIEW WR-03)
 //   3. processTick assigns lanes through the real claim: UP -> priority 10,
 //      non-UP -> priority 1, jobId = check:{monitorId}:{claim-epoch}
 //   4. /metrics.json carries the queue section (per-lane depth, head-waiting
@@ -165,6 +168,11 @@ describe("scheduler flag + tick lane (WRK-10 / D-16 / RES-05)", () => {
       expect(maintenanceSchedulers).toHaveLength(1);
       expect(maintenanceSchedulers[0].key).toBe(MAINTENANCE_CLEANUP_SCHEDULER_ID);
       expect(maintenanceSchedulers[0].pattern).toBe(MAINTENANCE_CLEANUP_PATTERN);
+      // D-14 (06-04): the daily template carries REAL retention deletes —
+      // dryRun false is hardcoded in the template payload, so the 03:15 UTC
+      // pass deletes (pings >30d, RESOLVED incidents >90d). The operator's
+      // manual script keeps its own explicit dry-run/apply flags.
+      expect(maintenanceSchedulers[0].template?.data).toEqual({ dryRun: false });
 
       // Idempotent: a second boot (concurrent or restart) converges — still
       // exactly one scheduler per id, at most one delayed job per scheduler.

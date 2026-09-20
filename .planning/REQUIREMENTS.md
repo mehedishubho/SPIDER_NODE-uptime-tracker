@@ -113,11 +113,11 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 
 ### Email
 
-- [ ] **EML-01**: Provider interface (`send()`) with env-selected providers: SMTP (Nodemailer, current Hostinger behavior), console (dev); extensible to Resend
-- [ ] **EML-02**: Email sends off the request path via queue (bounded attempts, backoff); registration succeeds when SMTP is down (degradation path defined) (N-6)
-- [ ] **EML-03**: Typed retryable-vs-permanent errors — hopeless sends do not retry (`UnrecoverableError`)
+- [x] **EML-01**: Provider interface (`send()`) with env-selected providers: SMTP (Nodemailer, current Hostinger behavior), console (dev); extensible to Resend
+- [x] **EML-02**: Email sends off the request path via queue (bounded attempts, backoff); registration succeeds when SMTP is down (degradation path defined) (N-6)
+- [x] **EML-03**: Typed retryable-vs-permanent errors — hopeless sends do not retry (`UnrecoverableError`)
 - [ ] **EML-04**: Better Auth hooks (`sendVerificationEmail`, `sendResetPassword`) delegate to the same queue
-- [ ] **EML-05**: Existing HTML template preserved verbatim through the migration (relocated, not redesigned)
+- [x] **EML-05**: Existing HTML template preserved verbatim through the migration (relocated, not redesigned)
 
 ### Observability
 
@@ -260,10 +260,10 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | SEC-03 | Phase 6 | Pending |
 | SEC-05 | Phase 6 | Complete |
 | SEC-06 | Phase 6 | Pending |
-| EML-01 | Phase 6 | Pending |
-| EML-02 | Phase 6 | Pending |
-| EML-03 | Phase 6 | Pending |
-| EML-05 | Phase 6 | Pending |
+| EML-01 | Phase 6 | Complete |
+| EML-02 | Phase 6 | Complete |
+| EML-03 | Phase 6 | Complete |
+| EML-05 | Phase 6 | Complete |
 | AUTH-01 | Phase 7 | Pending |
 | AUTH-02 | Phase 7 | Pending |
 | AUTH-03 | Phase 7 | Pending |

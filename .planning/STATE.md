@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 06
 current_phase_name: thin-api-routes-email-abstraction
 status: executing
-stopped_at: Phase 6 UI-SPEC approved
-last_updated: "2026-09-20T17:23:10.767Z"
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-09-20T17:56:51.790Z"
 last_activity: 2026-09-20
 last_activity_desc: Phase 06 execution started
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 50
-  completed_plans: 45
+  completed_plans: 47
   percent: 63
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 ## Current Position
 
 Phase: 06 (thin-api-routes-email-abstraction) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-09-20 — Phase 06 execution started
 
@@ -104,6 +104,7 @@ Progress: [████████████████████] 45/45 p
 | Phase 05 P08 | ~19h | 5 tasks | 3 files |
 | Phase 05 P09 | 3h20m | - tasks | - files |
 | Phase 06 P01 | 34m | 3 tasks | 10 files |
+| Phase 06 P02 | 26m | 3 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -265,6 +266,9 @@ Recent decisions affecting current work:
 - [Phase ?]: Manual check is a stateless producer: POST returns 202 {jobId, queuedAt}; the client polls GET /api/monitors until lastChecked > queuedAt — never BullMQ job state (06-01, D-01/D-05)
 - [Phase ?]: Web-side BullMQ access goes through a globalThis-cached bounded producer (maxRetriesPerRequest 1, 1s connect/command timeouts): Redis-down rejects fast to a 503 instead of hanging the request (06-01, API-02)
 - [Phase ?]: Rate limiter now returns resetSeconds from the atomic INCR+EXPIRE+PTTL Lua script; 429s carry a numeric Retry-After header (06-01, D-06/SEC-05)
+- [Phase 06]: Email lane uses Worker settings.backoffStrategy with the exact D-09 table [30s,2m,8m,30m,2h]; EMAIL_JOB_OPTIONS lives only in src/lib/email/enqueue.ts (queues.ts re-export dropped — module-scope cycle)
+- [Phase 06]: EML-03 conservative error taxonomy: only EAUTH/EENVELOPE/EMESSAGE/responseCode>=500 dead-letter via UnrecoverableError; timeouts/4xx/unknown retry per D-09
+- [Phase 06]: Register/forgot pre-flight ping placed before the Redis-backed limiter so Redis-down deterministically yields the bounded 503 (D-29/Pitfall 6)
 
 ### Pending Todos
 
@@ -288,6 +292,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-20T17:22:55.869Z
-Stopped at: Phase 6 UI-SPEC approved
-Resume file: .planning/phases/06-thin-api-routes-email-abstraction/06-UI-SPEC.md
+Last session: 2026-09-20T17:56:51.784Z
+Stopped at: Completed 06-02-PLAN.md
+Resume file: None

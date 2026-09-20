@@ -34,3 +34,26 @@ directly caused by the plan's changes — no auto-fix per executor scope boundar
 Candidate follow-ups if it interferes with CI gates: retry-once wrapper in CI, pin
 `poolOptions.forks.execArgv` / isolate the flaky fork, or upgrade vitest when a fix
 lands. Re-raise with the platform owner if it blocks the Phase 06 release gate.
+
+## BoundPool error-listener warning during auth handler tests (test-only)
+
+**Found during:** 06-02 plan-level verification (`tests/api/auth-shallow.handler.test.ts`)
+
+**Symptom:** After 06-02, the auth handler file logs:
+
+```
+(node) MaxListenersExceededWarning: Possible EventEmitter memory leak detected.
+11 error listeners added to [BoundPool]. MaxListeners is 10.
+```
+
+**Cause:** The register/forgot routes now import `@/lib/email/enqueue` ->
+`@/worker/queues` -> `./breaker`/`./db`. `workerPgPool` is globalThis-cached, but
+each `vi.resetModules()` case re-evaluates the importing module and attaches a
+fresh `error` listener to the SAME cached pool — 13 cases cross the 10-listener
+default within one file run. Production evaluates these modules exactly once, so
+the warning cannot fire there; tests stay green (13/13).
+
+**Scope decision:** Out of scope for 06-02 (warning-only, test-run artifact of the
+pre-existing globalThis-singleton + resetModules discipline). Candidate follow-up:
+a one-time listener guard or `setMaxListeners` in `src/worker/db.ts` when the test
+suite grows further.

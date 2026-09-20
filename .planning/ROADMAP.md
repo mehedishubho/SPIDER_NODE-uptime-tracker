@@ -274,7 +274,7 @@ Plans:
   3. No endpoint accepts a secret via query string and no `CRON_SECRET` reference remains in the codebase; error responses never leak stack traces or internals
   4. With SMTP down, account registration still completes and the verification email arrives once SMTP recovers (queued, bounded attempts, backoff); a permanently undeliverable address stops retrying via a typed unrecoverable error; the existing HTML template renders unchanged from its new location
 
-**Plans**: 4/5 plans executed
+**Plans**: 5/5 plans executed
 
 Plans:
 **Wave 1** *(no dependencies)*
@@ -292,7 +292,7 @@ Plans:
 
 **Wave 4** *(final — blocked on 06-04 approval)*
 
-- [ ] 06-05-PLAN.md — Production feature release + setWebhook cutover + 24h soak gate, then deletion release: cron routes/modules/secret/playwright writer deleted, D-41 gate extended, D-27 pin inventory (SEC-06)
+- [x] 06-05-PLAN.md — Production feature release + setWebhook cutover + 24h soak gate, then deletion release: cron routes/modules/secret/playwright writer deleted, D-41 gate extended, D-27 pin inventory (SEC-06)
 
 ### Phase 7: Better Auth Cutover, Admin Gating & Prisma Removal
 
@@ -357,6 +357,6 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | 3. Redis & Drizzle Schema Ownership | 0/TBD | Not started | - |
 | 4. Monitoring Worker — Build & Dark Launch | 0/9 | Planned — research resolved, 9 plans across 6 waves | - |
 | 5. Worker Cutover & Operational Hardening | 9/9 | Complete — deletion release d55cad5 shipped (worker owns 100% of checks, legacy cron deleted); D-18 approved, D-21 resolved-by-absence, tier-2 rollback rehearsed | 2026-09-19 |
-| 6. Thin API Routes & Email Abstraction | 0/TBD | Not started | - |
+| 6. Thin API Routes & Email Abstraction | 5/5 | In Progress|  |
 | 7. Better Auth Cutover, Admin Gating & Prisma Removal | 0/TBD | Not started | - |
 | 8. Flagged Capabilities & UI Modernization | 0/TBD | Not started | - |

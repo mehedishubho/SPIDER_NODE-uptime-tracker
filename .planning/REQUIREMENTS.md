@@ -92,7 +92,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [x] **SEC-03**: Telegram webhook authenticated via `secret_token` (X-Telegram-Bot-Api-Secret-Token header check) (S-2)
 - [ ] **SEC-04**: Admin role via Better Auth admin plugin; feedback listing admin-gated; any queue UI admin-gated + IP allowlist (S-3)
 - [x] **SEC-05**: Per-user enqueue rate limiter on the manual-check endpoint
-- [ ] **SEC-06**: No secret accepted via query string; `CRON_SECRET` retires with the cron endpoints (S-4/R15)
+- [x] **SEC-06**: No secret accepted via query string; `CRON_SECRET` retires with the cron endpoints (S-4/R15)
 
 ### API Layer
 
@@ -259,7 +259,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | API-02 | Phase 6 | Complete |
 | SEC-03 | Phase 6 | Complete |
 | SEC-05 | Phase 6 | Complete |
-| SEC-06 | Phase 6 | Pending |
+| SEC-06 | Phase 6 | Complete |
 | EML-01 | Phase 6 | Complete |
 | EML-02 | Phase 6 | Complete |
 | EML-03 | Phase 6 | Complete |

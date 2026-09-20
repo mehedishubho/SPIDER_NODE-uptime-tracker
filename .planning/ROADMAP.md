@@ -274,7 +274,25 @@ Plans:
   3. No endpoint accepts a secret via query string and no `CRON_SECRET` reference remains in the codebase; error responses never leak stack traces or internals
   4. With SMTP down, account registration still completes and the verification email arrives once SMTP recovers (queued, bounded attempts, backoff); a permanently undeliverable address stops retrying via a typed unrecoverable error; the existing HTML template renders unchanged from its new location
 
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+**Wave 1** *(parallel, no file overlap)*
+
+- [ ] 06-01-PLAN.md — Check-now enqueue slice: RED tests, web bounded queue producer + limiter TTL/Retry-After + apiError, check route 202 + next_check_at advance, Dashboard poll UX (API-01, API-02, SEC-05)
+- [ ] 06-02-PLAN.md — Email queue slice: lib/email module (byte-verbatim template, provider selection), email lane worker with exact D-09 backoff + typed dead-lettering, register/forgot enqueue + 503, WR-02 + IN-01 (EML-01, EML-02, EML-03, EML-05, API-02)
+
+**Wave 2** *(blocked on 06-01 — api-error helper + rate-limit test ownership)*
+
+- [ ] 06-03-PLAN.md — Boundary security: webhook secret-token constant-time auth + limiter + name escape, SSRF validate-at-create, D-17 pinned-defect flips, IN-04 alert escaping (SEC-03)
+
+**Wave 3** *(blocked on 06-01 + 06-02 + 06-03)*
+
+- [ ] 06-04-PLAN.md — Worker hardening (retention real deletes D-14/D-18, WR-01 script deadline) + runbook §4b + env + stand-in feature-release rehearsal + operator approval (API-01, API-02, SEC-03, EML-02)
+
+**Wave 4** *(final — blocked on 06-04 approval)*
+
+- [ ] 06-05-PLAN.md — Production feature release + setWebhook cutover + 24h soak gate, then deletion release: cron routes/modules/secret/playwright writer deleted, D-41 gate extended, D-27 pin inventory (SEC-06)
 
 ### Phase 7: Better Auth Cutover, Admin Gating & Prisma Removal
 

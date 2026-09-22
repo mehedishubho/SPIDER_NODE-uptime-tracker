@@ -308,7 +308,7 @@ Plans:
   4. Admin gating works end-to-end: roles via the Better Auth admin plugin, feedback listing admin-only, and the Bull Board queue UI reachable only for admins from allowlisted IPs
   5. Removal is complete: no NextAuth deps or custom auth routes, no Redux `auth` slice / token mirror / `js-cookie` (the Better Auth client is the single auth source), and no `prisma/` directory, generated client, or `@prisma/*` deps — every read path runs on Drizzle with the test suite green
 
-**Plans**: 9 plans
+**Plans**: 0/9 plans executed
 
 Plans:
 **Wave 1** *(parallel, no file overlap)*
@@ -390,5 +390,5 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | 4. Monitoring Worker — Build & Dark Launch | 0/9 | Planned — research resolved, 9 plans across 6 waves | - |
 | 5. Worker Cutover & Operational Hardening | 9/9 | Complete — deletion release d55cad5 shipped (worker owns 100% of checks, legacy cron deleted); D-18 approved, D-21 resolved-by-absence, tier-2 rollback rehearsed | 2026-09-19 |
 | 6. Thin API Routes & Email Abstraction | 5/5 | In Progress|  |
-| 7. Better Auth Cutover, Admin Gating & Prisma Removal | 0/TBD | Not started | - |
+| 7. Better Auth Cutover, Admin Gating & Prisma Removal | 0/9 | Planned    |  |
 | 8. Flagged Capabilities & UI Modernization | 0/TBD | Not started | - |

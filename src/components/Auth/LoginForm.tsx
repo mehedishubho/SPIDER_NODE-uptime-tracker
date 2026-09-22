@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import logo from "@/assets/logo.png";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { Activity01Icon as Activity, ArrowRight01Icon as ArrowRight, GithubIcon as Github, Mail01Icon as Mail, LockIcon as Lock, ViewIcon as Eye, ViewOffIcon as EyeOff, Loading01Icon as Loader2 } from "hugeicons-react";
 
@@ -41,15 +41,19 @@ function LoginFormContent() {
 
     setIsLoading(true);
     try {
-      const res = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-      });
+      const res = await authClient.signIn.email({ email, password });
 
       if (res?.error) {
-        toast.error(res.error || "Invalid email or password.");
-      } else if (res?.ok) {
+        if (res.error.status === 403) {
+          // D-23: the engine's EMAIL_NOT_VERIFIED rejection maps onto the
+          // exact legacy authorize() string (src/lib/auth.ts parity, D-33).
+          toast.error("Please verify your email address before logging in.");
+        } else if (res.error.status === 401) {
+          toast.error("Invalid email or password.");
+        } else {
+          toast.error(res.error.message || "Invalid email or password.");
+        }
+      } else if (res?.data) {
         toast.success("Welcome back! Redirecting to dashboard...");
         window.location.href = callbackUrl;
       }
@@ -64,7 +68,16 @@ function LoginFormContent() {
   const handleSocialLogin = async (provider: "google" | "github") => {
     setSocialLoading(provider);
     try {
-      await signIn(provider, { callbackUrl });
+      const { error } = await authClient.signIn.social({
+        provider,
+        callbackURL: callbackUrl,
+      });
+      // D-26: a refused initiation (incl. the not-linked disposition) maps
+      // onto the frozen "Failed to initiate sign in with ${provider}" toast.
+      if (error) {
+        toast.error(`Failed to initiate sign in with ${provider}`);
+        setSocialLoading(null);
+      }
     } catch (err) {
       console.error(err);
       toast.error(`Failed to initiate sign in with ${provider}`);

@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { LockIcon as Lock, ViewIcon as Eye, ViewOffIcon as EyeOff, Loading01Icon as Loader2, ArrowLeft01Icon as ArrowLeft } from "hugeicons-react";
 import { toast } from "sonner";
+import { authClient } from "@/lib/auth-client";
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
@@ -34,16 +35,16 @@ function ResetPasswordContent() {
 
     setIsLoading(true);
     try {
-      const res = await fetch("/api/auth/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
+      const res = await authClient.resetPassword({
+        newPassword: password,
+        token,
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast.error(data.error || "Failed to reset password.");
+      if (res?.error) {
+        // Dead/expired pre-flip tokens land here (D-20): the engine's error
+        // message surfaces on the EXISTING error path — no new copy, no new
+        // screen.
+        toast.error(res.error.message || "Failed to reset password.");
         setIsLoading(false);
         return;
       }

@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import logo from "@/assets/logo.png";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { Activity01Icon as Activity, ArrowRight01Icon as ArrowRight, GithubIcon as Github, Mail01Icon as Mail, LockIcon as Lock, UserIcon as User, ViewIcon as Eye, ViewOffIcon as EyeOff, Loading01Icon as Loader2 } from "hugeicons-react";
 
@@ -34,17 +34,15 @@ export function RegisterForm() {
 
     setIsLoading(true);
     try {
-      // 1. Call Register API
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-      });
+      // The engine enqueues the verification email (sendOnSignUp) and mints
+      // NO session (D-25, autoSignIn: false) — the existing success path is
+      // correct as-is. A duplicate-email sign-up returns a synthetic 200
+      // (enumeration protection, accepted A4 delta) and shows the same
+      // success toast.
+      const res = await authClient.signUp.email({ email, password, name });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast.error(data.error || "Failed to register account.");
+      if (res?.error) {
+        toast.error(res.error.message || "Failed to register account.");
         setIsLoading(false);
         return;
       }
@@ -63,7 +61,15 @@ export function RegisterForm() {
   const handleSocialLogin = async (provider: "google" | "github") => {
     setSocialLoading(provider);
     try {
-      await signIn(provider, { callbackUrl: "/dashboard" });
+      const { error } = await authClient.signIn.social({
+        provider,
+        callbackURL: "/dashboard",
+      });
+      // D-26: a refused initiation maps onto the frozen sign-up toast.
+      if (error) {
+        toast.error(`Failed to initiate sign up with ${provider}`);
+        setSocialLoading(null);
+      }
     } catch (err) {
       console.error(err);
       toast.error(`Failed to initiate sign up with ${provider}`);

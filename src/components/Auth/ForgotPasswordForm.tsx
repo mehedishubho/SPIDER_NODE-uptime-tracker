@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { Mail01Icon as Mail, ArrowLeft01Icon as ArrowLeft, Loading01Icon as Loader2 } from "hugeicons-react";
 import { toast } from "sonner";
+import { authClient } from "@/lib/auth-client";
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
@@ -19,16 +20,13 @@ export function ForgotPasswordForm() {
 
     setIsLoading(true);
     try {
-      const res = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+      const res = await authClient.requestPasswordReset({
+        email,
+        redirectTo: "/reset-password",
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast.error(data.error || "Something went wrong.");
+      if (res?.error) {
+        toast.error(res.error.message || "Something went wrong.");
         setIsLoading(false);
         return;
       }

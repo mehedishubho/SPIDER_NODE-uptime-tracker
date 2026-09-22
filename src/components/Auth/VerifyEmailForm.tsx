@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckmarkCircle01Icon as CheckCircle, Cancel01Icon as XCircle, Loading01Icon as Loader } from "hugeicons-react";
 import { toast } from "sonner";
+import { authClient } from "@/lib/auth-client";
 import { Suspense } from "react";
 
 function VerifyEmailContent() {
@@ -23,26 +24,22 @@ function VerifyEmailContent() {
       }
 
       try {
-        const res = await fetch("/api/auth/verify-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token }),
-        });
+        const res = await authClient.verifyEmail({ query: { token } });
 
-        const data = await res.json();
-
-        if (!res.ok) {
+        if (res?.error) {
+          // Dead pre-flip tokens land on the EXISTING error state (D-20 —
+          // no new copy, no new screen).
           setStatus("error");
-          setMessage(data.error || "Something went wrong.");
+          setMessage(res.error.message || "An unexpected error occurred.");
           return;
         }
 
         setStatus("success");
         setMessage("Email verified successfully!");
         toast.success("Email verified successfully!");
-      } catch (error) {
+      } catch (err) {
         setStatus("error");
-        setMessage("Something went wrong. Please try again.");
+        setMessage("An unexpected error occurred.");
       }
     };
 

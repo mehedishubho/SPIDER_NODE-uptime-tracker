@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Suspense } from "react";
 import ReduxProvider from "@/redux/Provider";
-import AuthProvider from "@/providers/AuthProvider";
 import Loading from "@/components/Others/Loader/Loading";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { ThemedToaster } from "@/components/theme/ThemedToaster";
@@ -28,12 +27,10 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <Suspense fallback={<Loading />}>
-            <AuthProvider>
-              <ReduxProvider>
-                {children}
-                <ThemedToaster />
-              </ReduxProvider>
-            </AuthProvider>
+            <ReduxProvider>
+              {children}
+              <ThemedToaster />
+            </ReduxProvider>
           </Suspense>
         </ThemeProvider>
       </body>

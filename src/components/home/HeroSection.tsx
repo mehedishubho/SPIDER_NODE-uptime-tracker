@@ -2,11 +2,11 @@
 
 import React from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { useAuthSession } from "@/lib/auth-client";
 import { Activity01Icon as Activity, ArrowRight01Icon as ArrowRight } from "hugeicons-react";
 
 export default function HeroSection() {
-  const { data: session } = useSession();
+  const { data: session } = useAuthSession();
 
   return (
     <div className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-16 pb-24 text-center">

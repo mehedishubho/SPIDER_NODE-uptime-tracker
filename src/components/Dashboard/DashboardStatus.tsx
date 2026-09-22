@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useAuthSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Activity01Icon as Activity, CheckmarkCircle02Icon as CheckCircle2, Clock01Icon as Clock, Copy01Icon as Copy, LinkSquare01Icon as ExternalLink, GlobeIcon as Globe, Loading01Icon as Loader2, RefreshIcon as RefreshCw, CancelCircleIcon as XCircle } from "hugeicons-react";
@@ -23,7 +23,8 @@ interface StatusData {
 }
 
 export function DashboardStatus() {
-  const { data: session, status } = useSession();
+  const { data: session, isPending } = useAuthSession();
+  const status = isPending ? "loading" : session ? "authenticated" : "unauthenticated";
   const router = useRouter();
   const [data, setData] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);

@@ -14,3 +14,17 @@ import { createAuthClient } from "better-auth/react";
 // ---------------------------------------------------------------------------
 
 export const authClient = createAuthClient();
+
+// ---------------------------------------------------------------------------
+// The session accessor the swapped components consume (07-04 Task 2). It
+// wraps authClient's reactive session hook and returns Better Auth's
+// { data, error, isPending, isRefetching, refetch } where data is
+// { session, user } | null — user carries id/email/name/image natively from
+// the users row. Components derive the legacy three-state shape from
+// isPending + data, keeping every existing status check byte-identical.
+// Defined HERE so the component tree never references the underlying hook
+// by name and better-auth/react keeps exactly one importer (AUTH-08).
+// ---------------------------------------------------------------------------
+export function useAuthSession() {
+  return authClient.useSession();
+}

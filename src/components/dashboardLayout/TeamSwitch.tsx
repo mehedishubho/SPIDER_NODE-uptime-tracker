@@ -8,7 +8,7 @@ import {
 import { logout } from "@/redux/features/auth/authSlice";
 import Cookies from "js-cookie";
 import { Logout01Icon as LogOut, Activity01Icon as Activity } from "hugeicons-react";
-import { signOut } from "next-auth/react";
+import { authClient } from "@/lib/auth-client";
 import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
@@ -42,11 +42,12 @@ export function TeamSwitcher({
       .map((part) => part[0]?.toUpperCase())
       .join("") || "U";
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     dispatch(logout());
     Cookies.remove("token");
     toast.success("Logged out successfully!");
-    signOut({ callbackUrl: "/login" });
+    await authClient.signOut();
+    window.location.href = "/login";
   };
 
   const handleLogoutClick = async () => {

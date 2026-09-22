@@ -2,13 +2,14 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useSession, signOut } from "next-auth/react";
+import { authClient, useAuthSession } from "@/lib/auth-client";
 import { Activity01Icon as Activity, GithubIcon as Github, DashboardSquare01Icon as LayoutDashboard, Login01Icon as LogIn, Logout01Icon as LogOut, Menu01Icon as Menu, Cancel01Icon as X } from "hugeicons-react";
 import logo from "@/assets/logo.png"
 import Image from "next/image";
 
 export const Navbar = () => {
-  const { data: session, status } = useSession();
+  const { data: session, isPending } = useAuthSession();
+  const status = isPending ? "loading" : session ? "authenticated" : "unauthenticated";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -49,7 +50,10 @@ export const Navbar = () => {
                 <span>Dashboard</span>
               </Link>
               <button
-                onClick={() => signOut({ callbackUrl: "/" })}
+                onClick={async () => {
+                  await authClient.signOut();
+                  window.location.href = "/";
+                }}
                 className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
                 title="Sign Out"
               >
@@ -100,7 +104,10 @@ export const Navbar = () => {
                 <span>Go to Dashboard</span>
               </Link>
               <button
-                onClick={() => signOut({ callbackUrl: "/" })}
+                onClick={async () => {
+                  await authClient.signOut();
+                  window.location.href = "/";
+                }}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-sm font-medium"
               >
                 <LogOut className="w-4 h-4" />

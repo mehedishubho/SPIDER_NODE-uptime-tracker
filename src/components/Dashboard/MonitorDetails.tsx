@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useSession } from "next-auth/react";
+import { useAuthSession } from "@/lib/auth-client";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
 import { Activity01Icon as Activity, ArrowLeft01Icon as ArrowLeft, Clock01Icon as Clock, GlobeIcon as Globe, Loading01Icon as Loader2, Alert01Icon as AlertTriangle, CheckmarkCircle02Icon as CheckCircle2, CancelCircleIcon as XCircle, ArrowUpRight01Icon as TrendingUp, ServerStack01Icon as ServerCrash } from "hugeicons-react";
@@ -38,7 +38,8 @@ interface MonitorDetails {
 }
 
 export function MonitorDetails() {
-  const { data: session, status } = useSession();
+  const { data: session, isPending } = useAuthSession();
+  const status = isPending ? "loading" : session ? "authenticated" : "unauthenticated";
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;

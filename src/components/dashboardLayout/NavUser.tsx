@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession, signOut } from "next-auth/react";
+import { authClient, useAuthSession } from "@/lib/auth-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -14,7 +14,7 @@ import { Logout01Icon, UserIcon } from "hugeicons-react";
 import Link from "next/link";
 
 export function NavUser() {
-  const { data: session } = useSession();
+  const { data: session } = useAuthSession();
   
   const userName = session?.user?.name || "Developer";
   const userEmail = session?.user?.email || "";
@@ -60,7 +60,10 @@ export function NavUser() {
         </DropdownMenuItem>
         <DropdownMenuSeparator className="bg-slate-800" />
         <DropdownMenuItem 
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={async () => {
+            await authClient.signOut();
+            window.location.href = "/login";
+          }}
           className="hover:bg-slate-800 focus:bg-slate-800 cursor-pointer text-red-400 hover:text-red-300 focus:text-red-300"
         >
           <div className="flex items-center gap-2 w-full">

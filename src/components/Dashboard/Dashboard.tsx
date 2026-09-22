@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { authClient, useAuthSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { pollMonitorCheckResult } from "@/lib/check-now-poll";
@@ -22,7 +22,8 @@ interface Monitor {
 }
 
 export function Dashboard() {
-  const { data: session, status } = useSession();
+  const { data: session, isPending } = useAuthSession();
+  const status = isPending ? "loading" : session ? "authenticated" : "unauthenticated";
   const router = useRouter();
 
   const [monitors, setMonitors] = useState<Monitor[]>([]);
@@ -386,7 +387,10 @@ export function Dashboard() {
             </button>
 
             <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={async () => {
+                await authClient.signOut();
+                window.location.href = "/login";
+              }}
               className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-rose-400 text-xs font-semibold transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4" />

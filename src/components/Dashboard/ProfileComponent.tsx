@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { authClient, useAuthSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { UserIcon, Mail01Icon as Mail, Shield01Icon as ShieldCheck, Key01Icon as KeyRound, SentIcon as Send, Calendar01Icon as Calendar, Clock01Icon as Clock, Copy01Icon as Copy, Tick01Icon as Check, RefreshIcon as RefreshCw, AlertCircleIcon as AlertCircle, SparklesIcon as Sparkles, LockIcon as Lock, CheckmarkCircle02Icon as CheckCircle2, CancelCircleIcon as XCircle, FingerPrintIcon as Fingerprint, Edit02Icon as Edit2, Delete02Icon as Trash2, FloppyDiskIcon as Save, Cancel01Icon as X, Camera01Icon as Camera } from "hugeicons-react";
@@ -20,7 +20,8 @@ interface UserProfile {
 }
 
 export default function ProfileComponent() {
-  const { data: session, status, update } = useSession();
+  const { data: session, isPending } = useAuthSession();
+  const status = isPending ? "loading" : session ? "authenticated" : "unauthenticated";
   const router = useRouter();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -140,8 +141,8 @@ export default function ProfileComponent() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Update failed");
 
-      // Update NextAuth session cookie so navbar and other places reflect new name/image immediately
-      await update({
+      // Update the auth session so navbar and other places reflect new name/image immediately
+      await authClient.updateUser({
         name: data.user.name,
         image: data.user.image,
       });
@@ -173,7 +174,8 @@ export default function ProfileComponent() {
         throw new Error(data.error || "Delete failed");
       }
       toast.success("Account deleted successfully");
-      await signOut({ callbackUrl: "/register" });
+      await authClient.signOut();
+      window.location.href = "/register";
     } catch (err) {
       toast.error((err as Error).message);
       setIsDeleting(false);

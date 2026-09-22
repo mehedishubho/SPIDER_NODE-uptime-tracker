@@ -308,8 +308,40 @@ Plans:
   4. Admin gating works end-to-end: roles via the Better Auth admin plugin, feedback listing admin-only, and the Bull Board queue UI reachable only for admins from allowlisted IPs
   5. Removal is complete: no NextAuth deps or custom auth routes, no Redux `auth` slice / token mirror / `js-cookie` (the Better Auth client is the single auth source), and no `prisma/` directory, generated client, or `@prisma/*` deps — every read path runs on Drizzle with the test suite green
 
-**Plans**: TBD
-**Research flag**: needs `--research-phase` depth — social `providerId` casing per provider, verification/reset token-flow cutover, cookieCache revocation-lag policy (SUMMARY.md)
+**Plans**: 9 plans
+
+Plans:
+**Wave 1** *(parallel, no file overlap)*
+
+- [ ] 07-01-PLAN.md — TRACER cutover foundation: package legitimacy gate + better-auth pin, additive 0002 migration (account/session/verification + role + boolean backfill) with D-08/D-09 admin seed, A-1 hash-prefix router + lazy rehash, minimal Better Auth instance + canary login (AUTH-01, AUTH-02, AUTH-03, AUTH-09)
+- [ ] 07-02-PLAN.md — Email-queue cutover groundwork: BETTER_AUTH_URL domain source + hook-facing render variants + fixture re-freeze, announcement blast script + copy (D-01/D-04/D-06) (EML-04, AUTH-06)
+
+**Wave 2** *(blocked on 07-01 + 07-02)*
+
+- [ ] 07-03-PLAN.md — Flip engine: full-parity Better Auth config (all D-pins incl. D-28 delta), email hooks → queue, proxy cookieCache swap, ten-route session sweep, feedback admin gate (R17), single client entry (AUTH-02, AUTH-03, AUTH-04, EML-04, SEC-04)
+
+**Wave 3** *(blocked on 07-03; parallel, no file overlap)*
+
+- [ ] 07-04-PLAN.md — Client session swap (D-33 same pixels, frozen toast strings) + provider deletion + login notice strip (D-02) (AUTH-06, AUTH-08)
+- [ ] 07-05-PLAN.md — Bull Board on worker :9090 behind socket-source IP allowlist + admin session, D-16 audit lines, mutation kept (D-17..D-19) (OBS-04, SEC-04)
+
+**Wave 4** *(blocked on 07-01..07-05)*
+
+- [ ] 07-06-PLAN.md — Rehearsal: WR-05 machinery fix, refreshed snapshot + D-37 canary, full D-34 stand-in flip rehearsal + D-35 redeploy-rollback drill + D-06 copy sign-off, runbook §4c (AUTH-02, AUTH-05)
+
+**Wave 5** *(blocked on 07-06)*
+
+- [ ] 07-07-PLAN.md — Production blast + flip release per §4c + D-38/D-40 canary (D-41 pre-committed abort) + 24h typed soak gate + D-36 approval (AUTH-02, AUTH-05, AUTH-06)
+
+**Wave 6** *(blocked on 07-07 approval)*
+
+- [ ] 07-08-PLAN.md — Deletion release: NextAuth/Prisma/Redux-auth/js-cookie removal, extended remnant gate armed, §4d deploy (AUTH-07, AUTH-08, DRZ-07)
+
+**Wave 7** *(blocked on 07-08)*
+
+- [ ] 07-09-PLAN.md — Drop release: 0003 drops the four legacy tables with data (D-27), rehearsed first, §4e deploy, DRZ-07 final proof + phase closeout (AUTH-07, DRZ-07)
+
+**Research flag**: needs `--research-phase` depth — social `providerId` casing per provider, verification/reset token-flow cutover, cookieCache revocation-lag policy (SUMMARY.md) — *RESOLVED in 07-RESEARCH.md (providerId = lowercase provider config key `google`/`github`, verified from two official pages + dry-run; token TTLs at Better Auth defaults 3600s, legacy tokens never copied; cookieCache 5-min maxAge + disableCookieCache = the accepted revocation-lag policy)*
 
 ### Phase 8: Flagged Capabilities & UI Modernization
 

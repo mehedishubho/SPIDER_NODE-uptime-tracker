@@ -103,8 +103,8 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 
 - [x] **AUTH-01**: Better Auth configured with bcrypt-compatible `password.hash`/`verify` (gate, not spike) with hash-prefix routing (A-1)
 - [ ] **AUTH-02**: Canary account login verified through the preserved hash path before any route flip — on the local snapshot, then production
-- [ ] **AUTH-03**: Adapter bound to the existing `users` table (explicit table/column mapping, no renames; IDs preserved); `account`/`session`/`verification` added; boolean `emailVerified` backfilled from NextAuth timestamps
-- [ ] **AUTH-04**: Session strategy: `cookieCache` (short TTL) so the proxy validates from the signed cookie without a per-request DB hit (A-2)
+- [x] **AUTH-03**: Adapter bound to the existing `users` table (explicit table/column mapping, no renames; IDs preserved); `account`/`session`/`verification` added; boolean `emailVerified` backfilled from NextAuth timestamps
+- [x] **AUTH-04**: Session strategy: `cookieCache` (short TTL) so the proxy validates from the signed cookie without a per-request DB hit (A-2)
 - [ ] **AUTH-05**: OAuth accounts reshaped to Better Auth's `account` table with a verified field map (`providerId` casing confirmed by dry-run); refresh tokens preserved
 - [ ] **AUTH-06**: Forced re-login at cutover announced in-app/email (Q-4)
 - [ ] **AUTH-07**: NextAuth deps and custom auth routes removed; legacy `sessions`/token tables retained read-only one release, then dropped
@@ -116,7 +116,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [x] **EML-01**: Provider interface (`send()`) with env-selected providers: SMTP (Nodemailer, current Hostinger behavior), console (dev); extensible to Resend
 - [x] **EML-02**: Email sends off the request path via queue (bounded attempts, backoff); registration succeeds when SMTP is down (degradation path defined) (N-6)
 - [x] **EML-03**: Typed retryable-vs-permanent errors — hopeless sends do not retry (`UnrecoverableError`)
-- [ ] **EML-04**: Better Auth hooks (`sendVerificationEmail`, `sendResetPassword`) delegate to the same queue
+- [x] **EML-04**: Better Auth hooks (`sendVerificationEmail`, `sendResetPassword`) delegate to the same queue
 - [x] **EML-05**: Existing HTML template preserved verbatim through the migration (relocated, not redesigned)
 
 ### Observability
@@ -266,15 +266,15 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | EML-05 | Phase 6 | Complete |
 | AUTH-01 | Phase 7 | Complete |
 | AUTH-02 | Phase 7 | Pending |
-| AUTH-03 | Phase 7 | Pending |
-| AUTH-04 | Phase 7 | Pending |
+| AUTH-03 | Phase 7 | Complete |
+| AUTH-04 | Phase 7 | Complete |
 | AUTH-05 | Phase 7 | Pending |
 | AUTH-06 | Phase 7 | Pending |
 | AUTH-07 | Phase 7 | Pending |
 | AUTH-08 | Phase 7 | Pending |
 | AUTH-09 | Phase 7 | Complete |
 | DRZ-07 | Phase 7 | Pending |
-| EML-04 | Phase 7 | Pending |
+| EML-04 | Phase 7 | Complete |
 | SEC-04 | Phase 7 | Pending |
 | OBS-04 | Phase 7 | Pending |
 | AI-01 | Phase 8 | Pending |

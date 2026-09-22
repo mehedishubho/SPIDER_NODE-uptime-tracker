@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 7
 current_phase_name: Better Auth Cutover, Admin Gating & Prisma Removal
 status: executing
-stopped_at: Completed 07-02-PLAN.md
-last_updated: "2026-09-22T20:13:23.881Z"
+stopped_at: Completed 07-03-PLAN.md
+last_updated: "2026-09-22T21:07:14.521Z"
 last_activity: 2026-09-23
 last_activity_desc: Phase 7 execution started
-state_head: fd7993e0149dc07476588d3afe6bc03eb67b3241
+state_head: 01fc48f09a6bbff1efb7eddb1987841c2a21b8d4
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 59
-  completed_plans: 51
+  completed_plans: 53
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 ## Current Position
 
 Phase: 7 (Better Auth Cutover, Admin Gating & Prisma Removal) — EXECUTING
-Plan: 3 of 9
+Plan: 4 of 9
 Status: Ready to execute
 Last activity: 2026-09-23 — Phase 7 execution started
 
@@ -114,6 +114,7 @@ Progress: [████████████████████] 50/50 p
 | Phase 06 P05 | ~30min (Task 3 closeout continuation leg; Tasks 1-2 prior sessions incl. checkpoint pauses) | 3 tasks | 14 files |
 | Phase 7 P01 | 33min (continuation leg; Tasks 1-2 + D-08 checkpoint prior session) | 5 tasks | 28 files |
 | Phase 7 P02 | 26 min | 3 tasks | 4 files |
+| Phase 7 P03 | 43min | 3 tasks | 27 files |
 
 ## Accumulated Context
 
@@ -290,6 +291,9 @@ Recent decisions affecting current work:
 - [Phase 06]: 06-05: D-14 maintenance cron fires host-local (+06) — machine-proven pass 2026-09-20T21:15:00.143Z consumed exactly the monitor-3 seed (40 pings + 1 incident, auditDiscrepancies 0); IN-01 re-checked GREEN in the deploy restart window (health.test 7/7, port free), deferral stays environmental while a steady worker holds 9090
 - [Phase 7]: 07-02: render domain source moved to BETTER_AUTH_URL with additive *FromUrl variants embedding Better Auth's prebuilt url — token-based exports kept until 07-03 deletes their call sites
 - [Phase 7]: 07-02: blast script exports its fan-out (missingRequiredEnv/runBlast/enqueueAnnouncementForUsers) behind a main-module guard — the unit suite drives the real render+enqueue against a captured fake queue, no Redis
+- [Phase 7]: 07-03: storeSessionInDatabase true — the engine default with secondaryStorage is Redis-only sessions; the phase design is DB-backed session rows (D-44/D-30), reads still from secondary storage so cookieCache is unchanged
+- [Phase 7]: 07-03: the engine reset endpoint is /request-password-reset — the plan's /forget-password spelling is the docs' legacy alias (404s); D-22 hooks.before guard + the 5/h custom rule key the real path
+- [Phase 7]: 07-03: requireProductionEnv skips NEXT_PHASE=phase-production-build — next build evaluates route modules under NODE_ENV=production; the throw-early env gate stays a runtime boot guarantee (01fc48f)
 
 ### Pending Todos
 
@@ -313,6 +317,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-22T20:13:23.302Z
-Stopped at: Completed 07-02-PLAN.md
+Last session: 2026-09-22T21:07:00.062Z
+Stopped at: Completed 07-03-PLAN.md
 Resume file: None

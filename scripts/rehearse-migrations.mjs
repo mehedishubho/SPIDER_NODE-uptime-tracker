@@ -61,7 +61,15 @@
 //   ANY added column, sanctioned or not). Their additive-only arrival is
 //   asserted separately by the step-8 DDL delta. A future migration that
 //   writes data into a NEW column must extend this carve-out list (Phase 7's
-//   rehearsal reuses this script — D-10 repeatability).
+//   rehearsal reuses this script — D-10 repeatability) — and Phase 7 DID:
+//   CARVE_OUT_0002 below names the 0002_better_auth_cutover objects.
+//
+// BOOKKEEPING EVIDENCE (WR-05 closure): the evidence file's journal-row line
+// is count-agnostic — it reports the actual drizzle.__drizzle_migrations row
+// count N alongside the expectation DERIVED from drizzle/meta/_journal.json
+// (1 stamped baseline + entries.length - 1 runner-applied = entries.length),
+// never a hard-coded Phase-3 count. Later phases add journal entries and the
+// evidence line follows automatically (D-10 repeatability).
 //
 // Runtime contract: plain Node ESM + pg (zero new deps). The rehearsal
 // DATABASE_URL is the throwaway container's (postgres:postgres@localhost) —
@@ -103,6 +111,31 @@ const DIGEST_TABLES = [
   { table: "users", columns: ["id", "name", "email", "emailVerified", "image", "password", "telegramChatId", "timezone", "createdAt", "updatedAt"] },
   { table: "verification_tokens", columns: ["id", "email", "token", "expires"] },
 ];
+
+// SANCTIONED-WRITE CARVE-OUT, Phase-7 extension (0002_better_auth_cutover —
+// the 03-REVIEW WR-05 carry-forward's inventory half). The 0002 migration's
+// additive arrivals, NAMED here so the evidence labels stay truthful — this
+// extends the list, never the pipeline structure (03-05 precedent):
+//   - users.role + users.email_verified are 0002-ADDED columns that migration
+//     time WRITES (the D-08 role default and the D-23 boolean backfill from
+//     the legacy "emailVerified" timestamp). They sit outside users' pinned
+//     pre-migration inventory above by construction — the same mechanism that
+//     keeps 0001's carve-out columns out — so the users digest stays EQUAL
+//     across the migrate. The admin-plugin columns users.banned/banReason/
+//     banExpires ride outside the digest the same way.
+//   - The three new Better Auth tables have no BEFORE baseline, so they are
+//     not digestable before/after; the existing new-tables path counts them
+//     post-migrate (with their pinned inventories recorded in the evidence)
+//     and the step-8 DDL delta asserts their additive arrival. The column
+//     inventories below are pinned from src/db/schema.ts exactly like
+//     DIGEST_TABLES — a documentation/labeling contract, consumed by the
+//     evidence renderer, never by the digest pipeline.
+const CARVE_OUT_0002_TABLES = [
+  { table: "account", columns: ["id", "userId", "providerId", "accountId", "accessToken", "refreshToken", "idToken", "accessTokenExpiresAt", "refreshTokenExpiresAt", "scope", "password", "createdAt", "updatedAt"] },
+  { table: "session", columns: ["id", "userId", "token", "expiresAt", "ipAddress", "userAgent", "createdAt", "updatedAt", "impersonatedBy"] },
+  { table: "verification", columns: ["id", "identifier", "value", "expiresAt", "createdAt", "updatedAt"] },
+];
+const CARVE_OUT_0002_USER_COLUMNS = ["users.role", "users.email_verified"];
 
 function fail(context, error) {
   throw new Error(
@@ -474,7 +507,14 @@ function renderEvidenceMarkdown(e) {
   if (e.newTables.length === 0) {
     lines.push("(none)");
   } else {
-    for (const t of e.newTables) lines.push(`- ${t.table}: ${t.afterCount} row(s) after migrate`);
+    for (const t of e.newTables) {
+      lines.push(
+        `- ${t.table}: ${t.afterCount} row(s) after migrate` +
+          (t.pinnedInventory
+            ? ` (0002 pinned inventory: ${t.pinnedInventory.join(", ")})`
+            : "")
+      );
+    }
   }
   lines.push("");
   lines.push(`## DDL delta (additive-only assertion)`);
@@ -502,7 +542,21 @@ function renderEvidenceMarkdown(e) {
   for (const t of e.timings.indexBuilds) {
     lines.push(`- Index build: \`${t.statement.slice(0, 120)}\` — ${t.ms} ms`);
   }
-  lines.push(`- Bookkeeping rows after migrate (drizzle.__drizzle_migrations): ${e.bookkeeping.journalRows} (1 stamped baseline + 1 runner-applied 0001 — the runner applied 0001 exactly once)`);
+  // WR-05: count-agnostic bookkeeping evidence — the actual row count N plus
+  // the expectation derived from drizzle/meta/_journal.json, never a
+  // hard-coded Phase-3 count or prose (later phases add journal entries and
+  // this line follows automatically).
+  const bk = e.bookkeeping;
+  const bkDerivation =
+    `${bk.journalExpected} = 1 stamped baseline + ${bk.journalExpected - 1} runner-applied ` +
+    `(derived from drizzle/meta/_journal.json entries)`;
+  const bkNote =
+    bk.journalRows === bk.journalExpected
+      ? `matches the journal-derived expectation (${bkDerivation})`
+      : `**MISMATCH** — expected ${bkDerivation}`;
+  lines.push(
+    `- Bookkeeping rows after migrate (drizzle.__drizzle_migrations): **${bk.journalRows}** — ${bkNote}`
+  );
   lines.push("");
   lines.push(`## D-19 decision`);
   lines.push("");
@@ -683,6 +737,11 @@ async function main() {
     for (const nt of newTables) {
       const r = await client.query(`SELECT count(*)::text AS count FROM "${nt.table}"`);
       nt.afterCount = r.rows[0].count;
+      // Phase-7 carve-out inventory: record the pinned 0002 column inventory
+      // next to the post-migrate count so the evidence names the new Better
+      // Auth objects (account/session/verification) with their shapes.
+      const pinned = CARVE_OUT_0002_TABLES.find((spec) => spec.table === nt.table);
+      if (pinned) nt.pinnedInventory = pinned.columns;
     }
 
     // Bookkeeping proof: the stamp wrote the baseline row and the runner
@@ -722,12 +781,17 @@ async function main() {
       verdict: failures.length === 0 ? "PASS" : "FAIL",
       dump: { name: dumpName, bytes: dumpBytes },
       container: { image: IMAGE, name: CONTAINER, port: PORT, db: DB },
-      carveOut: "monitors.next_check_at + monitors.consecutive_failures (0001 backfill/catalog writes) and pings.error_class + pings.status_code (additive NULL columns)",
+      carveOut: [
+        "monitors.next_check_at + monitors.consecutive_failures (0001 backfill/catalog writes)",
+        "pings.error_class + pings.status_code (additive NULL columns)",
+        `${CARVE_OUT_0002_USER_COLUMNS.join(" + ")} (0002 D-08 role + D-23 boolean backfill — written outside the pinned pre-migration inventory; admin-plugin columns users.banned/banReason/banExpires ride outside the same way)`,
+        `${CARVE_OUT_0002_TABLES.map((t) => t.table).join("/")} (0002 new Better Auth tables — no BEFORE baseline; counted via the new-tables path, arrival asserted by the DDL delta)`,
+      ].join("; "),
       tables: tableRows,
       newTables,
       ddlDelta,
       timings: { migrateWallMs, statements: statementTimings, indexBuilds },
-      bookkeeping: { journalRows },
+      bookkeeping: { journalRows, journalExpected: journalEntries },
       d19,
       failures,
     };

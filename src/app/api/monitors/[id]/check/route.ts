@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { authOptions } from "@/lib/auth";
+import { authOptions } from "@/lib/auth-legacy";
 import { prisma } from "@/lib/prisma";
 import { apiError } from "@/lib/api-error";
 import { rateLimit } from "@/lib/rate-limit";

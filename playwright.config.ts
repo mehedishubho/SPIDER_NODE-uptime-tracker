@@ -65,6 +65,18 @@ export default defineConfig({
       REDIS_URL: TEST_REDIS_URL,
       NEXTAUTH_URL: baseURL,
       NEXTAUTH_SECRET: "test-secret",
+      // 07-04: the flipped engine's throw-early gate (src/lib/auth.ts
+      // requireProductionEnv) fails the production boot without the Better
+      // Auth envs — the e2e server needs the same test-scoped values the
+      // integration suites pin (deterministic fakes; OAuth flows are never
+      // exercised here). OAuth credentials can stay fake: only NON-EMPTINESS
+      // is validated at boot.
+      BETTER_AUTH_URL: baseURL,
+      BETTER_AUTH_SECRET: "test-secret-better-auth-0123456789abcdef",
+      GOOGLE_CLIENT_ID: "test-google-client-id",
+      GOOGLE_CLIENT_SECRET: "test-google-client-secret",
+      GITHUB_CLIENT_ID: "test-github-client-id",
+      GITHUB_CLIENT_SECRET: "test-github-client-secret",
       // Server-side module-load validation in src/redux/api/baseApi.ts
       // requires a non-empty base URL (client bundle gets it at build time)
       NEXT_PUBLIC_DEV_BASE_URL: baseURL,

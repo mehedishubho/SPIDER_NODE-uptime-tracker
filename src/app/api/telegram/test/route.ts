@@ -1,12 +1,11 @@
-import { authOptions } from "@/lib/auth-legacy";
 import { prisma } from "@/lib/prisma";
 import { sendTelegramAlert } from "@/lib/telegram";
-import { getServerSession } from "next-auth";
+import { getAuthSession } from "@/lib/session";
 import { NextResponse } from "next/server";
 
 export async function POST() {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await getAuthSession();
 
         if (!session?.user?.id) {
             return NextResponse.json(

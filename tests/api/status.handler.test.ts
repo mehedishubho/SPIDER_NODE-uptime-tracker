@@ -12,19 +12,26 @@ import {
 } from "./_harness";
 import { GET as GET_STATUS } from "@/app/api/status/route";
 import { GET as GET_PUBLIC_STATUS } from "@/app/api/status/[userId]/route";
-import { GET as GET_FEEDBACK, POST as POST_FEEDBACK } from "@/app/api/feedback/route";
+import { POST as POST_FEEDBACK } from "@/app/api/feedback/route";
 
 // ---------------------------------------------------------------------------
 // Characterization suite: src/app/api/status/route.ts (own status page),
 // src/app/api/status/[userId]/route.ts (public status page), and
-// src/app/api/feedback/route.ts (POST create + GET list).
+// src/app/api/feedback/route.ts (POST create).
 //
 // Discovered truths pinned here (not fixes — D-17):
 //   - /api/status REQUIRES a session despite its "no auth needed" comment.
 //   - /api/status/[userId] is the genuinely public route (no session at all).
 //   - feedback's guard is WEAKER than the template (`!session || !session.user`,
-//     no id check) and its GET list is NOT ownership-scoped — any
-//     authenticated user sees every user's feedback.
+//     no id check) on POST.
+//
+// 07-03: the feedback GET list pins (NOT ownership-scoped, any authenticated
+// user read every row — the R17 leak) were removed WITH the admin-gate
+// rewrite, per the Pitfall-7 discipline. The flipped contract — admin 200 /
+// non-admin 403 / anon 401, POST authenticated-for-all, and the D-16 audit
+// line — lives in tests/api/feedback-admin.handler.test.ts (the Drizzle-read
+// @/db seam rides there too).
+//
 // No rate limiter on any of these routes — static imports are safe.
 // ---------------------------------------------------------------------------
 
@@ -229,52 +236,8 @@ describe("POST /api/feedback", () => {
   });
 });
 
-describe("GET /api/feedback (list)", () => {
-  it("401 without session — body VERBATIM", async () => {
-    const res = await GET_FEEDBACK(buildRequest({ path: "/api/feedback" }));
-
-    expect(res.status).toBe(401);
-    await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
-    expect(h.prisma.feedback.findMany).not.toHaveBeenCalled();
-  });
-
-  it("NOT ownership-scoped: any authenticated user lists EVERY feedback row (pinned as-is)", async () => {
-    // Defect pin (documented, not fixed — D-17): the where clause has no
-    // userId filter; the response includes every user's feedback with the
-    // author's name/email/image. This is today's contract.
-    mockSession(sessionA);
-    const allRows = [
-      { id: "fb-b", title: "someone else's feedback", user: { name: "B", email: "b@x.test", image: null } },
-    ];
-    h.prisma.feedback.findMany.mockResolvedValue(allRows);
-
-    const res = await GET_FEEDBACK(buildRequest({ path: "/api/feedback" }));
-
-    expect(res.status).toBe(200);
-    expect(h.prisma.feedback.findMany).toHaveBeenCalledWith({
-      where: {},
-      include: {
-        user: { select: { name: true, email: true, image: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    // Bare array — not wrapped in { feedback: ... }.
-    await expect(res.json()).resolves.toEqual(allRows);
-  });
-
-  it("?status=... filters by status ONLY (still no user scoping)", async () => {
-    mockSession(sessionA);
-    h.prisma.feedback.findMany.mockResolvedValue([]);
-
-    const res = await GET_FEEDBACK(buildRequest({ path: "/api/feedback?status=PLANNED" }));
-
-    expect(res.status).toBe(200);
-    expect(h.prisma.feedback.findMany).toHaveBeenCalledWith({
-      where: { status: "PLANNED" },
-      include: {
-        user: { select: { name: true, email: true, image: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-  });
-});
+// 07-03: the GET /api/feedback list pins were REMOVED WITH the admin-gate
+// rewrite (Pitfall 7 — the suite never asserts removed behavior mid-wave).
+// The full flipped matrix — admin 200 / non-admin 403 / anon 401, the D-16
+// audit line, and the Drizzle read seam — lives in
+// tests/api/feedback-admin.handler.test.ts.

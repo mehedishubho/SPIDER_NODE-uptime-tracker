@@ -1,7 +1,6 @@
 import { sql } from "drizzle-orm";
-import { getServerSession } from "next-auth";
+import { getAuthSession } from "@/lib/session";
 import { NextResponse } from "next/server";
-import { authOptions } from "@/lib/auth-legacy";
 import { prisma } from "@/lib/prisma";
 import { apiError } from "@/lib/api-error";
 import { rateLimit } from "@/lib/rate-limit";
@@ -22,7 +21,7 @@ interface RouteParams {
 
 export async function POST(req: Request, { params }: RouteParams) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await getAuthSession();
         const { id } = await params;
 
         if (!session?.user?.id) {

@@ -17,14 +17,19 @@ import { NextRequest } from "next/server";
 // come before any route module for the mocks to apply.
 //
 // Mocks exactly the two seams of the session-guard template (02-PATTERNS):
-//   1. next-auth    -> getServerSession (the session guard)
+//   1. the session door -> getServerSession (legacy, next-auth) / getAuthSession
+//      (current, @/lib/session — the 07-03 one-engine swap). BOTH mock fns are
+//      the SAME `h.getServerSession` instance, so mockSession() drives either
+//      generation of the guard and every suite stays green across the cutover.
 //   2. @/lib/prisma -> prisma           (all model access)
-// "next-auth/next" is additionally mocked because feedback/route.ts imports
-// getServerSession from that specifier (a separate module id); both share one
-// underlying fn so a single mockSession() call covers every route shape.
-// Per-file extra seams (e.g. @/lib/telegram) are declared in the test files
-// that need them (D-16 hybrid split); the cron-era seams (cron-logic,
-// cleanup-logic, db-batcher, mail) died with the 06-05 deletion release.
+// "next-auth/next" is additionally mocked because feedback/route.ts imported
+// getServerSession from that specifier before 07-03 (a separate module id);
+// both share one underlying fn so a single mockSession() call covers every
+// route shape.
+// Per-file extra seams (e.g. @/lib/telegram, @/db for the Drizzle read) are
+// declared in the test files that need them (D-16 hybrid split); the
+// cron-era seams (cron-logic, cleanup-logic, db-batcher, mail) died with the
+// 06-05 deletion release.
 //
 // Mock instances are plain module-scope consts (NOT vi.hoisted — vitest
 // forbids exporting hoisted variables). This is safe on two counts:
@@ -83,6 +88,9 @@ export const h = {
 vi.mock("next-auth", () => ({ getServerSession: h.getServerSession }));
 vi.mock("next-auth/next", () => ({ getServerSession: h.getServerSession }));
 vi.mock("@/lib/prisma", () => ({ prisma: h.prisma }));
+// 07-03: the one-engine session door — the same mock instance the legacy
+// next-auth seam used, so every mockSession(...) call keeps working.
+vi.mock("@/lib/session", () => ({ getAuthSession: h.getServerSession }));
 
 // ---------------------------------------------------------------------------
 // Session fixtures — two distinct user ids so ownership cases can prove the

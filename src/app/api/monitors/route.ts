@@ -1,6 +1,5 @@
-import { authOptions } from "@/lib/auth-legacy";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
+import { getAuthSession } from "@/lib/session";
 import { NextResponse } from "next/server";
 import { rateLimit, getIP } from "@/lib/rate-limit";
 import { apiError } from "@/lib/api-error";
@@ -10,7 +9,7 @@ import { assertUrlAllowed, UrlNotAllowedError } from "@/lib/ssrf";
 // ----------------------------------------------------
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getAuthSession();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -46,7 +45,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const session = await getServerSession(authOptions);
+    const session = await getAuthSession();
     if (!session?.user?.id) {
       // 06-03/D-17: the "Unauthirized" typo fixed WITH its flipped pin.
       return apiError(401, "Unauthorized");

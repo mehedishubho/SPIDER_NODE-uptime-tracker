@@ -1,7 +1,6 @@
 
 
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-legacy";
+import { getAuthSession } from "@/lib/session";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { v2 as cloudinary } from 'cloudinary';
@@ -19,7 +18,7 @@ cloudinary.config({
 // ----------------------------------------------------
 export async function GET() {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await getAuthSession();
 
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -72,7 +71,7 @@ export async function GET() {
 
 export async function PATCH(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await getAuthSession();
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
@@ -193,7 +192,7 @@ export async function PATCH(req: Request) {
 // ----------------------------------------------------
 export async function DELETE() {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await getAuthSession();
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }

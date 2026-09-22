@@ -1,6 +1,5 @@
-import { authOptions } from "@/lib/auth-legacy"
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth"
+import { getAuthSession } from "@/lib/session";
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api-error";
 import { assertUrlAllowed, UrlNotAllowedError } from "@/lib/ssrf";
@@ -16,7 +15,7 @@ interface RouteParams {
 
 export async function GET(req: Request, { params }: RouteParams) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await getAuthSession();
         const { id } = await params;
 
         if (!session?.user?.id) {
@@ -55,7 +54,7 @@ export async function GET(req: Request, { params }: RouteParams) {
 
 export async function PATCH(req: Request, { params }: RouteParams) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await getAuthSession();
         const { id } = await params;
 
         if (!session?.user?.id) {
@@ -142,7 +141,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
 
 export async function DELETE(req: Request, { params }: RouteParams) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await getAuthSession();
         const { id } = await params;
 
         if (!session?.user?.id) {

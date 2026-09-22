@@ -198,6 +198,26 @@ function canonicalizeBooleanOpclass(line) {
   );
 }
 
+// Canonicalize pull's property rendering of the users.email_verified boolean
+// column (07-01). pull camelCases every column name into the property, so the
+// physical column "email_verified" renders as the property `emailVerified` —
+// which ALREADY exists on the users table (the legacy timestamp; D-30 forbids
+// touching it). Adopting pull's line verbatim would put two `emailVerified:`
+// properties in one object literal — TS1117 under this repo's strict tsconfig
+// (the same "not adoptable TypeScript" class the gen_random_uuid rule above
+// exists for), so the committed authority spells the property `email_verified`
+// (matching the physical column) and this rule rewrites pull's rendering into
+// that canonical form on BOTH sides, identically. Fail-closed posture holds:
+// only this exact column name + type is rewritten; any other drift in the
+// block (type change, default change, a THIRD emailVerified column) still
+// diffs red.
+function canonicalizeEmailVerifiedCollision(line) {
+  return line.replace(
+    /^(\s*)emailVerified:( boolean\("email_verified"\).*)$/,
+    "$1email_verified:$2"
+  );
+}
+
 // The documented normalization (03-07 Task 1, research A5 — textual route):
 // identical on BOTH sides — strip // comments, trim trailing whitespace,
 // drop blank lines (collapsing runs), normalize line endings (the Windows
@@ -207,9 +227,11 @@ function canonicalizeBooleanOpclass(line) {
 function normalizeSchema(text) {
   const lines = [];
   for (const rawLine of text.split(/\r?\n/)) {
-    const line = canonicalizeBooleanOpclass(
-      canonicalizeDefaultRenderings(
-        stripLineComment(rawLine).replace(/\s+$/, "")
+    const line = canonicalizeEmailVerifiedCollision(
+      canonicalizeBooleanOpclass(
+        canonicalizeDefaultRenderings(
+          stripLineComment(rawLine).replace(/\s+$/, "")
+        )
       )
     );
     if (line.trim() === "") continue;

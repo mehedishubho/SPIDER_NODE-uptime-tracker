@@ -54,6 +54,11 @@ export const users = pgTable("users", {
 	timezone: text().default('UTC').notNull(),
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	role: text().default('user').notNull(),
+	email_verified: boolean("email_verified").default(false).notNull(),
+	banned: boolean().default(false).notNull(),
+	banReason: text(),
+	banExpires: timestamp({ mode: 'string' }),
 }, (table) => [
 	uniqueIndex("users_email_key").using("btree", table.email.asc().nullsLast().op("text_ops")),
 ]);
@@ -220,3 +225,54 @@ export const outbox = pgTable("outbox", {
 			name: "outbox_incident_id_fkey"
 		}).onDelete("cascade"),
 ]);
+
+export const account = pgTable("account", {
+	id: text().default(sql`gen_random_uuid()`).primaryKey().notNull(),
+	userId: text().notNull(),
+	providerId: text().notNull(),
+	accountId: text().notNull(),
+	accessToken: text(),
+	refreshToken: text(),
+	idToken: text(),
+	accessTokenExpiresAt: timestamp({ mode: 'string' }),
+	refreshTokenExpiresAt: timestamp({ mode: 'string' }),
+	scope: text(),
+	password: text(),
+	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	uniqueIndex("account_providerId_accountId_key").using("btree", table.providerId.asc().nullsLast().op("text_ops"), table.accountId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [users.id],
+			name: "account_userId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+]);
+
+export const session = pgTable("session", {
+	id: text().default(sql`gen_random_uuid()`).primaryKey().notNull(),
+	userId: text().notNull(),
+	token: text().notNull(),
+	expiresAt: timestamp({ mode: 'string' }).notNull(),
+	ipAddress: text(),
+	userAgent: text(),
+	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+	impersonatedBy: text(),
+}, (table) => [
+	uniqueIndex("session_token_key").using("btree", table.token.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [users.id],
+			name: "session_userId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+]);
+
+export const verification = pgTable("verification", {
+	id: text().default(sql`gen_random_uuid()`).primaryKey().notNull(),
+	identifier: text().notNull(),
+	value: text().notNull(),
+	expiresAt: timestamp({ mode: 'string' }).notNull(),
+	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+});

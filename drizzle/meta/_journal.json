@@ -15,6 +15,13 @@
       "when": 1789219566417,
       "tag": "0001_worker-prereqs",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790104005378,
+      "tag": "0002_better_auth_cutover",
+      "breakpoints": true
     }
   ]
 }

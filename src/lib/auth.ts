@@ -89,6 +89,12 @@ import {
 /** Production-only env validation (queue-producer throw-early convention). */
 function requireProductionEnv(name: string): void {
   if (process.env.NODE_ENV !== "production") return;
+  // `next build` collects page data by EVALUATING route modules under
+  // NODE_ENV=production — before the operator's env exists on any build
+  // host. The throw-early gate is a production RUNTIME boot guarantee (PM2
+  // runs without NEXT_PHASE), not a build gate: skip it during
+  // phase-production-build so an env-less checkout still builds.
+  if (process.env.NEXT_PHASE === "phase-production-build") return;
   if (!process.env[name]) {
     throw new Error(`Environment variable ${name} is not set (required in production)`);
   }

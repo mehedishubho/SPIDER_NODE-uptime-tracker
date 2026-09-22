@@ -11,11 +11,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // sendMail payload form is frozen (from/to/subject/html); the render module
 // owns to/subject/html (D-07) and the smtp provider owns the from header.
 //
+// RE-FREEZE 07-02 (EML-04, Pitfall 5): render.ts's module-scope domain
+// source moved from NEXTAUTH_URL to BETTER_AUTH_URL. The module-scope env
+// pin below moved with it — SAME deterministic domain value
+// ("https://parity.spidernode.test"), so the frozen link bytes are
+// UNCHANGED (the oracle capture domain and the new pin are identical
+// strings; only the env NAME the module reads moved). No byte drift.
+//
 // NOTE the frozen copyright year (2026): a year-boundary crossing would
 // legitimately require re-freezing.
 // ---------------------------------------------------------------------------
 
-process.env.NEXTAUTH_URL = "https://parity.spidernode.test";
+process.env.BETTER_AUTH_URL = "https://parity.spidernode.test";
 process.env.SMTP_USER = "no-reply@parity.spidernode.test";
 process.env.SMTP_HOST = "smtp.parity.spidernode.test";
 process.env.SMTP_PORT = "587";
@@ -220,7 +227,7 @@ describe("lib/email render — byte-verbatim relocation from mail.ts (EML-05, D-
     expect(rendered.html.length).toBe(RESET_FIXTURE.html.length);
   });
 
-  it("link forms: domain + /verify-email?token= and /reset-password?token= from NEXTAUTH_URL", async () => {
+  it("link forms: domain + /verify-email?token= and /reset-password?token= from BETTER_AUTH_URL", async () => {
     const { renderVerificationEmail, renderPasswordResetEmail } = await import("@/lib/email/render");
 
     const verify = renderVerificationEmail(FIXTURE_TO, VERIFY_TOKEN);
@@ -228,6 +235,65 @@ describe("lib/email render — byte-verbatim relocation from mail.ts (EML-05, D-
 
     expect(verify.html).toContain(`https://parity.spidernode.test/verify-email?token=${VERIFY_TOKEN}`);
     expect(reset.html).toContain(`https://parity.spidernode.test/reset-password?token=${RESET_TOKEN}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 07-02 (EML-04, D-20): the Better Auth hook-facing *FromUrl variants. The
+// hooks receive a PREBUILT url (Better Auth's API verify/reset endpoints —
+// RESEARCH Pattern 4) and the variants must embed it EXACTLY — no domain
+// read, no token rebuild. Fixture-style urls below are Better Auth-shaped
+// (API endpoint + token path), distinct from the frozen page-first links.
+// ---------------------------------------------------------------------------
+const BA_VERIFY_URL =
+  "https://parity.spidernode.test/api/auth/verify-email?token=ba-verify-token-0123456789abcdef&callbackURL=%2Fdashboard";
+const BA_RESET_URL = "https://parity.spidernode.test/api/auth/reset-password/ba-reset-token-0123456789abcdef";
+
+/** Every href="..." value in the html, in document order. */
+function hrefsOf(html: string): string[] {
+  return [...html.matchAll(/href="([^"]*)"/g)].map((m) => m[1]);
+}
+
+describe("lib/email render — Better Auth hook-facing *FromUrl variants (07-02, EML-04/D-20)", () => {
+  it("renderVerificationEmailFromUrl embeds the passed url EXACTLY — both hrefs and the copy-paste text", async () => {
+    const { renderVerificationEmailFromUrl } = await import("@/lib/email/render");
+
+    const rendered = renderVerificationEmailFromUrl(FIXTURE_TO, BA_VERIFY_URL);
+
+    expect(rendered.to).toBe(FIXTURE_TO);
+    expect(rendered.subject).toBe("Confirm your email - SpiderNode");
+    // Button href + copy-paste href: each is the passed url, verbatim.
+    expect(hrefsOf(rendered.html)).toEqual([BA_VERIFY_URL, BA_VERIFY_URL]);
+    // The visible copy-paste link TEXT is also the exact passed url.
+    expect(rendered.html).toContain(`>${BA_VERIFY_URL}</a>`);
+    // No page-first token link shape may leak in.
+    expect(rendered.html).not.toContain("/verify-email?token=verify-fixture-token");
+  });
+
+  it("renderPasswordResetEmailFromUrl embeds the passed url EXACTLY — both hrefs and the copy-paste text", async () => {
+    const { renderPasswordResetEmailFromUrl } = await import("@/lib/email/render");
+
+    const rendered = renderPasswordResetEmailFromUrl(FIXTURE_TO, BA_RESET_URL);
+
+    expect(rendered.to).toBe(FIXTURE_TO);
+    expect(rendered.subject).toBe("Reset your password - SpiderNode");
+    expect(hrefsOf(rendered.html)).toEqual([BA_RESET_URL, BA_RESET_URL]);
+    expect(rendered.html).toContain(`>${BA_RESET_URL}</a>`);
+    expect(rendered.html).not.toContain("/reset-password?token=reset-fixture-token");
+  });
+
+  it("FromUrl variants are byte-identical to the token variants when handed the legacy-shaped link (additive-only proof)", async () => {
+    const { renderVerificationEmail, renderVerificationEmailFromUrl, renderPasswordResetEmail, renderPasswordResetEmailFromUrl } =
+      await import("@/lib/email/render");
+
+    const legacyVerifyLink = `https://parity.spidernode.test/verify-email?token=${VERIFY_TOKEN}`;
+    const legacyResetLink = `https://parity.spidernode.test/reset-password?token=${RESET_TOKEN}`;
+
+    expect(renderVerificationEmailFromUrl(FIXTURE_TO, legacyVerifyLink).html).toBe(VERIFY_HTML);
+    expect(renderPasswordResetEmailFromUrl(FIXTURE_TO, legacyResetLink).html).toBe(RESET_HTML);
+    // And the token exports themselves stay byte-frozen (EML-05 discipline).
+    expect(renderVerificationEmail(FIXTURE_TO, VERIFY_TOKEN).html).toBe(VERIFY_HTML);
+    expect(renderPasswordResetEmail(FIXTURE_TO, RESET_TOKEN).html).toBe(RESET_HTML);
   });
 });
 

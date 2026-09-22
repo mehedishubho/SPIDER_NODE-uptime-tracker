@@ -10,9 +10,19 @@
 //
 // Byte-parity is pinned by tests/lib/email-render.test.ts against fixtures
 // frozen from the legacy module's live output (oracle capture 2026-09-20).
+//
+// 07-02 (EML-04 / D-20, T-07-06): the module-scope domain source moved from
+// the retiring legacy NextAuth URL env to BETTER_AUTH_URL (Pitfall 5 — every
+// queued link derives from this const, so it must survive that env's
+// deletion). Template bytes stay frozen. The two *FromUrl variants below are ADDITIVE
+// for the Better Auth hooks (EML-04): they embed Better Auth's prebuilt url
+// — its API verify/reset endpoints, inverting today's page-first link shape
+// (RESEARCH Pattern 4; pre-flip links die at the flip, D-20) — instead of
+// rebuilding a token link from the domain. The token-based exports keep
+// their signatures until 07-03 removes their call sites.
 // ---------------------------------------------------------------------------
 
-const domain = process.env.NEXTAUTH_URL;
+const domain = process.env.BETTER_AUTH_URL;
 
 const generateEmailTemplate = (title: string, content: string, buttonText: string, buttonLink: string, footerText: string) => `
 <!DOCTYPE html>
@@ -106,5 +116,40 @@ export const renderPasswordResetEmail = (to: string, token: string): RenderedEma
     to,
     subject: "Reset your password - SpiderNode",
     html: generateEmailTemplate("Reset Your Password", content, "Reset Password", resetLink, footerText),
+  };
+};
+
+/**
+ * Hook-facing verification render (EML-04, 07-02): embeds Better Auth's
+ * prebuilt `url` — handed to the sendVerificationEmail hook — exactly as
+ * given, in both the button and the copy-paste link slots. No domain or
+ * token rebuild: Better Auth's url points at its own API verify endpoint
+ * (D-20 — the page-first link shape retires with the flip).
+ */
+export const renderVerificationEmailFromUrl = (to: string, url: string): RenderedEmail => {
+  const content = `Welcome to SpiderNode! We're excited to have you on board. Please confirm your email address by clicking the button below so you can get started.`;
+  const footerText = `If you didn't create an account, you can safely ignore this email.`;
+
+  return {
+    to,
+    subject: "Confirm your email - SpiderNode",
+    html: generateEmailTemplate("Verify Your Email Address", content, "Verify Email", url, footerText),
+  };
+};
+
+/**
+ * Hook-facing password-reset render (EML-04, 07-02): embeds Better Auth's
+ * prebuilt `url` — handed to the sendResetPassword hook — exactly as given,
+ * in both the button and the copy-paste link slots. No domain or token
+ * rebuild (D-20).
+ */
+export const renderPasswordResetEmailFromUrl = (to: string, url: string): RenderedEmail => {
+  const content = `You recently requested to reset your password for your SpiderNode account. Click the button below to set a new password. This link will expire in <strong>1 hour</strong>.`;
+  const footerText = `If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.`;
+
+  return {
+    to,
+    subject: "Reset your password - SpiderNode",
+    html: generateEmailTemplate("Reset Your Password", content, "Reset Password", url, footerText),
   };
 };

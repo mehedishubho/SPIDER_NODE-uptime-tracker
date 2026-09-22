@@ -27,8 +27,10 @@ import { buildRequest, h, resetPrismaMocks } from "./_harness";
 // check-cron-remnants gate fails on imports of the deleted module — see
 // 06-PIN-INVENTORY.md). The enqueue path goes through @/lib/queue-producer,
 // mocked via producerMocks below — the route's pre-flight ping() and the
-// email lane's add() both ride it. NEXTAUTH_URL is pinned to a deterministic
-// value because render.ts reads it at module scope (render-at-enqueue, D-07).
+// email lane's add() both ride it. BETTER_AUTH_URL is pinned to a
+// deterministic value because render.ts reads it at module scope
+// (render-at-enqueue, D-07; 07-02 moved the domain source off NEXTAUTH_URL
+// — RESEARCH Pitfall 5).
 // ---------------------------------------------------------------------------
 
 const producerMocks = vi.hoisted(() => ({
@@ -68,17 +70,18 @@ afterAll(async () => {
   const globalForRedis = global as unknown as { redis?: Redis };
   globalForRedis.redis?.disconnect();
   delete globalForRedis.redis;
-  if (previousNextAuthUrl === undefined) {
-    delete process.env.NEXTAUTH_URL;
+  if (previousBetterAuthUrl === undefined) {
+    delete process.env.BETTER_AUTH_URL;
   } else {
-    process.env.NEXTAUTH_URL = previousNextAuthUrl;
+    process.env.BETTER_AUTH_URL = previousBetterAuthUrl;
   }
 });
 
-// render.ts reads NEXTAUTH_URL at module scope — pin it so rendered links
-// are deterministic under vi.resetModules re-evaluations (D-07).
-const previousNextAuthUrl = process.env.NEXTAUTH_URL;
-process.env.NEXTAUTH_URL = "https://route.spidernode.test";
+// render.ts reads BETTER_AUTH_URL at module scope — pin it so rendered links
+// are deterministic under vi.resetModules re-evaluations (D-07; 07-02 moved
+// the domain source here from NEXTAUTH_URL — RESEARCH Pitfall 5).
+const previousBetterAuthUrl = process.env.BETTER_AUTH_URL;
+process.env.BETTER_AUTH_URL = "https://route.spidernode.test";
 
 beforeEach(async () => {
   vi.resetModules(); // fresh route-module registry per case (mock seams — Pitfall 6)

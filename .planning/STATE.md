@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 7
 current_phase_name: Better Auth Cutover, Admin Gating & Prisma Removal
 status: executing
-stopped_at: Completed 07-03-PLAN.md
-last_updated: "2026-09-22T21:07:14.521Z"
+stopped_at: Completed 07-04-PLAN.md
+last_updated: "2026-09-22T21:44:38.729Z"
 last_activity: 2026-09-23
 last_activity_desc: Phase 7 execution started
-state_head: 01fc48f09a6bbff1efb7eddb1987841c2a21b8d4
+state_head: c973b81cfbf5879ed7099f0391d0daae0436c295
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 59
-  completed_plans: 53
+  completed_plans: 54
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 ## Current Position
 
 Phase: 7 (Better Auth Cutover, Admin Gating & Prisma Removal) — EXECUTING
-Plan: 4 of 9
+Plan: 5 of 9
 Status: Ready to execute
 Last activity: 2026-09-23 — Phase 7 execution started
 
@@ -115,6 +115,7 @@ Progress: [████████████████████] 50/50 p
 | Phase 7 P01 | 33min (continuation leg; Tasks 1-2 + D-08 checkpoint prior session) | 5 tasks | 28 files |
 | Phase 7 P02 | 26 min | 3 tasks | 4 files |
 | Phase 7 P03 | 43min | 3 tasks | 27 files |
+| Phase 7 P04 | 26min | 3 tasks | 24 files |
 
 ## Accumulated Context
 
@@ -294,6 +295,9 @@ Recent decisions affecting current work:
 - [Phase 7]: 07-03: storeSessionInDatabase true — the engine default with secondaryStorage is Redis-only sessions; the phase design is DB-backed session rows (D-44/D-30), reads still from secondary storage so cookieCache is unchanged
 - [Phase 7]: 07-03: the engine reset endpoint is /request-password-reset — the plan's /forget-password spelling is the docs' legacy alias (404s); D-22 hooks.before guard + the 5/h custom rule key the real path
 - [Phase 7]: 07-03: requireProductionEnv skips NEXT_PHASE=phase-production-build — next build evaluates route modules under NODE_ENV=production; the throw-early env gate stays a runtime boot guarantee (01fc48f)
+- [Phase 7]: 07-04: components consume a useAuthSession accessor exported from src/lib/auth-client — the Task 2 gate forbids the bare useSession token in component dirs; components derive the legacy three-state status from isPending+data so every conditional render stayed byte-identical (better-auth/react keeps exactly one importer, AUTH-08)
+- [Phase 7]: 07-04: sign-out sites keep each site's ACTUAL target (Navbar x2 -> /, NavUser -> /login, Dashboard -> /login, ProfileComponent -> /register, TeamSwitch -> /login) — the plan's parenthetical gloss misquoted the code; the binding "same target each site uses today" rule wins, zero behavior change
+- [Phase 7]: 07-04: the D-02 notice strip mounts from page.tsx in a column-width centered shell — the in-DOM column child lives inside the byte-frozen LoginForm (D-33 wins), and true in-column placement would clip on short viewports (items-center + overflow-hidden); playwright webServer gained test-scoped BETTER_AUTH_*/OAuth envs because the 07-03 throw-early gate had silently darkened the whole e2e leg
 
 ### Pending Todos
 
@@ -317,6 +321,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-22T21:07:00.062Z
-Stopped at: Completed 07-03-PLAN.md
+Last session: 2026-09-22T21:43:37.939Z
+Stopped at: Completed 07-04-PLAN.md
 Resume file: None

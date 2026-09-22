@@ -90,7 +90,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [x] **SEC-01**: SSRF layering in the check engine: resolve-then-validate all IPs against a private-range denylist per redirect hop (≤5), scheme allowlist, 2 MB response cap, strict 10 s timeout — with SSRF test cases (S-1)
 - [x] **SEC-02**: OS-level egress control on the worker host (deny private ranges; allow 80/443 egress only)
 - [x] **SEC-03**: Telegram webhook authenticated via `secret_token` (X-Telegram-Bot-Api-Secret-Token header check) (S-2)
-- [ ] **SEC-04**: Admin role via Better Auth admin plugin; feedback listing admin-gated; any queue UI admin-gated + IP allowlist (S-3)
+- [x] **SEC-04**: Admin role via Better Auth admin plugin; feedback listing admin-gated; any queue UI admin-gated + IP allowlist (S-3)
 - [x] **SEC-05**: Per-user enqueue rate limiter on the manual-check endpoint
 - [x] **SEC-06**: No secret accepted via query string; `CRON_SECRET` retires with the cron endpoints (S-4/R15)
 
@@ -124,7 +124,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [x] **OBS-01**: Queue metrics exported: depth per queue, job age (not just depth), stalled count, transition→alert latency, Redis memory %
 - [x] **OBS-02**: Structured logs with `monitorId` correlation across scheduler → check → persist → alert **— evidence: correlated log chains captured in the Phase-5 cutover window (D-42; `obs-02-monitor2-correlated-logs.json`, window #4b, 05-DEPLOY-RECORD)**
 - [x] **OBS-03**: Outbox-age alerting (rows older than N seconds page the operator) **— evidence: `WORKER_OUTBOX_HC_PING_URL` live since the 05-02 add-release (300 s grace, D-25); real firing ×2 on 2026-09-16 host outages (~8-min health-loop outage detected, down→up transitions recorded); trio lockstep-advancing in the deletion-release proofs (05-DEPLOY-RECORD, 05-09)**
-- [ ] **OBS-04**: Bull Board queue inspection behind admin auth + IP allowlist
+- [x] **OBS-04**: Bull Board queue inspection behind admin auth + IP allowlist
 - [x] **OBS-05**: Prometheus export (BullMQ telemetry + custom gauges) with optional dashboard **— evidence: worker `/metrics.json` on :9090 serving BullMQ telemetry + custom gauges (build SHA embedded), live through the deletion release; Grafana/persistent Prometheus deferred to the VPS era per D-40 (05-09 closeout)**
 
 ### AI Integration
@@ -275,8 +275,8 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | AUTH-09 | Phase 7 | Complete |
 | DRZ-07 | Phase 7 | Pending |
 | EML-04 | Phase 7 | Complete |
-| SEC-04 | Phase 7 | Pending |
-| OBS-04 | Phase 7 | Pending |
+| SEC-04 | Phase 7 | Complete |
+| OBS-04 | Phase 7 | Complete |
 | AI-01 | Phase 8 | Pending |
 | AI-02 | Phase 8 | Pending |
 | AI-03 | Phase 8 | Pending |

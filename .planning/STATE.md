@@ -4,11 +4,11 @@ milestone: v1.0
 current_phase: 7
 current_phase_name: Better Auth Cutover, Admin Gating & Prisma Removal
 status: executing
-stopped_at: Completed 07-04-PLAN.md
-last_updated: "2026-09-22T21:44:38.729Z"
+stopped_at: Completed 07-05-PLAN.md
+last_updated: "2026-09-22T22:31:13.019Z"
 last_activity: 2026-09-23
 last_activity_desc: Phase 7 execution started
-state_head: c973b81cfbf5879ed7099f0391d0daae0436c295
+state_head: a8841c7679f46fe7c763adb4a208f23af0dec10b
 progress:
   total_phases: 8
   completed_phases: 5
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 ## Current Position
 
 Phase: 7 (Better Auth Cutover, Admin Gating & Prisma Removal) — EXECUTING
-Plan: 5 of 9
+Plan: 6 of 9
 Status: Ready to execute
 Last activity: 2026-09-23 — Phase 7 execution started
 
@@ -116,6 +116,7 @@ Progress: [████████████████████] 50/50 p
 | Phase 7 P02 | 26 min | 3 tasks | 4 files |
 | Phase 7 P03 | 43min | 3 tasks | 27 files |
 | Phase 7 P04 | 26min | 3 tasks | 24 files |
+| Phase 7 P05 | 36min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -298,6 +299,9 @@ Recent decisions affecting current work:
 - [Phase 7]: 07-04: components consume a useAuthSession accessor exported from src/lib/auth-client — the Task 2 gate forbids the bare useSession token in component dirs; components derive the legacy three-state status from isPending+data so every conditional render stayed byte-identical (better-auth/react keeps exactly one importer, AUTH-08)
 - [Phase 7]: 07-04: sign-out sites keep each site's ACTUAL target (Navbar x2 -> /, NavUser -> /login, Dashboard -> /login, ProfileComponent -> /register, TeamSwitch -> /login) — the plan's parenthetical gloss misquoted the code; the binding "same target each site uses today" rule wins, zero behavior change
 - [Phase 7]: 07-04: the D-02 notice strip mounts from page.tsx in a column-width centered shell — the in-DOM column child lives inside the byte-frozen LoginForm (D-33 wins), and true in-column placement would clip on short viewports (items-center + overflow-hidden); playwright webServer gained test-scoped BETTER_AUTH_*/OAuth envs because the 07-03 throw-early gate had silently darkened the whole e2e leg
+- [Phase 7]: [Phase 7]: 07-05: per-path source gating on a NON-loopback bind (operator sets host at flip per runbook 4c) — healthz/readyz/metrics answer loopback-source sockets only while /admin/queues answers allowlisted sources; loopback-bind default is behavior-identical to the pre-07-05 server (T-07-19/Pitfall 8)
+- [Phase 7]: [Phase 7]: 07-05: the D-16 audit stream is ONE injectable pino child on the Bull Board handler (refuseAndAudit unifies Gate 1 refusals) — every line carries marker/userId/route/ip/timestamp/allowed/reason regardless of which gate refused
+- [Phase 7]: [Phase 7]: 07-05: A5 proven live — getRequestListener bridges the Hono Bull Board mount onto :9090 with serveStatic assets 200 (serve() is itself built on the listener); static assets sit behind BOTH gates (cookie-carrying fetch asserted)
 
 ### Pending Todos
 
@@ -321,6 +325,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-22T21:43:37.939Z
-Stopped at: Completed 07-04-PLAN.md
+Last session: 2026-09-22T22:30:49.636Z
+Stopped at: Completed 07-05-PLAN.md
 Resume file: None

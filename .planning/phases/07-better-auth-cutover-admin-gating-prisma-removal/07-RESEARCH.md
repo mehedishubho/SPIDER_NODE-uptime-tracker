@@ -635,23 +635,26 @@ export const config = { matcher: ["/dashboard/:path*"] }; // matcher unchanged [
 | A6 | better-auth 1.7.5 runs on the repo's Node line (>=22 <25): the package declares NO `engines` field (an absence — no compatibility claim either way), and its peer range covers next ^16/react ^19 | Standard Stack | Effectively none — peers + npm install probe at plan execution confirm |
 | A7 | `@better-auth/redis-storage` exports a create-storage factory compatible with `secondaryStorage` (package purpose verified; exact export name not pinned this session) | Pitfall 9 | Build-time error immediately visible; docs page at implementation |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Boolean `emailVerified` physical column name.**
+> All six questions are substantively resolved in the Phase-7 plans; each carries its resolution marker below. Nothing is unresolved.
+
+1. **Boolean `emailVerified` physical column name.** → **RESOLVED in 07-01**: the column is `email_verified` (snake_case boolean, NOT NULL DEFAULT false), added to `users` in cutover migration 0002; `user.fields` maps Better Auth's `emailVerified` → `"email_verified"` (07-01 Task 5), and the D-23 truthiness backfill lives in 0002. Name-agnostic consumers unaffected.
    - What we know: the timestamp column `emailVerified` cannot be reused; `user.fields` maps Better Auth's field to any column name; audit §12.1 pins the truthiness backfill.
    - What's unclear: the planner's column name (e.g. `email_verified_bool`) and whether to snake-case it (legacy table uses camelCase quoted identifiers).
    - Recommendation: pick a name in-plan; both `user.fields` and the drop/release story are name-agnostic.
-2. **D-22 reset parity vs today's actual route behavior.**
+2. **D-22 reset parity vs today's actual route behavior.** → **RESOLVED in 07-03**: mirror-the-intent — a hooks.before check on the engine's forget-password path returns the clear OAuth-only message ("This account signs in with Google or GitHub.") when the user has no credential-account password; reset succeeds regardless of verified status; reset no longer flips any verified timestamp (documented delta vs today's code, aligned with D-22 — 07-03 Task 1, rehearsed for copy sign-off per D-06).
    - What we know: today there is NO hasPassword gate and reset silently sets `emailVerified` [VERIFIED: src/app/api/auth/reset-password/route.ts:36-44]; D-22 says "requires a password hash to exist … reset succeeds regardless of emailVerified status; researcher pins the current route behavior first; zero new policy."
    - What's unclear: whether "mirror today" means mirror-the-code (no gate; verified-flip lost with the route) or mirror-the-intent (add the OAuth-only clear message via a `hooks.before` check on `/forget-password`).
    - Recommendation: raise at plan review as a one-line disposition; the hasPassword signal exists (`profile.hasPassword` at src/app/api/user/profile/route.ts:54) if the gate is wanted.
-3. **Worker :9090 bind decision (Pitfall 8).**
+3. **Worker :9090 bind decision (Pitfall 8).** → **RESOLVED in 07-05**: per-path source gating on a non-loopback bind — healthz/readyz/metrics answer loopback-source sockets only while `/admin/queues` answers allowlisted sources (07-05 Task 3); the operator sets the host option at flip per runbook §4c and the configuration is proven first at the D-34 rehearsal (07-06).
    - What we know: loopback-only bind today (T-04-01); D-17/D-31 demand allowlisted-IP reachability.
    - Recommendation: per-path source gating on a non-loopback bind; operator confirms at the D-34 rehearsal.
-4. **D-33 surfaced-string mapping for engine-native responses** (duplicate-email synthetic 200; `account_not_linked`; `EMAIL_NOT_VERIFIED`; INVALID_TOKEN redirect `?error=INVALID_TOKEN` on the reset page).
+4. **D-33 surfaced-string mapping for engine-native responses** (duplicate-email synthetic 200; `account_not_linked`; `EMAIL_NOT_VERIFIED`; INVALID_TOKEN redirect `?error=INVALID_TOKEN` on the reset page). → **RESOLVED in 07-04 + 07-03**: 401 → "Invalid email or password."; 403 EMAIL_NOT_VERIFIED → the exact legacy string "Please verify your email address before logging in."; provider-initiate / `account_not_linked` callback failure → the frozen "Failed to initiate sign in with ${provider}" toast; duplicate-email synthetic 200 → the existing success toast (enumeration protection, sanctioned A4 delta noted for the summary); INVALID_TOKEN lands on the EXISTING expired/error state (D-20 — no new copy, no new screen). Frozen list in 07-UI-SPEC Copywriting Contract.
    - Recommendation: planner drafts the mapping table in-plan against the 07-UI-SPEC frozen string list; note the UI-SPEC list does not yet contain the unverified-login string.
-5. **Rate-limit mechanism final pick (D-24 discretion).** Recommendation: Better Auth built-in + `secondaryStorage` (Redis) + explicit `customRules` — one engine inside the auth surface; the house Lua limiter remains for the non-auth routes.
-6. **Notice-window env names + exact blast-script knobs** — planner territory per D-05/discretion.
+5. **Rate-limit mechanism final pick (D-24 discretion).** → **RESOLVED in 07-03**: Better Auth built-in rateLimiter + `@better-auth/redis-storage` secondaryStorage (Redis — limits survive deploys) + explicit `customRules` pinning register/forgot at 5/h per IP; sign-in gains the engine's sensitive-route default (D-24 improvement delta); the house Lua limiter remains for the non-auth routes.
+   - Original recommendation (adopted): Better Auth built-in + `secondaryStorage` (Redis) + explicit `customRules` — one engine inside the auth surface; the house Lua limiter remains for the non-auth routes.
+6. **Notice-window env names + exact blast-script knobs** → **RESOLVED in 07-04 + 07-02**: notice window envs `AUTH_NOTICE_START` / `AUTH_NOTICE_END` (07-04 Task 3, delete-after-use per D-05, gate-extended in 07-08); blast flip-date env `AUTH_FLIP_DATE` (07-02 Task 2); blast-script internals per planner discretion (Drizzle recipient enumeration, explicit target-stack requireEnv, per-batch progress, console-provider dry-run mode).
 
 ## Environment Availability
 

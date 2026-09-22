@@ -178,7 +178,7 @@ For login/register/forgot/reset/verify/verify-sent the visual contract is **iden
 > Empty-state and error-state COPY live in `## Copywriting Contract` above — this section covers
 > state coverage and REFERENCES those rows rather than restating the copy (de-dup).
 
-Applicable state considerations resolved: 7 covered, 2 backstop, 0 unresolved
+Applicable state considerations resolved: 6 covered, 2 backstop, 1 n/a, 0 unresolved
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|

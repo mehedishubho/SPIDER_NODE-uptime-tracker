@@ -4,6 +4,9 @@ import type { Server } from "node:http";
 import type Redis from "ioredis";
 import { workerConnection } from "./connection";
 import { workerPgPool } from "./db";
+import { isIpAllowlisted, isLoopbackRemote, parseIpAllowlist } from "../lib/ip-allowlist";
+import type { IPAllowlist } from "../lib/ip-allowlist";
+import type { BullBoardHandler } from "./bull-board";
 
 // ---------------------------------------------------------------------------
 // Worker health surface (WRK-08, D-13) — loopback HTTP on WORKER_HEALTH_PORT
@@ -46,6 +49,9 @@ import { workerPgPool } from "./db";
 // tsx dev, where no build step has embedded them yet.
 export const WORKER_BUILD_SHA = process.env.WORKER_BUILD_SHA ?? "";
 export const WORKER_BUILD_TS = process.env.WORKER_BUILD_TS ?? "";
+
+/** Hosts whose bind keeps the health surface loopback-only (T-04-01). */
+const LOOPBACK_BINDS = new Set(["127.0.0.1", "localhost", "::1"]);
 
 /**
  * The minimum surface health.ts needs from a pg pool (injectable — tests
@@ -159,6 +165,26 @@ export interface StartHealthServerOptions {
    * exactly this shape; without it the /metrics surface is absent (404).
    */
   metricsRegistry?: { contentType: string; metrics(): Promise<string> };
+  /**
+   * The gated Bull Board mount (OBS-04/SEC-04, 07-05): when injected, every
+   * /admin/queues path delegates here BEFORE the 405/404 gates below. The
+   * handler (src/worker/bull-board.ts) runs Gate 2 — the Better Auth admin
+   * session — plus the D-16 audit line, and only then bridges into the Bull
+   * Board hono app; mutation powers stay enabled (D-19), so the delegation
+   * intentionally precedes this module's GET/HEAD-only gate. Default
+   * undefined: the surface is ABSENT (404) — nothing loads any @bull-board/*
+   * code unless the worker boot injects it (D-18 boundary; the web bundle
+   * never gains any of this).
+   */
+  bullBoardHandler?: BullBoardHandler;
+  /**
+   * Gate 1 for the mount above (D-17): the parsed socket-source allowlist
+   * checked in this module's /admin/queues delegation branch. Defaults to
+   * parseIpAllowlist(process.env.ADMIN_IP_ALLOWLIST) — an empty/missing env
+   * yields an EMPTY list, which refuses EVERYTHING (fail-closed: the queue
+   * UI is unreachable until the operator configures it).
+   */
+  allowlist?: IPAllowlist;
   /** Fired ONCE, only when both boot pings pass (WRK-08 two-signal contract). */
   onReady?: () => void;
 }
@@ -193,12 +219,47 @@ export function startHealthServer(options: StartHealthServerOptions = {}): Promi
   // ownership is tracked so shutdown only quits what it created.
   const redis = options.redis ?? workerConnection();
   const ownsRedis = options.redis === undefined;
+  // Gate 1 of the /admin/queues mount (D-17): an env-less default yields an
+  // EMPTY allowlist — the fail-closed posture (nothing is allowlisted).
+  const allowlist = options.allowlist ?? parseIpAllowlist(process.env.ADMIN_IP_ALLOWLIST);
+  // The Pitfall-8 bind decision (T-07-19): on a NON-loopback bind (operator
+  // sets `host` at flip per runbook §4c) the health/metrics surface below
+  // answers LOOPBACK-source sockets only, while /admin/queues answers
+  // allowlisted sources through its own gate chain — per-path source
+  // gating, never a blanket 0.0.0.0 exposure.
+  const boundLoopback = LOOPBACK_BINDS.has(host.toLowerCase());
 
   async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const path = (req.url ?? "/").split("?")[0];
+    // The gated Bull Board mount (D-18/D-19): delegation sits BEFORE the
+    // 405/404 gates — the UI's retry/remove/drain mutations are POST/DELETE.
+    // Gate 1 (D-17) runs HERE: the socket-source allowlist, keyed on
+    // req.socket.remoteAddress ONLY (a forwarded-for header is spoofable and
+    // never grants access — plan prohibition / T-07-18). A refusal is
+    // answered by this server (403 JSON + the D-16 audit line), never by
+    // Bull Board; only past both gates does Bull Board code run (T-07-20).
+    if (options.bullBoardHandler && path.startsWith("/admin/queues")) {
+      const remote = req.socket.remoteAddress ?? "";
+      if (!isIpAllowlisted(remote, allowlist)) {
+        // The refusal ANSWER + D-16 audit line go through the handler's
+        // own audit path — one uniform line shape from one child logger.
+        await options.bullBoardHandler.refuseAndAudit(req, res, "ip_not_allowlisted");
+        return;
+      }
+      await options.bullBoardHandler(req, res);
+      return;
+    }
     if (req.method !== "GET" && req.method !== "HEAD") {
       res.writeHead(405, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: false, error: "method not allowed" }));
+      return;
+    }
+    // T-07-19 (Pitfall 8): on a non-loopback bind the health/metrics surface
+    // stays loopback-source-only — the loopback-bind default below is
+    // behavior-identical to the pre-07-05 server.
+    if (!boundLoopback && !isLoopbackRemote(req.socket.remoteAddress ?? "")) {
+      res.writeHead(403, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: "forbidden" }));
       return;
     }
     if (path === "/healthz") {

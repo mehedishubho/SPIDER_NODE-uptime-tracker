@@ -12,6 +12,8 @@ import { processEmailJob } from "./email";
 import { processMaintenanceJob } from "./maintenance";
 import { state as breakerState } from "./breaker";
 import { createMetricsRegistry } from "./metrics";
+import { createBullBoardHandler } from "./bull-board";
+import { auth } from "@/lib/auth";
 
 // ---------------------------------------------------------------------------
 // dist/worker.js — the SINGLE worker entry (D-11). All queue workers, the
@@ -110,6 +112,14 @@ async function main(): Promise<void> {
     redis,
     pool,
     metricsRegistry,
+    // OBS-04/SEC-04 (D-17/D-18/D-19): the gated Bull Board mount on THIS
+    // server — Gate 1 (the ADMIN_IP_ALLOWLIST socket-source gate) is parsed
+    // here at boot and enforced inside startHealthServer's delegation
+    // branch; Gate 2 (Better Auth admin session) rides the SHARED auth
+    // instance from @/lib/auth (A2). The allowlist defaults EMPTY
+    // (fail-closed) until the operator configures it; mutation powers stay
+    // enabled (D-19) — the gates are the controls.
+    bullBoardHandler: createBullBoardHandler(queues, { auth }),
     // OBS-01: the /metrics.json queue section (per-lane depth, head-waiting
     // age, stalled count, backlog drop counter) plus the Postgres breaker's
     // in-process state (RES-01 — CLOSED/OPEN/HALF_OPEN, consecutive-failure

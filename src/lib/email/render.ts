@@ -153,3 +153,114 @@ export const renderPasswordResetEmailFromUrl = (to: string, url: string): Render
     html: generateEmailTemplate("Reset Your Password", content, "Reset Password", url, footerText),
   };
 };
+
+// ---------------------------------------------------------------------------
+// 07-02 (AUTH-06, D-01/D-04/D-06): the advance re-login announcement email —
+// a NEW email with no legacy parity constraint. One simple section; the
+// copy is the D-06-drafted points (same email+password, sessions end at the
+// switch, verification/reset keep working but pre-switch links die, Google
+// and GitHub keep working, switch date). The queue payload transports html
+// only (EmailPayload has no text field), so the section renders the copy
+// as styled text; the operator signs off by inspecting the exact rendered
+// bytes through the console provider (D-06 dry-run, EMAIL_PROVIDER=console).
+// ---------------------------------------------------------------------------
+
+/** The announcement subject (D-06 — drafted copy, operator-approved at rehearsal). */
+export const ANNOUNCEMENT_SUBJECT = "SpiderNode is moving to a new sign-in system";
+
+/**
+ * D-24 escapeHtml trio (+ quotes), module-local: the ONLY interpolated
+ * value in the announcement html is the operator-set AUTH_FLIP_DATE env, and
+ * it must render as text, never markup. Kept local rather than imported —
+ * the existing escape lives in app/ and worker/ modules that lib/email must
+ * not drag in (D-08 boundary direction).
+ */
+const escapeHtml = (value: string): string =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
+/**
+ * Renders the announcement blast email for one recipient (D-01: sent to
+ * every registered account — the caller enumerates; this module stays
+ * recipient-agnostic). The switch date comes from AUTH_FLIP_DATE, read at
+ * render time and THROW-EARLY when absent (06 D-11 lineage): the D-06
+ * sign-off inspects exact rendered bytes, so an "undefined" date must
+ * never reach a rendered email. The blast script requireEnv's the same
+ * var before any enqueue — this is the second net, not the only one.
+ */
+export const renderAnnouncementEmail = (to: string): RenderedEmail => {
+  const flipDate = process.env.AUTH_FLIP_DATE;
+  if (!flipDate) {
+    throw new Error(
+      "[lib/email] AUTH_FLIP_DATE is not set — the announcement copy must name the switch date " +
+        "(AUTH-06/D-06; the blast script requireEnv's it before rendering)"
+    );
+  }
+  const safeFlipDate = escapeHtml(flipDate);
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${ANNOUNCEMENT_SUBJECT}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f4f7f6; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; max-width: 600px; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+          <!-- Header -->
+          <tr>
+            <td align="center" style="padding: 40px 20px; background-color: #0f172a;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 32px; letter-spacing: -0.5px; font-weight: 800;">Spider<span style="color: #3b82f6;">Node</span></h1>
+            </td>
+          </tr>
+          <!-- Body (one section) -->
+          <tr>
+            <td style="padding: 40px 40px 30px 40px;">
+              <h2 style="color: #1e293b; margin-top: 0; margin-bottom: 24px; font-size: 24px; font-weight: 700;">We're moving to a new sign-in system</h2>
+              <p style="color: #475569; font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
+                SpiderNode is switching to a new sign-in system. Here is what changes for you:
+              </p>
+              <ul style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0; padding-left: 24px;">
+                <li>You will sign in with the <strong>same email and password</strong> as you use today.</li>
+                <li>All active sessions end when we make the switch, so you will need to <strong>log in again</strong>.</li>
+                <li>Verification and password-reset emails keep working &mdash; links issued before the switch stop working.</li>
+                <li>Signing in with Google and GitHub keeps working.</li>
+              </ul>
+              <p style="color: #1e293b; font-size: 16px; line-height: 1.6; margin: 0;">
+                The switch happens on <strong>${safeFlipDate}</strong>.
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8fafc; padding: 24px 40px; text-align: center;">
+              <p style="color: #94a3b8; font-size: 13px; line-height: 1.5; margin: 0;">
+                This is a one-time notice about the sign-in change. No action is needed until the switch.
+              </p>
+              <p style="color: #cbd5e1; font-size: 12px; margin: 16px 0 0 0;">
+                &copy; ${new Date().getFullYear()} SpiderNode. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
+
+  return {
+    to,
+    subject: ANNOUNCEMENT_SUBJECT,
+    html,
+  };
+};

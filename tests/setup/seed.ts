@@ -31,9 +31,13 @@ const pool = new Pool({ connectionString: resolveTestDatabaseUrl() });
 
 /** Wipes every table the app writes (users cascade to their children). */
 export async function resetE2EData(): Promise<void> {
+  // Better Auth tables (Phase 7): account/session cascade from users via
+  // their ON DELETE cascade FKs, but `verification` has no users FK
+  // (identifier/value shape) — listed explicitly so the wipe stays complete.
   await pool.query(`
     TRUNCATE TABLE users, monitors, pings, incidents, feedbacks,
-      accounts, sessions, verification_tokens, password_reset_tokens
+      accounts, sessions, verification_tokens, password_reset_tokens,
+      account, session, verification
     RESTART IDENTITY CASCADE
   `);
 }
@@ -41,9 +45,15 @@ export async function resetE2EData(): Promise<void> {
 /**
  * Creates a user with a bcryptjs-hashed known password.
  * emailVerified is set: src/lib/auth.ts refuses credentials login without it
- * (02-02-SUMMARY login quirk 1). Defaults reproduce the original smoke user;
- * 02-05's HTTP-level ownership tests pass distinct emails/passwords for two
- * users. Returns the new user id.
+ * (02-02-SUMMARY login quirk 1). The Phase-7 boolean "email_verified" is set
+ * to TRUE to mirror the legacy timestamp's truthiness — the same mapping the
+ * 0002 backfill applies (D-23). Better Auth's engine gates login on the
+ * boolean column (field→column map at src/lib/auth.ts), so a seed setting
+ * only the legacy timestamp leaves email_verified false and the engine
+ * refuses the seeded login (07-04 handoff; 6 pre-existing smoke/api e2e
+ * failures). Defaults reproduce the original smoke user; 02-05's HTTP-level
+ * ownership tests pass distinct emails/passwords for two users. Returns the
+ * new user id.
  */
 export async function seedE2EUser(
   email: string = E2E_EMAIL,
@@ -53,8 +63,8 @@ export async function seedE2EUser(
   const passwordHash = await bcrypt.hash(password, 10);
   const id = randomUUID();
   await pool.query(
-    `INSERT INTO users (id, name, email, password, "emailVerified", "timezone", "createdAt", "updatedAt")
-     VALUES ($1, $2, $3, $4, $5, 'UTC', NOW(), NOW())`,
+    `INSERT INTO users (id, name, email, password, "emailVerified", "email_verified", "timezone", "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, $4, $5, TRUE, 'UTC', NOW(), NOW())`,
     [id, name, email, passwordHash, new Date()]
   );
   return id;

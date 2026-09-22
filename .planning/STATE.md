@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 7
 current_phase_name: Better Auth Cutover, Admin Gating & Prisma Removal
 status: executing
-stopped_at: Completed 07-01-PLAN.md (Tasks 1-5; tracer green)
-last_updated: "2026-09-22T19:36:55.063Z"
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-09-22T20:13:23.881Z"
 last_activity: 2026-09-23
 last_activity_desc: Phase 7 execution started
-state_head: 9d4bfc4e9d103449d9fb68a599f09f9d3b1e0d18
+state_head: fd7993e0149dc07476588d3afe6bc03eb67b3241
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 59
-  completed_plans: 50
+  completed_plans: 51
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 ## Current Position
 
 Phase: 7 (Better Auth Cutover, Admin Gating & Prisma Removal) — EXECUTING
-Plan: 2 of 9
+Plan: 3 of 9
 Status: Ready to execute
 Last activity: 2026-09-23 — Phase 7 execution started
 
@@ -113,6 +113,7 @@ Progress: [████████████████████] 50/50 p
 |------|----------|-------|-------|
 | Phase 06 P05 | ~30min (Task 3 closeout continuation leg; Tasks 1-2 prior sessions incl. checkpoint pauses) | 3 tasks | 14 files |
 | Phase 7 P01 | 33min (continuation leg; Tasks 1-2 + D-08 checkpoint prior session) | 5 tasks | 28 files |
+| Phase 7 P02 | 26 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -287,6 +288,8 @@ Recent decisions affecting current work:
 - [Phase 06]: 06-05: SEC-06 closed — deleted surface (e448245) + extended D-41/D-27 remnant gate (441 files, RED spot-checked) + production 404s (§13); deletion deploy worker-first readyz-gated from HEAD 51a9fbb (code-identical to e448245, BUILD_ID fX5KMtHDLVhbXLOXQ8bsX) behind pre-deploy pg_dump pre-0605-deletion-20260920-215941.dump
 - [Phase 06]: 06-05: Task 3 bare 'approved' taken as authorization-to-proceed after probes proved the deploy NOT executed operator-side (worker uptime continuous on 31a56df, web 401, no fresh dump); deploy executor-executed with machine evidence — approval-vs-state reconciliation recorded in DEPLOY-RECORD §13
 - [Phase 06]: 06-05: D-14 maintenance cron fires host-local (+06) — machine-proven pass 2026-09-20T21:15:00.143Z consumed exactly the monitor-3 seed (40 pings + 1 incident, auditDiscrepancies 0); IN-01 re-checked GREEN in the deploy restart window (health.test 7/7, port free), deferral stays environmental while a steady worker holds 9090
+- [Phase 7]: 07-02: render domain source moved to BETTER_AUTH_URL with additive *FromUrl variants embedding Better Auth's prebuilt url — token-based exports kept until 07-03 deletes their call sites
+- [Phase 7]: 07-02: blast script exports its fan-out (missingRequiredEnv/runBlast/enqueueAnnouncementForUsers) behind a main-module guard — the unit suite drives the real render+enqueue against a captured fake queue, no Redis
 
 ### Pending Todos
 
@@ -310,6 +313,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-22T19:36:54.464Z
-Stopped at: Completed 07-01-PLAN.md (Tasks 1-5; tracer green)
+Last session: 2026-09-22T20:13:23.302Z
+Stopped at: Completed 07-02-PLAN.md
 Resume file: None

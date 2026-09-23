@@ -417,7 +417,61 @@ The Phase-6 feature release ships four behavior changes at once (plans 06-01..06
 
 ---
 
-## 5. PM2 settings checklist (apply to both apps; values for `ecosystem.config.js`)
+## 4c. Phase-7 flip release (Better Auth cutover — the auth engine swap)
+
+The flip release ships the milestone's biggest migration (`drizzle/0002_better_auth_cutover.sql`): Better Auth replaces NextAuth/Prisma auth, `users.role` admin gating goes live on `/api/feedback`, and the worker's `:9090` gains the gated Bull Board mount. The migration is **purely additive** (no DROP/RENAME; every legacy table/column survives untouched), which is what makes rollback a **redeploy-only** lever — drilled, not assumed, in the 07-06 rehearsal (`07-DEPLOY-RECORD.md` §11: previous artifact `51a9fbb` rebooted against the post-0002 stand-in and NextAuth still logged in against the untouched tables; D-35/D-30). Users are force-re-logged-out by the cookie change — accepted at design (M2/D6), announced by the re-login blast beforehand.
+
+**Never first-on-production (D-34):** the exact sequence below was rehearsed end-to-end on the anonymized stand-in — migration + admin seed + boolean backfill, web AND worker booted, canary old-password login, admin gate matrix, Bull Board allowlist matrix, verification/reset round-trips, notice strip — with evidence in `07-DEPLOY-RECORD.md`.
+
+1. **Pre-flight — gates + env ready before anything deploys.**
+   - *Action:* `pnpm verify` green; `pnpm rehearse:migrations` green on a fresh anonymized snapshot (§3d) with the WR-05-fixed count-agnostic bookkeeping and the 0002 digest inventory; the D-40 snapshot leg recorded (per-provider reshaped row counts + non-null token counts). Provision the new env: `BETTER_AUTH_URL` + `BETTER_AUTH_SECRET` (strong mint; the SAME secret on web and worker — the Bull Board session gate validates web-minted cookies), real `GOOGLE_CLIENT_ID/SECRET` + `GITHUB_CLIENT_ID/SECRET` (Better Auth reads the same names), `ADMIN_IP_ALLOWLIST` on the worker (the operator-set allowlist for Bull Board — 07-05 gates by source), `AUTH_NOTICE_START`/`AUTH_NOTICE_END` on the web (the D-02 re-login notice strip window). `NEXTAUTH_URL`/`NEXTAUTH_SECRET` retire with this release (the email-link domain already reads `BETTER_AUTH_URL` since 07-02).
+   - *Verification:* all gates exit 0; rehearsal evidence reviewed (§3d step 3); every new env present in BOTH app environments with matching values.
+   - *Rollback:* nothing has deployed — fix and re-rehearse.
+2. **Announce — the re-login blast BEFORE the window opens.**
+   - *Action:* run the announcement fan-out with the flip date: `AUTH_FLIP_DATE=YYYY-MM-DD node scripts/send-relogin-blast.mjs` (queue fan-out, one `email-transactional` job per registered user; console-provider dry-run first to inspect bytes — operator copy sign-off recorded, D-06). Set the notice-strip window to cover the announced date.
+   - *Verification:* blast enqueues one job per registered user; the notice strip renders on `/login` inside the window.
+   - *Rollback:* re-run the blast (idempotent fan-out) if the window moves.
+   - **D-07 slip rule:** if the flip slips **more than ~48 h** past the announced date, re-run the blast with updated copy; otherwise say nothing.
+3. **Backup.**
+   - *Action:* full `pg_dump` of production immediately before the migrate (`pg_dump "$DATABASE_URL" -F c -f /var/backups/uptime/pre-phase7-flip-<date>.dump`).
+   - *Verification:* `pg_dump` exits 0; the dump is non-empty.
+   - *Rollback:* abort the release — production data unchanged.
+4. **Migrate — the single runner, once (M-1).**
+   - *Action:* `DATABASE_URL=<production> pnpm exec drizzle-kit migrate` — applies `0002_better_auth_cutover.sql`: creates `account`/`session`/`verification`, credential rows from `users.password` (preserved bcrypt hashes — old passwords keep working), the OAuth reshape from legacy `accounts` (tokens preserved per provider), the `email_verified` boolean backfill, and `users.role`. Never at web or worker boot, never concurrently.
+   - *Verification:* exit 0; journal carries the new entry; legacy tables untouched (the D-30 substrate the rollback lever rests on).
+   - *Rollback:* no down-migration — additive-only schema; rollback of the RELEASE is step 7's redeploy (§7).
+5. **Seed admin roles — fail-loud, before the gates go live (D-08/D-09).**
+   - *Action:* `DATABASE_URL=<production> ADMIN_EMAILS="ops@example.com" node scripts/seed-admin-roles.mjs` — grants `role='admin'` to the comma-separated roster (lowercase-matched).
+   - *Verification:* the script prints its applied-grant count and exits 0. A missing/empty roster or a **zero-match roster ABORTS non-zero without granting (D-09)** — production can never flip with zero admins and a freshly-403 feedback API. Fix the roster and re-run; do not proceed past a failed seed.
+   - *Rollback:* abort the release (a zero-admin flip is the failure this gate exists to catch).
+   - **D-11 — ongoing role changes are runbook SQL (no admin UI, no script):**
+     ```sql
+     UPDATE users SET role = 'admin' WHERE lower(email) = lower('ops@example.com');  -- grant
+     UPDATE users SET role = 'user'  WHERE lower(email) = lower('ops@example.com');  -- revoke
+     ```
+     The affected user must **sign out and back in** for the change to take effect — the role rides the session (cookie cache up to 5 min), so an existing session can serve the previous role until it expires.
+6. **Restart worker, then wait for `readyz` (§4 ordering).**
+   - *Action:* deploy the new worker and restart. `:9090` now ALSO serves the gated Bull Board (`/admin/queues`) — reachable only from allowlisted sources with an admin session (D-16 audit lines on every refusal).
+   - *Verification:* `curl -fsS http://127.0.0.1:9090/readyz` passes; from an allowlisted source the Bull Board base answers (403 without an admin cookie is the correct gate answer, never a 500).
+   - *Rollback:* §7 — redeploy the previous worker tarball pair; the previous worker has no Bull Board and needs no new env.
+7. **Restart web.**
+   - *Action:* deploy the new web and restart. Old NextAuth cookies die here — every user re-authenticates through Better Auth (announced, step 2).
+   - *Verification:* `GET /login` returns 200; the notice strip renders inside the window.
+   - *Rollback:* §7 — restore the previous web tarball and restart; the legacy engine runs against the untouched tables (drilled: 07-DEPLOY-RECORD §11 step 4). Canary-red is the same lever, pre-committed: any canary failure (credentials, either OAuth, or an admin gate) → immediate redeploy of the previous release, no debugging on production (D-41); post-mortem on the snapshot, re-announcement per the D-07 slip rule.
+8. **Production canary — the D-31 checklist, on real credentials, before the release counts as good.**
+   - *Action:* (a) canary credentials login with the OLD password (preserved-hash path); (b) one real Google and one real GitHub login — they must complete **WITHOUT a re-consent screen** (that absence is D-40's production proof that live refresh tokens survived the reshape; a consent screen means they did not); (c) verification + reset email round-trips through the queue; (d) admin gate matrix: admin session → `GET /api/feedback` 200, non-admin 403, anonymous 401; (e) Bull Board from an allowlisted IP 200 and from a non-allowlisted source refused; (f) notice strip rendering; (g) dead-error logs quiet. Record the evidence in `07-DEPLOY-RECORD.md`.
+   - *Verification:* every checklist item green with dated evidence.
+   - *Rollback:* any red item → step 7's rollback form (D-41 — redeploy, then investigate on the snapshot).
+9. **Consume feedback (D-15 — API-only until a future admin UI).**
+   - *Action:* the operator reads the feedback queue with an authenticated admin session:
+     ```bash
+     curl -fsS "https://<origin>/api/feedback" -H "Cookie: better-auth.session_token=<admin session cookie>"
+     ```
+     (POST `/api/feedback` stays open to any signed-in user — D-14; only consumption is admin-gated.)
+   - *Verification:* the GET returns the feedback list for an admin session; 403 for a non-admin.
+   - *Rollback:* n/a — read-only consumption.
+
+---
 
 | Setting | Value | Applies to | Why (one line) |
 |---|---|---|---|

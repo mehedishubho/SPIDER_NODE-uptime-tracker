@@ -156,15 +156,58 @@ sha256-16 `003739e643a353a3`) · `0706-copy-reset.html` (3,569 B, `3519cc7b4c0dc
 `0706-copy-announcement-canary.html` (2,945 B, `a27dbf56e44d6f35` — all 7 recipients received
 BYTE-IDENTICAL HTML; the recipient rides the transport envelope only) · `0706-notice-strip.png`.
 
-**D-06 OPERATOR CHECKPOINT: HALTED HERE 2026-09-23T22:3xZ — rendered bytes returned to the
-operator for approval (verification email, reset email, announcement blast dry-run, notice
-strip, plus the D-22 refusal copy). Legs 8 (D-40) and the D-35 drill, runbook §4c, and the
-Task-3 commit are GATED on the approval. Do NOT proceed past this point without it.**
+**D-06 OPERATOR CHECKPOINT: RESOLVED — copy approved.** `D-06 copy approved by operator
+(mehedishubho), 2026-09-24 — verification/reset/announcement bytes + notice strip + D-22 refusal
+copy, all as rendered in .snapshots/ evidence.` The operator reviewed the exact rendered
+console-provider bytes (verification email `003739e643a353a3`, reset email `3519cc7b4c0dc8d5`,
+announcement blast `a27dbf56e44d6f35` with `AUTH_FLIP_DATE=2026-09-28`, notice strip render,
+D-22 refusal copy) and approved them as-is. Legs 8 (D-40), the D-35 drill, runbook §4c, and the
+Task-3 commit proceed under this approval.
 
-## 10. Leg 8 — D-40 snapshot token leg (per-provider pre/post reshaped counts)
+## 10. Leg 8 — D-40 snapshot token leg (per-provider pre/post reshaped counts) — 2026-09-23T22:41Z
 
-PENDING (Task 3).
+**Verdict: PASS** (script: `.snapshots/0706-leg8-d40.mjs`; evidence:
+`.snapshots/0706-leg8-d40-evidence.md`; throwaway container `spidernode-d40` on loopback
+:5460, torn down in `finally`). Two passes over `prod-20260924.dump`, each
+restore → anonymize → stamp (self-skip) → PRE counts → `drizzle-kit migrate` → POST counts:
 
-## 11. D-35 redeploy-rollback drill
+| Pass | provider | pre rows / refresh≠null / access≠null | post rows / refresh≠null / access≠null | Verdict |
+| --- | --- | --- | --- | --- |
+| A (pure snapshot) | credential | 5 / 0 / 0 (legacy `users.password` non-null) | 5 / 0 / 0 (`account.provider_id='credential'`) | MATCH |
+| A (pure snapshot) | google, github | **0 / 0 / 0** — the fresh dump's legacy `accounts` table is EMPTY | 0 / 0 / 0 (no OAuth rows reshaped) | MATCH (zero/zero) |
+| B (synthetic fixtures) | google | 2 / 1 / 2 (one row deliberately `refresh_token = NULL`) | 2 / 1 / 2 | MATCH |
+| B (synthetic fixtures) | github | 1 / 1 / 1 | 1 / 1 / 1 | MATCH |
+| B (synthetic fixtures) | credential | 5 / 0 / 0 | 5 / 0 / 0 | MATCH |
 
-PENDING (Task 3).
+Because the production snapshot carries **zero** OAuth rows, the pure-snapshot pass alone would
+prove the reshape only vacuously — pass B pre-inserts 3 clearly-synthetic OAuth rows
+(throwaway fixture values on the throwaway database, never production data) so the
+token-preservation property is exercised with real non-null values: row counts, non-null
+refresh counts, and non-null access counts all survive the reshape exactly, and a NULL
+`refresh_token` propagates as NULL. D-30 substrate re-proven per pass: the legacy
+`accounts` per-provider counts and the `users.password` non-null count are identical
+pre/post migration, and credential rows carry no OAuth tokens (0/0 both passes). Journal
+rows after each migrate: **3**; migrate wall ≈ 0.7 s per pass. The production-side D-40
+angle (canary OAuth logins without a re-consent screen) belongs to the flip-day soak
+checklist (§4c / D-31), not this snapshot leg.
+
+## 11. D-35 redeploy-rollback drill — 2026-09-23T22:4xZ
+
+**Verdict: PASS — "rollback = redeploy-only" is now evidence, not an assumption.**
+Logs: `.snapshots/0706-d35-legacy-build.log`, `0706-d35-legacy-worker.log`,
+`0706-d35-legacy-web.log`, `0706-worker-reflip.log`, `0706-web-reflip.log`.
+
+| Step | Action | Evidence |
+| --- | --- | --- |
+| 1. Flip verified (new artifact, already live from legs 3–7) | fresh canary `POST /api/auth/sign-in/email` + admin gate | **200**, both `better-auth.session_*` cookies, `emailVerified:true`; `GET /api/feedback` **200** |
+| 2. Previous artifact built | clean `git worktree` at **`51a9fbb`** (the exact HEAD production runs — 06-05's deploy, code-identical to e448245) → `pnpm install --frozen-lockfile` → `pnpm build` (prisma generate + next build + tsup) | build exit 0; `.next` BUILD_ID `h2LLATyw_9vlqRIT_VoK3`; `dist/worker.js` 118.95 KB (vs the flip release's 146,982 B — no Better Auth/Bull Board). Build needed the worktree-local gitignored `.env.production` extended with `REDIS_URL` (06-era module-scope throw-early) + `DATABASE_URL` stand-in values |
+| 3. Redeploy previous artifact (worker first, readyz-gated — §4 ordering) | current web+worker stopped (PIDs verified via cmdline before kill) → legacy worker `node dist/worker.js` (dark posture, console email, stand-in DB/Redis) → legacy web `pnpm start` | legacy worker **readyz 200** in <5 s; `healthz` carries `"sha":"51a9fbb"` (D-10 provenance — the previous release itself, running against the post-0002 stand-in DB); legacy web `GET /login` **200** |
+| 4. Legacy engine verified against UNTOUCHED tables | NextAuth round-trip: `GET /api/auth/csrf` → `POST /api/auth/callback/credentials` (canary + same rehearse-time bcrypt hash Better Auth verified in leg 4) → authenticated `GET /api/monitors` | csrf **200**; credentials login **200** with `next-auth.session-token` set; `GET /api/monitors` **200** returning the stand-in's real monitor JSON — the legacy engine reads `users`/`monitors` exactly as shaped pre-cutover |
+| 5. Re-flip (new artifact restored) | legacy processes stopped → current worker restarted via `0706-worker-env.sh` → readyz → current web via `0706-web-env.sh` | worker **readyz 200**; web `/login` **200** in 1 s |
+| 6. Re-flip verified | fresh Better Auth canary login + admin gate + Bull Board | login **200** (both session cookies); `GET /api/feedback` **200**; `GET :9090/admin/queues` **200** Bull Board HTML — the flipped state fully restored |
+
+The drill ran on the stand-in (D-34 topology) with the snapshot DB — production was never
+touched. The legacy processes' side effects on the stand-in were read-only (NextAuth JWT
+strategy writes no session rows; the legacy worker's single relay pass found 0 candidates).
+Teardown: the `51a9fbb` worktree (`../devsroom-uptime-tracker-legacy51a9fbb`) and its
+gitignored `.env.production` are removed at rehearsal end.

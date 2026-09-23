@@ -1,6 +1,14 @@
 import { LoginForm } from "@/components/Auth/LoginForm";
 import { LoginNotice } from "@/components/Auth/LoginNotice";
 
+// The D-02 notice strip is env-window-gated (AUTH_NOTICE_START/END read at
+// render time). Without this, Next statically prerenders /login at BUILD time
+// — before any operator notice window exists — baking `null` in forever and
+// making the strip unrenderable in every production build (07-06 rehearsal
+// finding). force-dynamic makes the window check per-request, which is the
+// component's documented contract (self-cleaning when the window closes).
+export const dynamic = "force-dynamic";
+
 export default function LoginPage() {
   return (
     <>

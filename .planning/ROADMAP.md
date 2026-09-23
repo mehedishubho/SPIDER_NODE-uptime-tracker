@@ -308,7 +308,7 @@ Plans:
   4. Admin gating works end-to-end: roles via the Better Auth admin plugin, feedback listing admin-only, and the Bull Board queue UI reachable only for admins from allowlisted IPs
   5. Removal is complete: no NextAuth deps or custom auth routes, no Redux `auth` slice / token mirror / `js-cookie` (the Better Auth client is the single auth source), and no `prisma/` directory, generated client, or `@prisma/*` deps — every read path runs on Drizzle with the test suite green
 
-**Plans**: 4/9 plans executed
+**Plans**: 6/9 plans executed
 
 Plans:
 **Wave 1** *(parallel, no file overlap)*
@@ -323,11 +323,11 @@ Plans:
 **Wave 3** *(blocked on 07-03; parallel, no file overlap)*
 
 - [x] 07-04-PLAN.md — Client session swap (D-33 same pixels, frozen toast strings) + provider deletion + login notice strip (D-02) (AUTH-06, AUTH-08)
-- [ ] 07-05-PLAN.md — Bull Board on worker :9090 behind socket-source IP allowlist + admin session, D-16 audit lines, mutation kept (D-17..D-19) (OBS-04, SEC-04)
+- [x] 07-05-PLAN.md — Bull Board on worker :9090 behind socket-source IP allowlist + admin session, D-16 audit lines, mutation kept (D-17..D-19) (OBS-04, SEC-04)
 
 **Wave 4** *(blocked on 07-01..07-05)*
 
-- [ ] 07-06-PLAN.md — Rehearsal: WR-05 machinery fix, refreshed snapshot + D-37 canary, full D-34 stand-in flip rehearsal + D-35 redeploy-rollback drill + D-06 copy sign-off, runbook §4c (AUTH-02, AUTH-05)
+- [x] 07-06-PLAN.md — Rehearsal: WR-05 machinery fix, refreshed snapshot + D-37 canary, full D-34 stand-in flip rehearsal + D-35 redeploy-rollback drill + D-06 copy sign-off, runbook §4c (AUTH-02, AUTH-05)
 
 **Wave 5** *(blocked on 07-06)*
 
@@ -390,5 +390,5 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | 4. Monitoring Worker — Build & Dark Launch | 0/9 | Planned — research resolved, 9 plans across 6 waves | - |
 | 5. Worker Cutover & Operational Hardening | 9/9 | Complete — deletion release d55cad5 shipped (worker owns 100% of checks, legacy cron deleted); D-18 approved, D-21 resolved-by-absence, tier-2 rollback rehearsed | 2026-09-19 |
 | 6. Thin API Routes & Email Abstraction | 5/5 | In Progress|  |
-| 7. Better Auth Cutover, Admin Gating & Prisma Removal | 4/9 | In Progress|  |
+| 7. Better Auth Cutover, Admin Gating & Prisma Removal | 6/9 | In Progress|  |
 | 8. Flagged Capabilities & UI Modernization | 0/TBD | Not started | - |

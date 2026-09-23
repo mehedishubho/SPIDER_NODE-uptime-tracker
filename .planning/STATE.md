@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 7
 current_phase_name: Better Auth Cutover, Admin Gating & Prisma Removal
 status: executing
-stopped_at: Completed 07-05-PLAN.md
-last_updated: "2026-09-22T22:31:13.019Z"
+stopped_at: Completed 07-06-PLAN.md
+last_updated: "2026-09-23T22:50:33.460Z"
 last_activity: 2026-09-23
 last_activity_desc: Phase 7 execution started
-state_head: a8841c7679f46fe7c763adb4a208f23af0dec10b
+state_head: 521eeee99f35883cc445c455439286969467e119
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 59
-  completed_plans: 54
+  completed_plans: 56
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 ## Current Position
 
 Phase: 7 (Better Auth Cutover, Admin Gating & Prisma Removal) — EXECUTING
-Plan: 6 of 9
+Plan: 7 of 9
 Status: Ready to execute
 Last activity: 2026-09-23 — Phase 7 execution started
 
@@ -117,6 +117,7 @@ Progress: [████████████████████] 50/50 p
 | Phase 7 P03 | 43min | 3 tasks | 27 files |
 | Phase 7 P04 | 26min | 3 tasks | 24 files |
 | Phase 7 P05 | 36min | 3 tasks | 8 files |
+| Phase 7 P06 | ~24h elapsed (3 sessions; continuation close-out leg) | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -302,6 +303,9 @@ Recent decisions affecting current work:
 - [Phase 7]: [Phase 7]: 07-05: per-path source gating on a NON-loopback bind (operator sets host at flip per runbook 4c) — healthz/readyz/metrics answer loopback-source sockets only while /admin/queues answers allowlisted sources; loopback-bind default is behavior-identical to the pre-07-05 server (T-07-19/Pitfall 8)
 - [Phase 7]: [Phase 7]: 07-05: the D-16 audit stream is ONE injectable pino child on the Bull Board handler (refuseAndAudit unifies Gate 1 refusals) — every line carries marker/userId/route/ip/timestamp/allowed/reason regardless of which gate refused
 - [Phase 7]: [Phase 7]: 07-05: A5 proven live — getRequestListener bridges the Hono Bull Board mount onto :9090 with serveStatic assets 200 (serve() is itself built on the listener); static assets sit behind BOTH gates (cookie-carrying fetch asserted)
+- [Phase 7]: [Phase 7]: 07-06: D-40 snapshot proof needs a synthetic-fixture pass — the fresh dump's legacy accounts table is EMPTY, so the pure per-provider comparison is vacuous; 3 synthetic OAuth rows (incl. one NULL refresh_token) on the throwaway db make token preservation non-vacuous — the plan mandates a comparison that would otherwise pass 0==0 and prove nothing about AUTH-05 token preservation
+- [Phase 7]: [Phase 7]: 07-06: D-35 drill artifact = the exact production HEAD 51a9fbb rebuilt in a clean worktree (healthz sha provenance) — the drill must prove THE artifact an operator would redeploy, never an approximation — rollback = redeploy-only is only evidence if the redeployed artifact is the real previous release
+- [Phase 7]: [Phase 7]: 07-06: stand-in left RUNNING (DB :5461, re-flipped web/worker) for 07-07..07-09; both rehearsal-only .env.production files deleted at close-out — the production flip build must inline the production origin — remaining phase-7 plans reuse the live stand-in; the NEXT_PUBLIC_ build-env finding is recorded so no stand-in value ever ships
 
 ### Pending Todos
 
@@ -325,6 +329,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-22T22:30:49.636Z
-Stopped at: Completed 07-05-PLAN.md
+Last session: 2026-09-23T22:49:53.608Z
+Stopped at: Completed 07-06-PLAN.md
 Resume file: None

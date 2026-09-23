@@ -211,3 +211,115 @@ touched. The legacy processes' side effects on the stand-in were read-only (Next
 strategy writes no session rows; the legacy worker's single relay pass found 0 candidates).
 Teardown: the `51a9fbb` worktree (`../devsroom-uptime-tracker-legacy51a9fbb`) and its
 gitignored `.env.production` are removed at rehearsal end.
+
+---
+
+# PRODUCTION FLIP (07-07) — preparation, operator run sequence, evidence
+
+**Date opened:** 2026-09-23T22:5xZ (UTC) · **Plan:** 07-07 Tasks 1–3 · **Executor:** GSD plan executor
+**Mode:** `autonomous: false` — every production-touching step below marked **[OPERATOR]** is a
+human action; the executor prepares commands/evidence scaffolding and records results. The
+24h soak is a wall-clock gate; D-36 is the phase's single approval gate. Nothing in §12–§14
+below claims a production action was performed — each such entry stays **PENDING [OPERATOR]**
+until a continuation session records the observed outcome.
+
+## 12. Pre-flight state captured by the executor (read-only, 2026-09-23T22:54–22:59Z)
+
+| Check | Result |
+| --- | --- |
+| Task 1 precondition — D-06 copy approval | **MET** — §9: "D-06 copy approved by operator (mehedishubho), 2026-09-24" with byte-artifact hashes (announcement `a27dbf56e44d6f35` rendered with `AUTH_FLIP_DATE=2026-09-28`) |
+| Task 2 precondition — 07-06 rehearsal green incl. D-35 | **MET** — §3–§11 all PASS; §11 D-35 drill: previous artifact `51a9fbb` rebooted against post-0002 schema, NextAuth login + authenticated API green, re-flip verified |
+| Production DB / Redis containers | `spidernode-dev-db` (127.0.0.1:5454, `uptime_dev`) **up** · `spidernode-prod-redis` (127.0.0.1:6391) **up** |
+| Production registered users (blast denominator, D-01) | **5** users, of which 2 carry a legacy `emailVerified` timestamp — the blast enumerates ALL 5 (never-verified included, D-01) |
+| Production migration journal (pre-flip) | **2 rows** (0000 baseline + 0001) — `0002_better_auth_cutover.sql` pending, exactly the pre-flip state §4c step 4 migrates |
+| Stand-in (left by 07-06) | web :3007 `/login` **200** · worker :9090 readyz `{"ok":true,...}` · DB `spidernode-standin-07` :5461 up — verified live at 22:56Z for this plan's verification legs (§14.3) |
+| Flip-release artifact (in-tree, one build) | `.next` BUILD_ID `_A5eft5coHrzMtZ20AEuK` · `dist/worker.js` 146,982 B sha256-16 `2ad348b4af8a027e` (built 2026-09-24 04:26 local = the 07-06 flip build at `b066404`+`8ed37bd`; HEAD `07ef38e` is docs-only since) |
+| Baked origin (07-06 deviation-2 finding) | `http://127.0.0.1:3007` inlined in the build — the SAME origin the 06-era production deploys used (06-DEPLOY-RECORD D1) and the one the D-06-approved announcement bytes rendered with. **If the operator flips under a different public origin, the artifact MUST be rebuilt with that origin inlined first** (recreate a gitignored `.env.production` with the real origin for `pnpm build`, delete it after — never commit it) |
+| Split-brain guard (standing) | ambient `.env` carries `DATABASE_URL`=PROD 5454 but `REDIS_URL`=TEST 6390 — **every production/stand-in process and script gets explicit `DATABASE_URL` + `REDIS_URL`; the ambient REDIS_URL is never relied on** |
+
+### 12.1 Topology finding — production app processes are DOWN (surfaced, not acted on)
+
+The only web/worker processes running are the **07-06 stand-in pair** (booted
+2026-09-23T22:45Z via `0706-web-env.sh`/`0706-worker-env.sh`, DB :5461, console email,
+scheduler paused). The production web+worker pair from the 06-05 deploy (`51a9fbb`) is **not
+running** — the stand-in holds :3007/:9090. Consequences:
+
+- **Monitoring checks are not running** against production monitors since the pair went down
+  (host reboot during 07-06; the stand-in intentionally took the ports at close-out).
+- The production Redis email lane (6391) is currently consumed by the **stand-in worker in
+  `EMAIL_PROVIDER=console` mode** — a blast enqueued now would be console-dumped, NOT sent.
+  The pre-flip pair MUST be restored before the blast runs (step 0 below).
+
+The executor did not restore production unilaterally: booting production services is the
+operator's action under this plan's `autonomous: false` contract, and a wrong-env production
+boot (e.g. ambient `REDIS_URL`=6390) is worse than a documented gap the operator closes in
+minutes. The restore procedure is the D-35 drill's own steps (§11), proven on this machine.
+
+### 12.2 Task 1 — announcement blast: operator run sequence (D-01/D-04/D-06/D-07)
+
+All steps **[OPERATOR]**. Run from the repo root, Git Bash. The blast is a REAL send through
+the production queue (one `email-transactional` job per registered user — 5 expected per §12;
+the script itself prints the enumerated count and refuses an empty fan-out).
+
+**Step 0 — restore the pre-flip production pair (D-35 drill steps, proven §11):**
+
+```bash
+# 0a. Stop the 07-06 stand-in pair (it holds the production ports + the 6391 email lane):
+#     web pid = the `next start -p 3007` process (verify cmdline first), worker pid = `node dist/worker.js`
+#     (the executor can re-boot the stand-in later from 0706-*-env.sh if a verification leg needs it)
+# 0b. Rebuild the 51a9fbb pair in a clean worktree (the drill's exact procedure):
+git worktree add ../devsroom-uptime-tracker-legacy51a9fbb-0707 51a9fbb
+cd ../devsroom-uptime-tracker-legacy51a9fbb-0707
+pnpm install --frozen-lockfile
+# worktree-local gitignored .env.production (delete at flip time; never commit):
+#   NEXT_PUBLIC_ENV=production
+#   NEXT_PUBLIC_BASE_URL=http://127.0.0.1:3007
+#   NEXT_PUBLIC_DEV_BASE_URL=http://127.0.0.1:3007
+#   REDIS_URL=redis://:<pass from .snapshots/spidernode-prod-redis.pass>@127.0.0.1:6391
+#   DATABASE_URL=postgresql://postgres:<db-pass>@127.0.0.1:5454/uptime_dev
+pnpm build
+# 0c. Boot legacy worker FIRST (readyz-gated), then web — production env with EXPLICIT stack:
+#     DATABASE_URL=<5454 prod>  REDIS_URL=<6391 prod>  WORKER_SCHEDULER_ENABLED=true
+#     (scheduler boots ONLY with the literal "true" — src/worker/index.ts reads it strictly)
+#     worker: node dist/worker.js   →  curl -fsS http://127.0.0.1:9090/readyz
+#     web:    pnpm start            →  curl -fsS http://127.0.0.1:3007/login  (expect 200)
+```
+
+**Step 1 — the blast (approved copy, announced date 2026-09-28):**
+
+```bash
+cd D:/Devsroom-Work/devsroom-uptime-tracker   # the flip tree — the script ships in the flip release
+DATABASE_URL="postgresql://postgres:<db-pass>@127.0.0.1:5454/uptime_dev" \
+REDIS_URL="redis://:<redis-pass>@127.0.0.1:6391" \
+BETTER_AUTH_URL="http://127.0.0.1:3007" \
+AUTH_FLIP_DATE="2026-09-28" \
+  pnpm exec tsx scripts/send-relogin-blast.mjs
+```
+
+Expected: `[blast] PASS: 5 announcement email(s) enqueued` (must equal the §12 registered-user
+count — if the enumerated count differs from 5, STOP and reconcile before the flip).
+
+**Step 2 — watch the email lane drain (queue depth back to ~0):**
+
+```bash
+REDIS_URL="redis://:<redis-pass>@127.0.0.1:6391" node scripts/auth-soak-gate.mjs --queue-status
+# repeat until emailLane waiting+prioritized+active+delayed == 0; note the completed count rose by 5
+```
+
+**Step 3 — evidence (recorded by the continuation session, or paste into §12.3):** enqueued
+count, drain-complete timestamp, any failed sends (worker log `email send PERMANENT failure`
+lines; D-09 retry semantics bound transient retries), plus the operator's inbox spot-check.
+
+**D-07 slip rule (runbook §4c step 2):** if the flip slips **more than ~48h past 2026-09-28**,
+re-run the blast with an updated `AUTH_FLIP_DATE` (updated copy = re-approve per D-06);
+otherwise say nothing.
+
+### 12.3 Task 1 blast evidence — PENDING [OPERATOR]
+
+| Field | Value |
+| --- | --- |
+| Blast run timestamp | PENDING |
+| Enqueued count (expect 5) | PENDING |
+| Drain-complete timestamp (queue depth ≈ 0) | PENDING |
+| Failed sends / retries | PENDING |
+| Operator inbox spot-check | PENDING |

@@ -68,12 +68,12 @@ Added pg_dump statements:
 
 ## Timing (D-19 evidence)
 
-- `drizzle-kit migrate` wall time: **785 ms**
+- `drizzle-kit migrate` wall time: **728 ms**
 - Per-statement probe: pg_stat_statements (server-side, per statement inside the real migrate run; stats reset immediately before)
-- Index build: `CREATE UNIQUE INDEX "account_providerId_accountId_key" ON "account" USING btree ("providerId" text_ops,"accountId" text_` — 0.344 ms
-- Index build: `CREATE UNIQUE INDEX "session_token_key" ON "session" USING btree ("token" text_ops)` — 0.31 ms
+- Index build: `CREATE UNIQUE INDEX "account_providerId_accountId_key" ON "account" USING btree ("providerId" text_ops,"accountId" text_` — 0.46 ms
+- Index build: `CREATE UNIQUE INDEX "session_token_key" ON "session" USING btree ("token" text_ops)` — 0.353 ms
 - Bookkeeping rows after migrate (drizzle.__drizzle_migrations): **3** — matches the journal-derived expectation (3 = 1 stamped baseline + 2 runner-applied (derived from drizzle/meta/_journal.json entries))
 
 ## D-19 decision
 
-D-19: plain indexes confirmed, no concurrent path needed (max index build 0.344 ms < 1000 ms threshold on real data).
+D-19: plain indexes confirmed, no concurrent path needed (max index build 0.46 ms < 1000 ms threshold on real data).

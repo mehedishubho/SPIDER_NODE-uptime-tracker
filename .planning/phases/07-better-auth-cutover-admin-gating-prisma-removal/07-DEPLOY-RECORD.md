@@ -323,3 +323,126 @@ otherwise say nothing.
 | Drain-complete timestamp (queue depth ≈ 0) | PENDING |
 | Failed sends / retries | PENDING |
 | Operator inbox spot-check | PENDING |
+
+## 13. Task 2 — flip release deploy + D-38 production canary (§4c)
+
+### 13.1 Pre-flight evidence (executor-run, 2026-09-23T22:59–23:1xZ) — ALL GREEN
+
+| §4c step 1 leg | Result |
+| --- | --- |
+| `pnpm rehearse:migrations` (fresh run, same `prod-20260924.dump` — D-34) | **REHEARSAL PASSED** (9 tables, migrate **728 ms**, journal rows 3, additive-only, canary probe OK); evidence `.snapshots/rehearsal-20260923.md` refreshed + committable copy updated |
+| `pnpm lint` | PASS (pre-existing unused-var warnings only) |
+| `pnpm typecheck` | PASS |
+| `pnpm test` | **409/409 PASS** (48 files) — one environmental re-run: `health.test.ts` "WORKER_HEALTH_PORT empty string binds 9090" fails while the stand-in worker holds :9090 (the documented 06-05 IN-01 environmental deferral); stand-in worker stopped → full suite **409/409 green** → stand-in worker re-booted (readyz green, log `.snapshots/0707-worker-standin.log`) |
+| `pnpm schema:gate` / `pnpm worker:boundary` / `pnpm denylist:diff` | all PASS (denylist sets agree, 11 tokens) |
+| `pnpm build` (flip artifact, origin inlined) | exit 0 — **BUILD_ID `i18ijzSvcS4IVfYxi_biB` · `dist/worker.js` 146,982 B sha256-16 `f485549c1d90d42a`** (built from HEAD tree `f8a817f`-era source; gitignored `.env.production` with `NEXT_PUBLIC_ENV=production` + `NEXT_PUBLIC_BASE_URL=http://127.0.0.1:3007` used for the build and **deleted immediately after** — 07-06 deviation-2 pattern, teardown honored) |
+| `pnpm cron:remnants` (D-41/D-27) | green — 447 code files scanned, no remnants |
+| `pnpm test:e2e` | **SKIPPED — environmental**: playwright's webServer port **3100 is held by an unrelated live project** (`deshioplatform.com` `next start -p 3100`, PID 51732); killing another project's service is out of scope (scope boundary). **Operator option before the flip:** free 3100 and run `pnpm test:e2e` (the 07-04 suite last ran green on this code family; nothing in 07-05..07-07-T2 touched e2e-covered code except the 07-06 `force-dynamic` login change, which e2e covers) |
+
+Running-build note: the stand-in pair still runs the 07-06 build (worker sha-16 `2ad348b4af8a027e`, BUILD_ID `_A5eft5coHrzMtZ20AEuK`); the deployable tree artifact is the fresh build above — same source lineage, nondeterministic bundle bytes (05-07 finding). Provenance for the flip = BUILD_ID + worker sha above + `/healthz` git-sha at boot.
+
+### 13.2 §4c flip sequence — operator commands (all **[OPERATOR]**, run at flip time 2026-09-28)
+
+Run from the repo root (the flip tree). `<db-pass>`/`<redis-pass>` = the operator-held
+production credentials (redis pass readable via `.snapshots/spidernode-prod-redis.pass`).
+Every command carries the EXPLICIT production stack (split-brain guard, §12).
+
+**Step 3 — backup (runbook §4c step 3):**
+
+```bash
+docker exec spidernode-dev-db pg_dump -U postgres -F c uptime_dev \
+  > .snapshots/pre-phase7-flip-$(date +%Y%m%d-%H%M).dump
+# verify: file non-empty; pg_restore --list exits 0
+```
+
+**Step 4 — migrate (single runner, once — M-1):**
+
+```bash
+DATABASE_URL="postgresql://postgres:<db-pass>@127.0.0.1:5454/uptime_dev" pnpm exec drizzle-kit migrate
+# verify: exit 0; journal now 3 rows (0000/0001/0002); legacy tables untouched (D-30 substrate)
+docker exec spidernode-dev-db psql -U postgres -d uptime_dev -t \
+  -c "SELECT count(*) FROM drizzle.__drizzle_migrations;"   # expect 3
+```
+
+**Step 5 — seed admin roles (D-08/D-09/D-10; roster operator-confirmed 2026-09-24):**
+
+```bash
+DATABASE_URL="postgresql://postgres:<db-pass>@127.0.0.1:5454/uptime_dev" \
+ADMIN_EMAILS="mehedihassanshubho@gmail.com" \
+  node scripts/seed-admin-roles.mjs
+# expect: "[seed-admin-roles] PASS: 1 admin grant(s) applied (roster entries: 1)"
+# a zero-match abort (exit 1) STOPS the deploy — fix the roster, never proceed past a failed seed
+```
+
+**Step 6 — worker restart, readyz-gated (§4c step 6; :9090 gains the gated Bull Board):**
+
+```bash
+# stop the legacy (51a9fbb worktree) worker; then boot the flip worker from THIS tree:
+mkdir -p .snapshots && openssl rand -base64 32 > .snapshots/07-prod-better-auth-secret.txt   # ONE-time production mint
+( set -a
+  DATABASE_URL="postgresql://postgres:<db-pass>@127.0.0.1:5454/uptime_dev"
+  REDIS_URL="redis://:<redis-pass>@127.0.0.1:6391"
+  WORKER_SCHEDULER_ENABLED=true                # literal "true" — the boot reads it strictly
+  WORKER_HEALTH_PORT=9090
+  BETTER_AUTH_URL="http://127.0.0.1:3007"      # the production origin (§12 baked-origin note)
+  BETTER_AUTH_SECRET="$(cat .snapshots/07-prod-better-auth-secret.txt)"
+  GOOGLE_CLIENT_ID="<real>" GOOGLE_CLIENT_SECRET="<real>"
+  GITHUB_CLIENT_ID="<real>"  GITHUB_CLIENT_SECRET="<real>"
+  ADMIN_IP_ALLOWLIST="<operator IPs/CIDRs for :9090 — MUST include the host the soak gate runs from>"
+  set +a
+  node dist/worker.js >> .snapshots/0707-prod-worker.log 2>&1 & )
+curl -fsS http://127.0.0.1:9090/readyz          # must pass BEFORE the web restart
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:9090/admin/queues   # expect 403 (gate answer, never 500)
+```
+
+**Step 7 — web restart (§4c step 7 — old NextAuth cookies die here):**
+
+```bash
+# stop the legacy web (51a9fbb worktree); then, from the flip tree:
+( set -a
+  DATABASE_URL="postgresql://postgres:<db-pass>@127.0.0.1:5454/uptime_dev"
+  REDIS_URL="redis://:<redis-pass>@127.0.0.1:6391"
+  BETTER_AUTH_URL="http://127.0.0.1:3007"
+  BETTER_AUTH_SECRET="$(cat .snapshots/07-prod-better-auth-secret.txt)"     # SAME mint as the worker
+  GOOGLE_CLIENT_ID="<real>" GOOGLE_CLIENT_SECRET="<real>"
+  GITHUB_CLIENT_ID="<real>"  GITHUB_CLIENT_SECRET="<real>"
+  AUTH_NOTICE_START="2026-09-28T00:00:00Z"      # D-02 window covering the announced flip date
+  AUTH_NOTICE_END="2026-10-12T00:00:00Z"        # (operator-adjustable pair; strip is self-cleaning)
+  set +a
+  pnpm start >> .snapshots/0707-prod-web.log 2>&1 & )
+curl -fsS http://127.0.0.1:3007/login           # expect 200 + the notice strip inside the window
+# NEXTAUTH_URL / NEXTAUTH_SECRET are RETIRED with this release — do not carry them into the flip env
+# teardown after both processes are verified: remove the 51a9fbb worktree (git worktree remove --force ../devsroom-uptime-tracker-legacy51a9fbb-0707)
+```
+
+### 13.3 D-38 production canary + D-40 assertion — PENDING [OPERATOR]
+
+Run IMMEDIATELY after step 7, before the soak clock starts (runbook §4c step 8). On ANY red
+item: **D-41 pre-committed abort** — immediately redeploy the previous release (stop flip
+processes, re-boot the 51a9fbb worktree pair — the §12.2 step-0 procedure), record a
+reconciliation note for any rows written during the brief Better-Auth window, and STOP; the
+post-mortem happens on the snapshot, never on production. The D-07 slip rule then governs
+re-announcement.
+
+| # | Canary leg | Expected | Observed |
+| --- | --- | --- | --- |
+| a | Operator logs in on `/login` with the **OLD password** (preserved-hash path on real production rows, AUTH-02) | 200, session established, dashboard loads | PENDING |
+| b | **One real Google login** | completes, dashboard loads | PENDING |
+| c | **One real GitHub login** | completes, dashboard loads | PENDING |
+| — | **D-40 live assertion (VERBATIM, bake into the record):** "Google login completed WITHOUT a re-consent screen; GitHub login completed WITHOUT a re-consent screen — absence of the re-consent screen is the production proof that live refresh tokens survived the reshape (D-40); a consent screen means they did not" | bothProviders=no-re-consent | PENDING |
+| d | Verification + reset email round-trips through the queue (canary reset + one probe) | emails delivered (inbox) | PENDING |
+| e | Admin gate matrix: admin session `GET /api/feedback` → 200; non-admin → 403; anonymous → 401 | 200 / 403 / 401 | PENDING |
+| f | Bull Board from an allowlisted IP with the admin cookie → 200; from a non-allowlisted source → refused | 200 / refused | PENDING |
+| g | Notice strip renders on `/login`; a fresh private window hitting a dashboard URL lands on `/login` with the strip (D-02/D-03) | strip visible in window | PENDING |
+| h | Dead-error logs quiet (web + worker logs, first minutes) | no error bursts | PENDING |
+
+### 13.4 Flip deploy ledger — PENDING [OPERATOR]
+
+| Event | Timestamp (UTC) |
+| --- | --- |
+| Pre-flip `pg_dump` taken (name/size) | PENDING |
+| 0002 migrated (journal = 3) | PENDING |
+| seed-admin-roles PASS (1 grant) | PENDING |
+| Flip worker readyz green | PENDING |
+| Flip web `/login` 200 | PENDING |
+| Canary legs a–h green (soak clock starts) | PENDING |

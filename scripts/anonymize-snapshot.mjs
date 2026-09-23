@@ -21,7 +21,23 @@
 // Not masked, deliberately:
 //   - users.password — bcrypt hashes stay REAL: Phase 7's canary-login
 //     rehearsal must authenticate against production hashes (D-10). No
-//     statement in this file modifies that column.
+//     statement in this file modifies that column — except the D-37 canary
+//     designation below, which REPLACES exactly one row's hash with a
+//     rehearse-time one.
+//
+// D-37 CANARY DESIGNATION (07-06): with CANARY_EMAIL + CANARY_PASSWORD both
+// set, exactly ONE designated account keeps its real email and receives a
+// rehearse-time bcrypt hash (rounds 10 — the same primitive the app's A-1
+// gate emits) INSIDE the same masking transaction. Every other row stays
+// fully anonymized. The canary reconciles the anonymizer with the D-09
+// zero-match abort: on the snapshot, ADMIN_EMAILS = the canary email, and
+// the admin-gate + canary-login legs have their subject. The canary email
+// MUST exist in the restored snapshot (exactly one match, case-insensitive)
+// or the script fails loud BEFORE any masking — a typo'd canary can never
+// silently produce a fully-anonymized (admin-less) snapshot. The password is
+// read from the environment, never echoed, never logged, never written to
+// any file this script touches; the evidence records the row id, the bcrypt
+// parameters, and the post-write verification result only.
 //   - primary keys / foreign keys (id, userId, monitorId, ...) — masking ids
 //     would break FK integrity; they are anonymous opaque strings already
 //     and are the md5 KEY MATERIAL, never the target.
@@ -46,6 +62,14 @@
 // the connection string is never echoed (secrets stay out of logs).
 
 import { Client } from "pg";
+import bcrypt from "bcryptjs";
+
+// D-37 canary knobs. Both envs or neither — a password-less canary email
+// would designate an account nobody can log into; an email-less password is
+// a leaking no-op.
+const CANARY_EMAIL = process.env.CANARY_EMAIL;
+const CANARY_PASSWORD = process.env.CANARY_PASSWORD;
+const BCRYPT_ROUNDS = 10; // parity with the app's A-1 hash primitive (auth-password.ts)
 
 function fail(context, error) {
   throw new Error(
@@ -104,20 +128,86 @@ async function main() {
   if (!connectionString) {
     fail("DATABASE_URL is not set", new Error("missing env"));
   }
+  if ((CANARY_EMAIL && !CANARY_PASSWORD) || (!CANARY_EMAIL && CANARY_PASSWORD)) {
+    fail(
+      "canary designation misconfigured",
+      new Error("CANARY_EMAIL and CANARY_PASSWORD must be set TOGETHER (D-37) — one is missing")
+    );
+  }
 
   const client = new Client({ connectionString }); // one-shot, no Pool
   try {
     await client.connect();
+
+    // D-37: resolve the canary BEFORE any masking (masking rewrites every
+    // email, so the real email is only findable pre-mask). Exactly one
+    // match, case-insensitive; absence or ambiguity fails loud BEFORE any
+    // masking and OUTSIDE the transaction wrapper (a designation-config
+    // error is not a "database error while masking").
+    let canary = null;
+    if (CANARY_EMAIL) {
+      const found = await client.query(
+        `SELECT id FROM users WHERE lower(email) = lower($1)`,
+        [CANARY_EMAIL]
+      );
+      if (found.rowCount !== 1) {
+        fail(
+          "canary designation failed",
+          new Error(
+            `CANARY_EMAIL matched ${found.rowCount} user(s) in the restored snapshot — ` +
+              `exactly 1 required (D-37). Designation aborted before any masking.`
+          )
+        );
+      }
+      canary = { id: found.rows[0].id };
+    }
+
     // All-or-nothing: a half-masked snapshot must never be treated as done.
+    // The canary designation rides the SAME transaction (a half-canaried
+    // snapshot — real email, no rehearse-time hash, or vice versa — must
+    // never be treated as done either).
     await client.query("BEGIN");
+
     for (const { table, sql } of MASKING_STATEMENTS) {
       const result = await client.query(sql);
       console.log(`masked ${table}: ${result.rowCount} row(s) affected`);
     }
+
+    if (canary) {
+      const hash = await bcrypt.hash(CANARY_PASSWORD, BCRYPT_ROUNDS);
+      await client.query(`UPDATE users SET email = $1, password = $2 WHERE id = $3`, [
+        CANARY_EMAIL,
+        hash,
+        canary.id,
+      ]);
+      // Post-write verification INSIDE the transaction: the kept email and
+      // the rehearse-time hash must round-trip through bcrypt.compare before
+      // this snapshot may count as designated.
+      const after = await client.query(`SELECT email, password FROM users WHERE id = $1`, [
+        canary.id,
+      ]);
+      const emailOk = after.rows[0].email === CANARY_EMAIL;
+      const hashOk = await bcrypt.compare(CANARY_PASSWORD, after.rows[0].password);
+      if (!emailOk || !hashOk) {
+        fail(
+          "canary post-write verification failed",
+          new Error(
+            `email kept: ${emailOk}; rehearse-time hash verifies: ${hashOk} — transaction rolled back`
+          )
+        );
+      }
+      console.log(
+        `canary designated (D-37): row id ${canary.id}; real email kept; ` +
+          `rehearse-time bcrypt hash (rounds ${BCRYPT_ROUNDS}) written; ` +
+          `post-write hash verification: OK; every other row anonymized`
+      );
+    }
+
     await client.query("COMMIT");
     console.log(
       "anonymization complete — deterministic md5-derived values; " +
-        "row counts and bcrypt password hashes preserved (D-10)"
+        "row counts and bcrypt password hashes preserved (D-10)" +
+        (canary ? "; exactly one D-37 canary designated" : "")
     );
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});

@@ -658,13 +658,38 @@ async function main() {
     await client.query("CREATE EXTENSION IF NOT EXISTS pg_stat_statements");
     console.log("pg_stat_statements loaded (per-statement D-19 probe)");
 
-    const nonAnon = (
-      await client.query(`SELECT count(*)::int AS n FROM users WHERE email NOT LIKE '%@anon.test'`)
-    ).rows[0].n;
-    if (nonAnon > 0) {
-      fail("anonymization sanity probe failed", new Error(`${nonAnon} users.email rows are not @anon.test`));
+    // D-37 canary carve-out: with CANARY_EMAIL set, exactly ONE real email is
+    // sanctioned on the snapshot — the designated canary (which the anonymizer
+    // wrote). Any other non-anon email, or more than one, still fails. With
+    // no CANARY_EMAIL the strict all-anon rule applies unchanged.
+    const nonAnonRows = (
+      await client.query(`SELECT email FROM users WHERE email NOT LIKE '%@anon.test'`)
+    ).rows;
+    if (process.env.CANARY_EMAIL) {
+      const canaryOk =
+        nonAnonRows.length === 1 &&
+        nonAnonRows[0].email === process.env.CANARY_EMAIL;
+      if (!canaryOk) {
+        fail(
+          "anonymization sanity probe failed",
+          new Error(
+            `expected exactly the designated D-37 canary (${process.env.CANARY_EMAIL}) as the ` +
+              `only non-anon users.email — found ${nonAnonRows.length} non-anon row(s)`
+          )
+        );
+      }
+      console.log(
+        "anonymization sanity probe passed (exactly the designated D-37 canary keeps its real email)"
+      );
+    } else {
+      if (nonAnonRows.length > 0) {
+        fail(
+          "anonymization sanity probe failed",
+          new Error(`${nonAnonRows.length} users.email rows are not @anon.test`)
+        );
+      }
+      console.log("anonymization sanity probe passed (0 non-anon users.email)");
     }
-    console.log("anonymization sanity probe passed (0 non-anon users.email)");
 
     // Step 4: BEFORE metrics.
     console.log("[4/10] collecting BEFORE metrics (counts + digests)...");

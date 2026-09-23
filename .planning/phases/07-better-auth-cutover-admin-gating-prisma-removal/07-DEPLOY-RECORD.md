@@ -446,3 +446,82 @@ re-announcement.
 | Flip worker readyz green | PENDING |
 | Flip web `/login` 200 | PENDING |
 | Canary legs a–h green (soak clock starts) | PENDING |
+
+## 14. Task 3 — the D-31 typed soak gate + D-36 approval
+
+### 14.1 The gate command (committed artifact)
+
+`scripts/auth-soak-gate.mjs` — the 05-D-14-pattern typed evaluator: 6 machine legs + 7
+operator-attestation legs (the 06-§12 machine-verified vs operator-attested split), verdicts
+PASS/ATTEST/FAIL with reasons, evidence appended to this record. **The gate never silently
+passes** — every un-runnable input is FAIL-with-reason. Cookie jars are env-only and never
+echoed (T-07-26). Window arithmetic is recorded plainly (06-§12 precedent): a <20 h window
+prints a SHORT-WINDOW note covered by the D-36 approval.
+
+Verified this session: `--dry-run` exit 0 (13 legs parse + evaluate — the plan's verify) ·
+`--queue-status` live against the production Redis (email lane 0 pending / 9 completed) ·
+full help text.
+
+### 14.2 Stand-in live proof of the gate machinery (2026-09-23T23:0x–23:2xZ)
+
+The 07-06 stand-in (a fully flipped stack) exercised every code path before flip night —
+sessions minted live (canary + stand-in non-admin, both 200), a real reset + probe sign-up
+triggered on :3007, counters read off the 6391 email lane:
+
+| Leg | Verdict | Observed |
+| --- | --- | --- |
+| 1 feedback-admin-matrix | PASS | anonymous 401 · admin 200 · non-admin 403 |
+| 2 bullboard-allowlisted | PASS | 200 + Bull Board HTML marker |
+| 3 bullboard-refusal | PASS | 403 (cites §8's non-allowlisted evidence — production captures fresh) |
+| 4 notice-strip | PASS | strip present, inside the env window |
+| 5 email-roundtrip | PASS | completed 9 → 11 (reset + verification, delta +2) |
+| 6 dead-error-quiet | PASS | 2 log files scanned, 0 typed error markers |
+| 7–13 attest legs | ATTEST | verbatim stand-in attestations recorded (`.snapshots/0707-soak-standin/attestations.md`) |
+
+**VERDICT: 6 pass / 7 attest / 0 fail, exit 0** (SHORT-WINDOW note fired as designed).
+Evidence: `.snapshots/0707-soak-gate-standin.md` (throwaway record; the stand-in run is
+rehearsal-grade and does NOT append to this record). The STAND-IN-created probe row
+(`soak-gate-probe@rehearsal.test`) lives only on the :5461 snapshot DB and dies with the
+stand-in.
+
+### 14.3 Production soak procedure **[OPERATOR]** — starts ONLY after §13.3's canary is green
+
+1. **Start the clock** at canary-green (record the timestamp in §13.4 — the window is
+   wall-clock; nothing fabricates elapsed time). Hold ~24h (D-31).
+2. **Mint the two session jars** on production (the canary's own logins serve): sign in as
+   the admin canary and as a non-admin account; export each `better-auth.session_token`
+   value into `SOAK_ADMIN_COOKIE` / `SOAK_NONADMIN_COOKIE` for the gate run.
+3. **Capture the round-trip counters mid-window:**
+   `REDIS_URL=<6391 prod> node scripts/auth-soak-gate.mjs --queue-status` → trigger one
+   canary reset + one verification round-trip (probe sign-up on an inbox you control) →
+   `--queue-status` again → save both numbers as `soak-dir/email-roundtrip.json`.
+4. **Capture the refusal evidence once** from a genuinely non-allowlisted network (e.g.
+   phone hotspot): `curl -s -o /dev/null -w '%{http_code}' http://<worker-host>:9090/admin/queues`
+   → save `{ "status": <code>, "note": "captured from <network> at <time>" }` as
+   `soak-dir/bullboard-refusal.json`.
+5. **Write `soak-dir/attestations.md`** — one `KEY: verdict text` line per attest leg
+   (D38-CREDENTIALS, D38-GOOGLE, D38-GITHUB, D40-NO-RECONSENT — cite §13.3's verbatim
+   assertion, INBOX-VERIFICATION, INBOX-RESET, NOTICE-VISUAL).
+6. **Copy the window's logs** (web + worker) into `soak-dir/logs/`.
+7. **At window close, run the gate:**
+   ```bash
+   SOAK_ADMIN_COOKIE=<...> SOAK_NONADMIN_COOKIE=<...> \
+   AUTH_NOTICE_START=<live window> AUTH_NOTICE_END=<live window> \
+     node scripts/auth-soak-gate.mjs --soak-dir <soak-dir> \
+       --start <window-start> --end <window-end>            # appends to this record
+   ```
+
+### 14.4 D-36 operator approval — the phase's ONLY approval gate — PENDING [OPERATOR]
+
+After the gate run, the operator reviews the soak evidence (this record §14.2's production
+counterpart + the gate's appended block) and records the approve/decline decision VERBATIM
+below. **A decline halts 07-08 (the deletion release) — nothing in it may start before an
+explicit approval.** No approval existed before the flip (the rehearsal + canary covered it);
+none comes after.
+
+| Field | Value |
+| --- | --- |
+| Gate verdict block appended (date) | PENDING |
+| Operator decision (approve / decline) | PENDING |
+| Operator name + timestamp (UTC) | PENDING |
+| Verbatim decision text | PENDING |

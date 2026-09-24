@@ -219,9 +219,9 @@ gitignored `.env.production` are removed at rehearsal end.
 **Date opened:** 2026-09-23T22:5xZ (UTC) · **Plan:** 07-07 Tasks 1–3 · **Executor:** GSD plan executor
 **Mode:** `autonomous: false` — every production-touching step below marked **[OPERATOR]** is a
 human action; the executor prepares commands/evidence scaffolding and records results. The
-24h soak is a wall-clock gate; D-36 is the phase's single approval gate. Nothing in §12–§14
-below claims a production action was performed — each such entry stays **PENDING [OPERATOR]**
-until a continuation session records the observed outcome.
+24h soak is a wall-clock gate; D-36 is the phase's single approval gate. **§12 (Task 1 blast)
+is now RECORDED — executed 2026-09-24, see §12.3.** §13–§14 below (flip, canary, soak, D-36)
+remain **PENDING [OPERATOR]** until a continuation session records the observed outcome.
 
 ## 12. Pre-flight state captured by the executor (read-only, 2026-09-23T22:54–22:59Z)
 
@@ -314,15 +314,87 @@ lines; D-09 retry semantics bound transient retries), plus the operator's inbox 
 re-run the blast with an updated `AUTH_FLIP_DATE` (updated copy = re-approve per D-06);
 otherwise say nothing.
 
-### 12.3 Task 1 blast evidence — PENDING [OPERATOR]
+### 12.3 Task 1 blast evidence — EXECUTED and RECORDED (2026-09-24)
+
+Operator sequence steps 0–2 (§12.2) were executed 2026-09-24; this section records the
+observed outcome. Facts the recording session independently re-verified (read-only): the
+console-transport log `/tmp/legacy-worker-console.log` carries **exactly 5**
+`[email-console]` lines; all 5 HTML bodies hash to sha256-16 **`a27dbf56e44d6f35`** —
+byte-identical to the D-06-approved announcement render (`AUTH_FLIP_DATE=2026-09-28`, §9);
+and the legacy pair answers live (worker `GET :9090/readyz` → 200 `{"ok":true,...}`, web
+`GET /login` → 200).
+
+**Step 0 — restore the pre-flip pair: DONE, one recorded deviation.**
+
+- The 07-06 stand-in web/worker were found **already dead** (ports free; only the snapshot
+  DB container `spidernode-standin-07` :5461 alive) — §12.2 step 0a's "stop the stand-in
+  pair" needed no kill.
+- Legacy worktree rebuilt exactly per §12.2 step 0b: `git worktree add
+  ../devsroom-uptime-tracker-legacy51a9fbb-0707 51a9fbb` → `pnpm install --frozen-lockfile`
+  → gitignored worktree-local `.env.production` (`NEXT_PUBLIC_*` = `127.0.0.1:3007`,
+  `DATABASE_URL` = 5454, `REDIS_URL` = 6391, `NEXTAUTH_URL` + `NEXTAUTH_SECRET` from
+  `.snapshots/07-legacy-nextauth-secret.txt`) → `pnpm build` exit 0.
+- Legacy worker booted first (stdout log `/tmp/legacy-worker.log`): readyz green on the
+  first try; legacy web (`pnpm start`): `GET /login` 200 on the first try. Production stack
+  underneath: `spidernode-dev-db` :5454 (5 users) up, `spidernode-prod-redis` :6391 PONG.
+
+**DEVIATION — worker mis-boot before the blast (recorded honestly):** the first worker
+boot used `EMAIL_PROVIDER=smtp` with no `SMTP_*` env on this machine; jobs attempted
+`localhost:587` and failed **ECONNREFUSED**. The mis-booted worker was killed BEFORE the
+first retry fired (all 5 jobs observed `attemptsMade=0`, delayed state — nothing lost, no
+permanent failure). Re-booted with `EMAIL_PROVIDER=console` — the executing topology's
+documented posture (06-DEPLOY-RECORD §1: no real email egress has ever left this machine;
+06-05 deployed console-mode). Net effect: a transient backoff of ~6 min before drain.
+
+**Steps 1–2 — blast and drain:**
 
 | Field | Value |
 | --- | --- |
-| Blast run timestamp | PENDING |
-| Enqueued count (expect 5) | PENDING |
-| Drain-complete timestamp (queue depth ≈ 0) | PENDING |
-| Failed sends / retries | PENDING |
-| Operator inbox spot-check | PENDING |
+| Blast run timestamp | **2026-09-24** (env per §12.2 step 1: `DATABASE_URL`=5454, `REDIS_URL`=6391, `BETTER_AUTH_URL=http://127.0.0.1:3007`, `AUTH_FLIP_DATE=2026-09-28` — the D-06-approved copy and date) |
+| Enqueued count (expect 5) | **5** — `[blast] PASS: 5 announcement email(s) enqueued`; enumerated 5 = the §12 registered-user count (D-01 denominator match; the script's empty fan-out guard satisfied) |
+| Drain result (queue depth ≈ 0) | `auth-soak-gate --queue-status`: email lane **5 pending → 0 pending**; completed **11 → 16** (+5); **0 failed**. Drain complete 2026-09-24, ~6 min wall including the mis-boot backoff above |
+| Console transport evidence | `/tmp/legacy-worker-console.log`: exactly **5** `[email-console]` lines, subject **"SpiderNode is moving to a new sign-in system"**; all 5 bodies sha256-16 `a27dbf56e44d6f35` = the D-06-approved bytes (re-verified this session) |
+| Failed sends / retries | **0 permanent failures, 0 lost jobs**; the only transient is the smtp mis-boot backoff (deviation above) |
+| Operator inbox spot-check | N/A in the SMTP sense — console transport writes to the worker log, not to any inbox; the only real inbox among the 5 recipients is the operator's own address (composition below) |
+
+**Per-recipient console lines (5/5, one job each):**
+
+| # | Recipient | Kind |
+| --- | --- | --- |
+| 1 | `mehedihassanshubho@gmail.com` | **operator — the only real human inbox in the set** |
+| 2 | `ops-smoke@spidernode.internal` | internal fixture |
+| 3 | `0604-rehearsal-1789933130577@spidernode.internal` | internal rehearsal fixture |
+| 4 | `0604-rehearsal-1789933180455@spidernode.internal` | internal rehearsal fixture |
+| 5 | `del-220953@spidernode.internal` | internal rehearsal fixture |
+
+**RECIPIENT-COMPOSITION FINDING (prominent — flagged, not decided):** 4 of the 5
+"registered users" enumerated by the blast are **internal rehearsal fixtures**
+(`@spidernode.internal`); the only real human recipient is the operator's own address.
+Console-mode transport is the executing topology's delivery form — real-inbox SMTP delivery
+requires the VPS env's Hostinger SMTP credentials, absent on this machine **by design**.
+Consequence: in the current topology the announcement is fully *enqueued, drained, and
+recorded* (5/5 jobs completed against the D-06-approved bytes) but is *not delivered to any
+real external inbox* — and with the operator as the only real user, there is currently no
+external user to deliver to. **If actual inbox delivery to real users is desired, that is an
+operator decision to supply real SMTP credentials (and re-run the blast under them) —
+flagged here for flip-day review, not decided by the executor.**
+
+**Parked position after §12 (this checkpoint):**
+
+- **§12 (Task 1 blast): DONE and recorded above** — D-01/D-04 satisfied in the executing
+  topology with the D-06-approved copy verbatim; the smtp mis-boot deviation and the
+  recipient-composition finding are both on the record.
+- **Next gate: the §4c flip (commands prepared at §13.2), on/around the announced date
+  2026-09-28** — an operator wall-clock gate. Today is 2026-09-24: the operator sequence's
+  step 3 (serve the announced days) is in progress by wall clock.
+- **Running topology (verified live at recording time):** the legacy `51a9fbb` pair is
+  RUNNING — web `/login` 200, worker readyz green, `EMAIL_PROVIDER=console` email lane,
+  scheduler ON (monitoring live against the :5454 production data).
+- **D-07 slip rule ARMED:** if the flip slips **more than ~48 h past 2026-09-28**, re-run
+  the blast with updated copy (updated copy = re-approve per D-06) and record the re-run
+  here; otherwise say nothing.
+- §13.1 pre-flight remains green; **nothing past §12** (flip, canary, soak, D-36) **has
+  been executed** by this continuation.
 
 ## 13. Task 2 — flip release deploy + D-38 production canary (§4c)
 

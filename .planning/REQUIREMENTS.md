@@ -102,11 +102,11 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 ### Auth Migration
 
 - [x] **AUTH-01**: Better Auth configured with bcrypt-compatible `password.hash`/`verify` (gate, not spike) with hash-prefix routing (A-1)
-- [ ] **AUTH-02**: Canary account login verified through the preserved hash path before any route flip — on the local snapshot, then production
+- [x] **AUTH-02**: Canary account login verified through the preserved hash path before any route flip — on the local snapshot, then production
 - [x] **AUTH-03**: Adapter bound to the existing `users` table (explicit table/column mapping, no renames; IDs preserved); `account`/`session`/`verification` added; boolean `emailVerified` backfilled from NextAuth timestamps
 - [x] **AUTH-04**: Session strategy: `cookieCache` (short TTL) so the proxy validates from the signed cookie without a per-request DB hit (A-2)
-- [ ] **AUTH-05**: OAuth accounts reshaped to Better Auth's `account` table with a verified field map (`providerId` casing confirmed by dry-run); refresh tokens preserved
-- [ ] **AUTH-06**: Forced re-login at cutover announced in-app/email (Q-4)
+- [x] **AUTH-05**: OAuth accounts reshaped to Better Auth's `account` table with a verified field map (`providerId` casing confirmed by dry-run); refresh tokens preserved
+- [x] **AUTH-06**: Forced re-login at cutover announced in-app/email (Q-4)
 - [ ] **AUTH-07**: NextAuth deps and custom auth routes removed; legacy `sessions`/token tables retained read-only one release, then dropped
 - [ ] **AUTH-08**: Duplicated client auth state removed (Redux `auth` slice, token mirror, `js-cookie`); Better Auth client is the single source; Redux retained for UI/domain state only
 - [x] **AUTH-09**: Lazy rehash-on-login: bcrypt verify upgrades the stored hash to the modern default
@@ -265,11 +265,11 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | EML-03 | Phase 6 | Complete |
 | EML-05 | Phase 6 | Complete |
 | AUTH-01 | Phase 7 | Complete |
-| AUTH-02 | Phase 7 | Pending |
+| AUTH-02 | Phase 7 | Complete |
 | AUTH-03 | Phase 7 | Complete |
 | AUTH-04 | Phase 7 | Complete |
-| AUTH-05 | Phase 7 | Pending |
-| AUTH-06 | Phase 7 | Pending |
+| AUTH-05 | Phase 7 | Complete |
+| AUTH-06 | Phase 7 | Complete |
 | AUTH-07 | Phase 7 | Pending |
 | AUTH-08 | Phase 7 | Pending |
 | AUTH-09 | Phase 7 | Complete |

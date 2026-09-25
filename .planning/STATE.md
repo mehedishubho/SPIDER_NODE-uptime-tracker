@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 7
 current_phase_name: Better Auth Cutover, Admin Gating & Prisma Removal
 status: executing
-stopped_at: Completed 07-06-PLAN.md
-last_updated: "2026-09-23T22:50:33.460Z"
+stopped_at: Completed 07-07-PLAN.md
+last_updated: "2026-09-25T12:11:55.993Z"
 last_activity: 2026-09-23
 last_activity_desc: Phase 7 execution started
-state_head: 521eeee99f35883cc445c455439286969467e119
+state_head: 3497ae2ab6a37d9a02bf271b7f2b8040010fa10e
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 59
-  completed_plans: 56
+  completed_plans: 57
 milestone_name: milestone
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 ## Current Position
 
 Phase: 7 (Better Auth Cutover, Admin Gating & Prisma Removal) — EXECUTING
-Plan: 7 of 9
+Plan: 8 of 9
 Status: Ready to execute
 Last activity: 2026-09-23 — Phase 7 execution started
 
@@ -118,6 +118,7 @@ Progress: [████████████████████] 50/50 p
 | Phase 7 P04 | 26min | 3 tasks | 24 files |
 | Phase 7 P05 | 36min | 3 tasks | 8 files |
 | Phase 7 P06 | ~24h elapsed (3 sessions; continuation close-out leg) | 3 tasks | 8 files |
+| Phase 7 P07 | ~26h elapsed (3 sessions; close-out leg ~6 min active) | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -306,6 +307,10 @@ Recent decisions affecting current work:
 - [Phase 7]: [Phase 7]: 07-06: D-40 snapshot proof needs a synthetic-fixture pass — the fresh dump's legacy accounts table is EMPTY, so the pure per-provider comparison is vacuous; 3 synthetic OAuth rows (incl. one NULL refresh_token) on the throwaway db make token preservation non-vacuous — the plan mandates a comparison that would otherwise pass 0==0 and prove nothing about AUTH-05 token preservation
 - [Phase 7]: [Phase 7]: 07-06: D-35 drill artifact = the exact production HEAD 51a9fbb rebuilt in a clean worktree (healthz sha provenance) — the drill must prove THE artifact an operator would redeploy, never an approximation — rollback = redeploy-only is only evidence if the redeployed artifact is the real previous release
 - [Phase 7]: [Phase 7]: 07-06: stand-in left RUNNING (DB :5461, re-flipped web/worker) for 07-07..07-09; both rehearsal-only .env.production files deleted at close-out — the production flip build must inline the production origin — remaining phase-7 plans reuse the live stand-in; the NEXT_PUBLIC_ build-env finding is recorded so no stand-in value ever ships
+- [Phase 7]: [Phase 7]: 07-07: flip executed EARLY by operator decision 2026-09-24 (announced 09-28) — the sole real announcement recipient is the operator (4/5 recipients internal fixtures, console transport); D-07 slip rule governs late only
+- [Phase 7]: [Phase 7]: 07-07: D-38 Google/GitHub legs + D-40 live no-re-consent assertion DISPOSITIONED not-exercisable (standin OAuth creds, zero OAuth accounts ever) — verbatim assertion reserved for the server deploy; token preservation stands on 07-06's D-40 snapshot pass
+- [Phase 7]: [Phase 7]: 07-07: D-36 APPROVE recorded (operator early close) — final soak gate run PASS 6/7/0 over 2026-09-24T19:00Z→09-25T18:00Z, SHORT-WINDOW note covered, ~14.4h reboot outage recorded plainly, nightly 03:15Z pass UNOBSERVED/deferred to server deploy; 07-08 deletion release authorized
+- [Phase 7]: [Phase 7]: 07-07: rehash field mismatch found in soak — verify/hashPassword read users.password while the AUTH-09 rehash UPDATE targets account.password (0 rows matched when copies diverge; impact ~nil, bcrypt-10 both sides) — one-line fix + test queued in 07-08, open in WINDOWS.md
 
 ### Pending Todos
 
@@ -329,6 +334,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-23T22:49:53.608Z
-Stopped at: Completed 07-06-PLAN.md
+Last session: 2026-09-25T12:11:39.254Z
+Stopped at: Completed 07-07-PLAN.md
 Resume file: None

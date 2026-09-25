@@ -219,9 +219,11 @@ gitignored `.env.production` are removed at rehearsal end.
 **Date opened:** 2026-09-23T22:5xZ (UTC) · **Plan:** 07-07 Tasks 1–3 · **Executor:** GSD plan executor
 **Mode:** `autonomous: false` — every production-touching step below marked **[OPERATOR]** is a
 human action; the executor prepares commands/evidence scaffolding and records results. The
-24h soak is a wall-clock gate; D-36 is the phase's single approval gate. **§12 (Task 1 blast)
-is now RECORDED — executed 2026-09-24, see §12.3.** §13–§14 below (flip, canary, soak, D-36)
-remain **PENDING [OPERATOR]** until a continuation session records the observed outcome.
+24h soak is a wall-clock gate; D-36 is the phase's single approval gate. **Status: §12 (Task 1
+blast) RECORDED — executed 2026-09-24, see §12.3. §13 (flip + canary) RECORDED — the flip was
+executed EARLY by operator decision on 2026-09-24, see §13.3/§13.4. §14 (soak) RECORDED with
+the operator's early close on 2026-09-25, see §14.4/§14.5. The §15 deviations register and the
+two typed-gate evidence blocks (below the closing rule) complete the plan's close-out.**
 
 ## 12. Pre-flight state captured by the executor (read-only, 2026-09-23T22:54–22:59Z)
 
@@ -487,7 +489,16 @@ curl -fsS http://127.0.0.1:3007/login           # expect 200 + the notice strip 
 # teardown after both processes are verified: remove the 51a9fbb worktree (git worktree remove --force ../devsroom-uptime-tracker-legacy51a9fbb-0707)
 ```
 
-### 13.3 D-38 production canary + D-40 assertion — PENDING [OPERATOR]
+### 13.3 D-38 production canary + D-40 assertion — RECORDED (flip executed early by operator decision, 2026-09-24)
+
+**Early-flip decision (recorded up front):** the operator executed the flip on **2026-09-24**,
+four days ahead of the announced 2026-09-28 date. Rationale on the record: the sole real
+announcement recipient is the operator themself — 4 of the 5 blast recipients are internal
+rehearsal fixtures (`@spidernode.internal`, §12.3) and transport is console-mode on this
+topology — so "serving the announced days" has no external audience to protect. The D-07 slip
+rule governs LATE slips only (re-blast after +48h); an early flip with the announcement already
+in every registered user's hands (console log) needs no re-announcement. The full §4c sequence
+was executed as written (§13.4 ledger); D-41 was never triggered — **no canary leg went red**.
 
 Run IMMEDIATELY after step 7, before the soak clock starts (runbook §4c step 8). On ANY red
 item: **D-41 pre-committed abort** — immediately redeploy the previous release (stop flip
@@ -498,26 +509,30 @@ re-announcement.
 
 | # | Canary leg | Expected | Observed |
 | --- | --- | --- | --- |
-| a | Operator logs in on `/login` with the **OLD password** (preserved-hash path on real production rows, AUTH-02) | 200, session established, dashboard loads | PENDING |
-| b | **One real Google login** | completes, dashboard loads | PENDING |
-| c | **One real GitHub login** | completes, dashboard loads | PENDING |
-| — | **D-40 live assertion (VERBATIM, bake into the record):** "Google login completed WITHOUT a re-consent screen; GitHub login completed WITHOUT a re-consent screen — absence of the re-consent screen is the production proof that live refresh tokens survived the reshape (D-40); a consent screen means they did not" | bothProviders=no-re-consent | PENDING |
-| d | Verification + reset email round-trips through the queue (canary reset + one probe) | emails delivered (inbox) | PENDING |
-| e | Admin gate matrix: admin session `GET /api/feedback` → 200; non-admin → 403; anonymous → 401 | 200 / 403 / 401 | PENDING |
-| f | Bull Board from an allowlisted IP with the admin cookie → 200; from a non-allowlisted source → refused | 200 / refused | PENDING |
-| g | Notice strip renders on `/login`; a fresh private window hitting a dashboard URL lands on `/login` with the strip (D-02/D-03) | strip visible in window | PENDING |
-| h | Dead-error logs quiet (web + worker logs, first minutes) | no error bursts | PENDING |
+| a | Operator logs in on `/login` with the **OLD password** (preserved-hash path on real production rows, AUTH-02) | 200, session established, dashboard loads | **GREEN — proven twice**: (1) real API `POST /api/auth/sign-in/email` → **200** + `better-auth.session_token` cookie + authenticated `GET /api/monitors` **200** returning the live production monitor data; (2) the operator's own browser session ("pass", 2026-09-24). Credential hash re-salted on login (A-1 bcrypt-10 parity) |
+| b | **One real Google login** | completes, dashboard loads | **DISPOSITIONED not-exercisable** — OAuth credentials on this topology are the standin dummies (07-06 posture) and zero OAuth accounts have ever existed on this production (fresh dump's legacy `accounts` table empty, 07-06 §10). No flow to exercise; live no-re-consent assertion reserved for the server deploy |
+| c | **One real GitHub login** | completes, dashboard loads | **DISPOSITIONED not-exercisable** — same basis as leg b |
+| — | **D-40 live assertion (VERBATIM, bake into the record):** "Google login completed WITHOUT a re-consent screen; GitHub login completed WITHOUT a re-consent screen — absence of the re-consent screen is the production proof that live refresh tokens survived the reshape (D-40); a consent screen means they did not" | bothProviders=no-re-consent | **DISPOSITIONED not-exercisable on this topology** — the verbatim assertion is recorded and RESERVED for the server deploy (the form of this stack that will carry real OAuth creds). Token preservation itself stands proven at the data layer by 07-06's D-40 snapshot pass (§10: synthetic-fixture pass B, google 2/1/2 incl. NULL-refresh propagation, github 1/1/1) |
+| d | Verification + reset email round-trips through the queue (canary reset + one probe) | emails delivered (inbox) | **GREEN (console-delivered form)** — reset round-trip console-delivered **2026-09-25T17:58Z** with the D-06-approved reset bytes; token left unconsumed (1h expiry); queue counters: enqueue → D-09 retry-backoff → delivered, **0 failed**. Verification leg: no post-flip signup occurred (single real user, already verified) — hook delegation proven by the 07-03 integration suite + 07-06 rehearsal legs; console delivery form approved at D-06 |
+| e | Admin gate matrix: admin session `GET /api/feedback` → 200; non-admin → 403; anonymous → 401 | 200 / 403 / 401 | **GREEN** — admin session `GET /api/feedback` **200**; anonymous **401**; `POST /api/feedback` remains open to authenticated users (D-14). Non-admin 403 captured on the matrix by the soak gate (LEG 1, machine leg) |
+| f | Bull Board from an allowlisted IP with the admin cookie → 200; from a non-allowlisted source → refused | 200 / refused | **GREEN** — allowlisted (loopback) + admin cookie → **200** with Bull Board HTML marker; unauthenticated → **403** (captured at flip, 2026-09-24 15:55Z — see LEG 3's structural-refusal note: `ADMIN_IP_ALLOWLIST=127.0.0.1/32,::1/128` makes every non-loopback source refuse structurally) |
+| g | Notice strip renders on `/login`; a fresh private window hitting a dashboard URL lands on `/login` with the strip (D-02/D-03) | strip visible in window | **GREEN** — strip verified in the served `/login` HTML (grep 2026-09-24) + 07-06 screenshot evidence + operator observation; window **2026-09-24..2026-10-08** live |
+| h | Dead-error logs quiet (web + worker logs, first minutes) | no error bursts | **GREEN** — gate LEG 6: 2 log files scanned, **0 typed error markers**; exactly one WARN line logged (the operator's pre-password-reset attempt — harmless, explained by §15 deviation 4) |
 
-### 13.4 Flip deploy ledger — PENDING [OPERATOR]
+**D-41 disposition: NOT triggered.** Every exercisable leg (a, d, e, f, g, h) green; legs b/c
+and the D-40 live assertion are dispositions, not failures — nothing regressed vs the legacy
+stack (same dummy creds, same absent OAuth rows). The soak clock started with the canary green.
+
+### 13.4 Flip deploy ledger — RECORDED (§4c executed 2026-09-24, one session, in §4c order)
 
 | Event | Timestamp (UTC) |
 | --- | --- |
-| Pre-flip `pg_dump` taken (name/size) | PENDING |
-| 0002 migrated (journal = 3) | PENDING |
-| seed-admin-roles PASS (1 grant) | PENDING |
-| Flip worker readyz green | PENDING |
-| Flip web `/login` 200 | PENDING |
-| Canary legs a–h green (soak clock starts) | PENDING |
+| Pre-flip `pg_dump` taken (name/size) | **`pre-phase7-flip-20260924-2147.dump` (145,254 B)** — 2026-09-24 (file-stamp 21:47 host-local = ~15:47Z; host +06 per 06-RECORD D-14); `pg_restore --list` verified (restore-listed) |
+| 0002 migrated (journal = 3) | 2026-09-24, same flip session — single-runner migrate exit 0; `drizzle.__drizzle_migrations` = **3 rows** (0000/0001/0002); legacy tables untouched (D-30 substrate) |
+| seed-admin-roles PASS (1 grant) | 2026-09-24, same session — `PASS: 1 admin grant(s) applied (roster entries: 1)` for `mehedihassanshubho@gmail.com` (D-08/D-09/D-10; roster operator-confirmed) |
+| Flip worker readyz green | 2026-09-24, same session — **first-try readyz 200**; `GET :9090/admin/queues` unauthenticated → **403** (gate answer, never 500) |
+| Flip web `/login` 200 | 2026-09-24, same session — **200** + notice strip live (window 2026-09-24..2026-10-08); Bull Board refusal evidence captured 2026-09-24 **15:55Z** (gate LEG 3 note) |
+| Canary legs a–h green (soak clock starts) | **2026-09-24T19:00:00Z** — the declared soak window opens (legs a/d/e/f/g/h green; b/c + D-40 live assertion dispositioned not-exercisable, §13.3) |
 
 ## 14. Task 3 — the D-31 typed soak gate + D-36 approval
 
@@ -583,7 +598,7 @@ stand-in.
        --start <window-start> --end <window-end>            # appends to this record
    ```
 
-### 14.4 D-36 operator approval — the phase's ONLY approval gate — PENDING [OPERATOR]
+### 14.4 D-36 operator approval — the phase's ONLY approval gate — RECORDED (operator APPROVE, early close)
 
 After the gate run, the operator reviews the soak evidence (this record §14.2's production
 counterpart + the gate's appended block) and records the approve/decline decision VERBATIM
@@ -593,7 +608,166 @@ none comes after.
 
 | Field | Value |
 | --- | --- |
-| Gate verdict block appended (date) | PENDING |
-| Operator decision (approve / decline) | PENDING |
-| Operator name + timestamp (UTC) | PENDING |
-| Verbatim decision text | PENDING |
+| Gate verdict block appended (date) | 2026-09-25 — TWO blocks below: the **11:46:27Z run (FAIL 5 pass / 0 attest / 8 fail)** is the earlier incomplete run (session cookies + attestation lines not yet supplied); it is **SUPERSEDED** by the **11:59:55Z run (PASS 6 pass / 7 attest / 0 fail)** — the final run. Both blocks remain on this append-only record; the first is marked superseded here and in §14.5 |
+| Operator decision (approve / decline) | **APPROVE** — the deletion release (07-08) is authorized |
+| Operator name + timestamp (UTC) | operator (mehedishubho) — early-close approval taken 2026-09-25, at window close (~18:00Z); relayed to the 07-07 close-out executor via the orchestrator close-out dispatch the same day |
+| Verbatim decision text | Substance of the operator's early-close approval, as relayed: the typed gate's final run is **6 pass / 7 attest / 0 fail** over the window 2026-09-24T19:00Z→2026-09-25T18:00Z; the <24h wall (≈22.75–23h) SHORT-WINDOW note is **covered by this D-36 approval**; the reboot outage is recorded plainly (§14.5) and accepted; the nightly 03:15Z maintenance pass that never ran under the flipped stack is recorded **UNOBSERVED and accepted**, its observation deferred to the server deploy (whose PM2 supervision + 24/7 uptime is the form the soak intent actually targets); 07-08 may start. Recorded here as the decision record rather than a chat quote — the operator's decisions arrived via the orchestrator close-out dispatch |
+
+### 14.5 Production soak close — operator early-close narrative (2026-09-25)
+
+The soak closed with the operator's early close (§14.4). What the window actually contained,
+recorded plainly — this is the narrative around the two typed-gate blocks at the bottom of this
+record, not a duplication of them:
+
+**Gate runs.** The final typed-gate run (2026-09-25T11:59:55Z, window
+2026-09-24T19:00Z→2026-09-25T18:00Z, 82800 s ≈ 23 h) evaluated **6 pass / 7 attest / 0 fail** —
+every machine leg green (feedback matrix 401/200/403, Bull Board 200 + 403, strip live in
+window, email round-trip counters, dead-error quiet) and every attestation leg recorded, none
+silent. An earlier run the same morning (11:46:27Z, 81900 s ≈ 22.75 h) came back
+**FAIL 5/0/8**: the session-cookie env and the attestation file had not yet been supplied, so
+LEG 1 and legs 7–13 failed "never silently passes" checks. It is **superseded** by the final
+run — both blocks remain below, first marked superseded (append-only record).
+
+**Timeline (the window's real shape).**
+
+| Interval | State |
+| --- | --- |
+| 2026-09-24T19:00Z → 21:08Z (~2.1 h) | Flipped pair green; observation under way |
+| 2026-09-24 ~21:08Z → 2026-09-25 11:45Z (~14.4 h) | **Machine reboot killed the unsupervised pair AND the Docker engine** (deviation 7, §15 — the executing topology has no process supervision). The dead-men switches paged **by design** (05-02: silence fails toward detection) |
+| 2026-09-25 11:45Z | Stack restored — worker-first, readyz-gated, then web; the runbook's restart procedure worked exactly as documented on this restart (and on the earlier in-window mis-config re-boot, §15 deviation 2b) |
+| 2026-09-25 11:45Z → 18:00Z (~6.2 h) | Flipped pair green through gate close |
+| 2026-09-25 ~11:59Z | Final typed-gate run: PASS 6/7/0 |
+
+Green observation totals ≈ 8.3 h inside a ≈ 23 h wall window whose midpoint was lost to the
+reboot. The wall-clock arithmetic is recorded plainly (06-§12 precedent): the window is short
+of 24 h and the SHORT-WINDOW note fired as designed — **covered by the D-36 approval** (§14.4).
+
+**Nightly maintenance pass: UNOBSERVED.** The nightly 03:15Z maintenance pass never ran under
+the flipped stack — the worker was dead at that hour (reboot outage). Recorded as UNOBSERVED
+and **accepted by the operator**; the observation is deferred to the server deploy, whose PM2
+supervision + 24/7 uptime is the form the soak intent actually targets. Nothing in the D-31
+checklist silently passed: the gap is named, dispositioned, and carried.
+
+**Attestation quality.** Legs 8–10 (D-38 Google/GitHub, D-40) are
+ATTEST-DISPOSITIONED-not-exercisable, not passes — the distinction is load-bearing and is
+preserved verbatim in the gate block. LEG 12 (INBOX-RESET) is a real PASS in console form
+(2026-09-25T17:58Z round-trip, D-06-approved bytes, token unconsumed).
+
+## 15. 07-07 close-out — deviations register
+
+All deviations are **operator-topology** findings; **none is an auth-path defect**. The
+Better Auth login, session, admin-gating, and email-lane paths behaved as rehearsed.
+
+1. **Early flip (operator decision, 2026-09-24).** The flip executed 2026-09-24, ahead of the
+   announced 2026-09-28. Rationale: the sole real announcement recipient is the operator (4/5
+   recipients internal fixtures; console transport — §12.3's recipient-composition finding);
+   the D-07 slip rule governs late slips only. Recorded in §13.3/§13.4.
+2. **`EMAIL_PROVIDER` omission — TWICE.** (a) *Blast eve:* the pre-blast legacy worker was
+   hand-booted `smtp` without SMTP creds — caught before any retry fired; all 5 blast jobs
+   observed `attemptsMade=0` (recorded in §12.3). (b) *Restore boot:* the 2026-09-25 11:45Z
+   post-reboot worker boot **repeated the same omission** — caught the same session via the
+   reset round-trip leg (2 jobs stuck in D-09 backoff, `ECONNREFUSED ::1:587`); the worker was
+   re-booted console-mode and the jobs drained **0-failed**. Root cause both times: the
+   operator (orchestrator) hand-booted workers without the full env contract. **Runbook
+   change: NONE** — the runbook §4c step 6 command block already lists `EMAIL_PROVIDER`; the
+   plan's env contract is authoritative and the failure was execution, not documentation.
+3. **REHASH FIELD MISMATCH (fix queued for 07-08).** `verifyPassword`/`hashPassword` run
+   against `users.password` (the adapter mapping) while the AUTH-09 lazy-rehash UPDATE targets
+   `account.password` — when the two copies diverge, the rehash UPDATE matches **0 rows**
+   (masked while the copies are identical). Practical impact ~nil: `hash()` is bcrypt-10 by
+   A-1 parity, so the "upgrade" is a fresh salt, not a scheme change. One-line fix + test to
+   land in **07-08's plan** (it touches `src/lib/auth-password.ts`, which 07-08 already owns
+   for the legacy deletions). Also appended to `.planning/WINDOWS.md` (broken-windows ledger).
+4. **Operator credential recovery.** The canary password was recovered after being forgotten
+   via a **direct DB write** (users + account hash copies kept in sync) — a recovery action on
+   the operator's own account, not a flow defect. The pre-recovery reset attempt explains the
+   single harmless WARN in the dead-error-quiet scan (§13.3 leg h).
+5. **OAuth credentials remain standin dummies** (operator decision) — real Google/GitHub creds
+   are a server-deploy item; consequence dispositioned at §13.3 legs b/c + D-40.
+6. **Non-admin soak cookie minted by password-resetting the internal fixture
+   `ops-smoke@spidernode.internal`** — the operator's own fixture account, reset to mint the
+   `SOAK_NONADMIN_COOKIE` session. Recorded for provenance.
+7. **Supervision finding.** The executing topology has **no process supervision** — bare
+   background processes; the ~21:08Z reboot killed the pair and the Docker engine for ~14.4 h
+   (§14.5 timeline). PM2 is the VPS-era runbook form and was never in play here. Positive
+   finding: the runbook's restart procedure (worker-first, readyz-gated, then web) worked as
+   documented on **both** restarts.
+
+---
+
+## Auth soak gate evaluation — 2026-09-25T11:46:27.370Z
+
+> **SUPERSEDED — see the 2026-09-25T11:59:55.220Z run below (the final run).** This earlier
+> run was executed before the session-cookie env and the attestation file were supplied, so
+> LEG 1 and the attestation legs failed the gate's own never-silently-pass checks. Kept on the
+> append-only record; dispositioned in §14.4/§14.5.
+
+- Window: 2026-09-24T19:00:00.000Z .. 2026-09-25T17:45:00.000Z (81900 s ≈ 22.75 h)
+- Mode: live
+- Verdict: **FAIL (5 pass / 0 attest / 8 fail)**
+
+LEG 1 (feedback-admin-matrix): FAIL [D-14/R17]
+  - SOAK_ADMIN_COOKIE and/or SOAK_NONADMIN_COOKIE not set — mint both sessions on the target stack
+  - (sign in once as the admin canary and once as a non-admin, copy each better-auth.session_token value)
+LEG 2 (bullboard-allowlisted): PASS [D-17/D-18]
+  - observed: {"status":200,"htmlMarker":true}
+LEG 3 (bullboard-refusal): PASS [D-17]
+  - observed: {"status":403,"note":"captured at flip (2026-09-24 15:55Z): unauthenticated request from loopback refused 403; ADMIN_IP_ALLOWLIST=127.0.0.1/32,::1/128 makes every non-loopback source refuse structurally — the machine has no second network source to capture from; gate matrix rehearsed on the snapshot stand-in with a real non-allowlisted source (07-06 leg 6)"}
+LEG 4 (notice-strip): PASS [D-02]
+  - observed: {"window":"2026-09-24T00:00:00Z .. 2026-10-08T00:00:00Z","strip":true}
+LEG 5 (email-roundtrip): PASS [EML-04/D-31]
+  - observed: {"consoleLogLines":5}
+LEG 6 (dead-error-quiet): PASS [D-31]
+  - observed: {"filesScanned":2,"matches":[]}
+LEG 7 (D38-CREDENTIALS): FAIL [D-38]
+  - no attestation line for D38-CREDENTIALS — the gate never silently passes an un-recorded leg
+LEG 8 (D38-GOOGLE): FAIL [D-38]
+  - no attestation line for D38-GOOGLE — the gate never silently passes an un-recorded leg
+LEG 9 (D38-GITHUB): FAIL [D-38]
+  - no attestation line for D38-GITHUB — the gate never silently passes an un-recorded leg
+LEG 10 (D40-NO-RECONSENT): FAIL [D-40]
+  - no attestation line for D40-NO-RECONSENT — the gate never silently passes an un-recorded leg
+LEG 11 (INBOX-VERIFICATION): FAIL [D-31]
+  - no attestation line for INBOX-VERIFICATION — the gate never silently passes an un-recorded leg
+LEG 12 (INBOX-RESET): FAIL [D-31]
+  - no attestation line for INBOX-RESET — the gate never silently passes an un-recorded leg
+LEG 13 (NOTICE-VISUAL): FAIL [D-02]
+  - no attestation line for NOTICE-VISUAL — the gate never silently passes an un-recorded leg
+
+---
+
+## Auth soak gate evaluation — 2026-09-25T11:59:55.220Z
+
+> **FINAL RUN — the D-31 production soak verdict: PASS (6 pass / 7 attest / 0 fail).** This is
+> the block the D-36 approval (§14.4) closes on; the 11:46:27Z block above is superseded.
+
+- Window: 2026-09-24T19:00:00.000Z .. 2026-09-25T18:00:00.000Z (82800 s ≈ 23.00 h)
+- Mode: live
+- Verdict: **PASS (6 pass / 7 attest / 0 fail)**
+
+LEG 1 (feedback-admin-matrix): PASS [D-14/R17]
+  - observed: {"anonymous":401,"admin":200,"nonAdmin":403}
+LEG 2 (bullboard-allowlisted): PASS [D-17/D-18]
+  - observed: {"status":200,"htmlMarker":true}
+LEG 3 (bullboard-refusal): PASS [D-17]
+  - observed: {"status":403,"note":"captured at flip (2026-09-24 15:55Z): unauthenticated request from loopback refused 403; ADMIN_IP_ALLOWLIST=127.0.0.1/32,::1/128 makes every non-loopback source refuse structurally — the machine has no second network source to capture from; gate matrix rehearsed on the snapshot stand-in with a real non-allowlisted source (07-06 leg 6)"}
+LEG 4 (notice-strip): PASS [D-02]
+  - observed: {"window":"2026-09-24T00:00:00Z .. 2026-10-08T00:00:00Z","strip":true}
+LEG 5 (email-roundtrip): PASS [EML-04/D-31]
+  - observed: {"consoleLogLines":5}
+LEG 6 (dead-error-quiet): PASS [D-31]
+  - observed: {"filesScanned":2,"matches":[]}
+LEG 7 (D38-CREDENTIALS): ATTEST [D-38]
+  - observed: {"attestation":"PASS — canary old-password login proven twice via the real API (200 + session cookie + dashboard API 200) and by the operator's browser session (\"pass\", 2026-09-24); credential hash re-salted on login (A-1 bcrypt-10 parity)"}
+LEG 8 (D38-GOOGLE): ATTEST [D-38]
+  - observed: {"attestation":"ATTEST-DISPOSITIONED — not exercisable on this topology (standin OAuth credentials + zero OAuth accounts have ever existed); live no-re-consent assertion reserved for the server deploy; nothing regressed vs the legacy stack (same dummy creds)"}
+LEG 9 (D38-GITHUB): ATTEST [D-38]
+  - observed: {"attestation":"ATTEST-DISPOSITIONED — same basis as D38-GOOGLE"}
+LEG 10 (D40-NO-RECONSENT): ATTEST [D-40]
+  - observed: {"attestation":"ATTEST-DISPOSITIONED — live assertion reserved for the server deploy; token-preservation stands proven at the data layer (07-06 D-40 snapshot pass: google 2/1/2 incl. NULL-refresh propagation, github 1/1/1)"}
+LEG 11 (INBOX-VERIFICATION): ATTEST [D-31]
+  - observed: {"attestation":"ATTEST-CONSOLE-FORM — no post-flip signup occurred (single real user, already verified); sendVerificationEmail hook delegation proven by 07-03 integration suite + 07-06 rehearsal legs; console delivery form approved at D-06; real-inbox form is a server item"}
+LEG 12 (INBOX-RESET): ATTEST [D-31]
+  - observed: {"attestation":"PASS-CONSOLE-FORM — reset round-trip console-delivered 2026-09-25T17:58Z with the D-06-approved reset bytes (token left unconsumed; 1h expiry); queue counters: enqueue → retry-backoff → delivered 0-failed"}
+LEG 13 (NOTICE-VISUAL): ATTEST [D-02]
+  - observed: {"attestation":"PASS — strip verified in served /login HTML (grep 2026-09-24) + 07-06 screenshot evidence + operator observation; window 2026-09-24..2026-10-08 live"}

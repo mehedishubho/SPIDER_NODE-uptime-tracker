@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Monitoring Worker — Build & Dark Launch** - Dedicated worker owns all monitoring on idempotent, resilient BullMQ machinery; dark-launched while cron still serves users (completed 2026-09-14)
 - [x] **Phase 5: Worker Cutover & Operational Hardening** - Gated overlap cutover deletes the cron; heartbeat moves, observability, env transition, rehearsed rollback (completed 2026-09-19)
 - [ ] **Phase 6: Thin API Routes & Email Abstraction** - Web becomes an enqueue-only producer; security fixes at the new boundary; email queued off the request path
-- [ ] **Phase 7: Better Auth Cutover, Admin Gating & Prisma Removal** - Canary-gated auth cutover onto existing tables; admin roles gate feedback and queue UI; Prisma deleted
+- [x] **Phase 7: Better Auth Cutover, Admin Gating & Prisma Removal** - Canary-gated auth cutover onto existing tables; admin roles gate feedback and queue UI; Prisma deleted (completed 2026-09-30)
 - [ ] **Phase 8: Flagged Capabilities & UI Modernization** - AI and windowed-uptime behind default-off flags; visual redesign on stable tokens and stable APIs
 
 ## Phase Details
@@ -312,7 +312,7 @@ Plans:
   4. Admin gating works end-to-end: roles via the Better Auth admin plugin, feedback listing admin-only, and the Bull Board queue UI reachable only for admins from allowlisted IPs
   5. Removal is complete: no NextAuth deps or custom auth routes, no Redux `auth` slice / token mirror / `js-cookie` (the Better Auth client is the single auth source), and no `prisma/` directory, generated client, or `@prisma/*` deps — every read path runs on Drizzle with the test suite green
 
-**Plans**: 11/11 plans executed
+**Plans**: 11/11 plans complete
 
 Plans:
 - [x] 07-10-PLAN.md
@@ -397,10 +397,11 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | 4. Monitoring Worker — Build & Dark Launch | 0/9 | Planned — research resolved, 9 plans across 6 waves | - |
 | 5. Worker Cutover & Operational Hardening | 9/9 | Complete — deletion release d55cad5 shipped (worker owns 100% of checks, legacy cron deleted); D-18 approved, D-21 resolved-by-absence, tier-2 rollback rehearsed | 2026-09-19 |
 | 6. Thin API Routes & Email Abstraction | 5/5 | In Progress|  |
-| 7. Better Auth Cutover, Admin Gating & Prisma Removal | 11/11 | In Progress|  |
+| 7. Better Auth Cutover, Admin Gating & Prisma Removal | 11/11 | Complete    | 2026-09-30 |
 | 8. Flagged Capabilities & UI Modernization | 0/TBD | Not started | - |
 
 ## Backlog
+
 ### Phase 999.1: Follow-up — Phase 07 deferred UAT follow-up: Test 61 (BACKLOG)
 
 **Goal:** Exercise the live Google/GitHub OAuth no-re-consent proof (D-40) when the stack first deploys with real OAuth credentials
@@ -408,4 +409,3 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 **Deferred at:** 2026-09-30 during /gsd-verify-work 07 session completion
 **Follow-ups:**
 - [ ] Test 61: Live Google/GitHub OAuth no-re-consent proof (D-40) at the live server deploy (deferred 2026-09-30)
-

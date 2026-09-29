@@ -833,3 +833,36 @@ window) to this section.
 
 ---
 
+
+### 16.5 D-30 reconciliation note â€” operator decision: C (defer), recorded 2026-09-29
+
+**Decision:** **C â€” defer the deletion deploy.** Recorded from the blocking-human checkpoint disposition of
+2026-09-29: options A (restore + replay) and B (newer restore source) were presented and left unanswered
+in-session; C â€” no restore, no deploy â€” was taken as the conservative non-destructive default and is the
+operator's recorded choice.
+
+**Facts held static by this decision:**
+- The production stack remains **down** as last observed 2026-09-29T10:2xZ (web :3007, worker :9090, Redis
+  :6391 dark; last process activity 2026-09-25T23:02Z). Nothing was started, stopped, restored, or written by
+  the executor â€” zero production mutations occurred during the 07-08 session.
+- The production DB container (`spidernode-dev-db`) and its data volume remain **destroyed** by the
+  machine-level event; the newest surviving backup is the pre-flip `pre-phase7-flip-20260924-2147.dump`
+  (2026-09-24 21:47 local).
+- The 07-08 release artifact (`9dfabd8`: armed gate + legacy-stack deletion + DRZ-07 sweep) is committed and
+  verify-green but **NOT deployed** â€” production (when next booted) still runs the flip-era stack.
+
+**Disposition:** Â§16.4 stays **PENDING** â€” the deploy execution record is intentionally unfilled. Per the
+halted close-out, plan 07-08 closes **HALTED-on-deploy**; requirement completion for AUTH-07/AUTH-08/DRZ-07
+is deliberately NOT claimed (their deploy-side proof legs are unexercised â€” 02-03 false-signal precedent),
+and the broken-windows ledger entry stays **open** (it blocks `/gsd-ship` until the deploy lands, by design).
+
+**Resume path (next session, operator-led):**
+1. Choose **A** â€” recreate `spidernode-dev-db` (:5454/`uptime_dev`), restore
+   `pre-phase7-flip-20260924-2147.dump`, re-run the Â§4c step-4 migrate (journal = 2 rows â†’ 0002 applies
+   cleanly) + step-5 seed â€” or **B** â€” restore a newer dump if one has surfaced; then
+2. Confirm stack health (worker `readyz`, web `/login` 200 on the flip-era artifact), and
+3. Execute runbook **Â§4d steps 2-6** with the continuation agent filling Â§16.4 and re-closing this plan
+   (the SUMMARY converts `halted` â†’ `complete` only then).
+
+---
+

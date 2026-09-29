@@ -1,19 +1,19 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 07
-current_phase_name: Better Auth Cutover, Admin Gating & Prisma Removal
+current_phase: 06
+current_phase_name: Thin API Routes & Email Abstraction
 current_plan: 11
 status: executing
 stopped_at: "Completed 07-11-PLAN.md - gap-closure wave COMPLETE (11/11): WR-04 closed, armed remnant gate covers scripts/ with pinned teeth + narrow exemptions; phase returns to /gsd-verify-work 07"
-last_updated: "2026-09-29T21:00:20.470Z"
+last_updated: "2026-09-29T21:59:57.869Z"
 last_activity: 2026-09-29
 last_activity_desc: Phase 07 execution started
-state_head: e52dada62c500e6b796af66477413669cf52afe0
+state_head: e487d1bf16d58889ec12ed1063be132822a6ad37
 progress:
   total_phases: 8
   completed_phases: 5
-  total_plans: 61
+  total_plans: 62
   completed_plans: 61
 milestone_name: milestone
 ---
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 ## Current Position
 
 Current Plan: 11
-Total Plans in Phase: 11
+Total Plans in Phase: 6
 
-Phase: 07 (Better Auth Cutover, Admin Gating & Prisma Removal) — gap-closure wave COMPLETE (11 of 11 plan docs; 07-11 closed COMPLETE)
+Phase: 06 (Thin API Routes & Email Abstraction) — READY TO EXECUTE
 Plan: 07-11 of 07-11 (07-11 closed COMPLETE — WR-04 closed: armed remnant gate default perimeter extended to scripts/, deleted-module FILE-NAME check + three exact-filename token-only exemptions pinned RED→GREEN; real-repo scripts/ scan green at 466 files)
 Status: executing — phase returns to `/gsd-verify-work 07`; AUTH-07/DRZ-07 verified already [x] complete in REQUIREMENTS.md (07-08/07-10 shared-ID close) — ready-ids re-check returned them ready, no re-mark needed
 Last activity: 2026-09-29 — 07-11 gap closure executed (blast-script recreation trips by file name with zero imports; in-tree historical tools exactly exempted, rename-trip scope pinned; verify green modulo the documented :9090 exception)

@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 07
 current_phase_name: Better Auth Cutover, Admin Gating & Prisma Removal
 status: executing
-stopped_at: Completed 07-09-PLAN.md - drop release deployed per runbook 4e, phase closeout recorded (17/18), AUTH-07 closed, phase 13/13 Complete
-last_updated: "2026-09-29T16:06:05.243Z"
+stopped_at: "Completed 07-10-PLAN.md - gap G-07-63 closed (CR-01 wire timestamps + WR-01/WR-02), wire suite RED->GREEN, verify green modulo documented :9090 exception"
+last_updated: "2026-09-29T20:38:52.422Z"
 last_activity: 2026-09-29
 last_activity_desc: Phase 07 execution started
-state_head: 9cefe65c8771740c80220779ae4d3a9fb4cee1a6
+state_head: 7c102563ec0249d3a392057ae109eb35da53c337
 progress:
   total_phases: 8
   completed_phases: 5
-  total_plans: 59
-  completed_plans: 59
+  total_plans: 61
+  completed_plans: 60
 milestone_name: milestone
 ---
 
@@ -28,12 +28,12 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 
 ## Current Position
 
-Phase: 07 (Better Auth Cutover, Admin Gating & Prisma Removal) — ALL 9 PLANS EXECUTED, ready for verification
-Plan: 9 of 9 (07-09 closed COMPLETE — drop release deployed per runbook §4e, record §17/§18)
-Status: ready_for_verification — `/gsd-verify-work 07`; phase requirements 13/13 Complete (AUTH-07 closed by 07-09)
-Last activity: 2026-09-29 — 07-09 drop release executed (legacy tables dropped with their data, post-drop canary green)
+Phase: 07 (Better Auth Cutover, Admin Gating & Prisma Removal) — gap-closure wave in progress (10 of 11 plan docs; 07-10 closed COMPLETE)
+Plan: 07-10 of 07-11 (07-10 closed COMPLETE — gap G-07-63 closed: CR-01 ISO-8601 UTC wire contract restored via the serialize seam, WR-01/WR-02 fixed, wire suite RED→GREEN; next: 07-11 WR-04)
+Status: executing — phase returns to `/gsd-verify-work 07` after the gap-closure wave; DRZ-07 shared requirement intentionally NOT re-marked (sibling 07-11 also declares it, shared-ID gate)
+Last activity: 2026-09-29 — 07-10 gap closure executed (wire timestamps ISO-8601 UTC on all 8 ported routes, poll timezone-proof, verify green modulo the documented :9090 exception)
 
-Progress: [███████████████████████] 59/59 plans (100%)
+Progress: [███████████████████████] 60/61 plans (98%)
 
 ## Performance Metrics
 
@@ -122,6 +122,7 @@ Progress: [███████████████████████
 | Phase 07 P07-08 | ~2h (halted on deploy) | 2 tasks | 56 files |
 | Phase 07 P07-08 | ~2h (halted on deploy) | 2 tasks | 56 files |
 | Phase 07 P09 | ~17min (close-out session; Task 1 resumed prior-session work) | 3 tasks | 11 files |
+| Phase 07 P07-10 | 30 min | 3 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -321,6 +322,7 @@ Recent decisions affecting current work:
 - [Phase 07]: Drop release executed per runbook 4e: backup pre-0709-drop-20260929-1556.dump (153,839 B, archive-verified) -> migrate journal 3->4 -> readyz-gated worker restart (healthz sha 5f33b51) -> web restart -> census legacy_left=0 with substrate 5/5/3/0 intact -> post-drop canary re-login 200 + /api/monitors 200 -> continuity pings 4084->4086; record 17
 - [Phase 07]: Rollback form change authored into 4e: no un-drop migration exists - the pre-drop pg_dump is the ONLY revert; the redeploy lever dies with the legacy tables by design (D-32)
 - [Phase 07]: Rehearsal pipeline extended by carve-out inventory only (03-05 rule): sanctioned drops render BEFORE-count-as-rows-dropped, the DDL delta stays FATAL on any non-sanctioned removal (T-07-32), D-19 N/A for a drop-only set; AUTH-07 closed at closeout - phase 13/13 Complete
+- [Phase 07]: 07-10: naive Postgres timestamp text normalized at ONE API seam (src/lib/serialize.ts iso/isoRow) instead of schema mode changes - schema:gate-protected file untouched; iso() canonicalizes before parsing (space-T, bare +HH) because the review draft failed ISO-Z passthrough
 
 ### Pending Todos
 
@@ -345,6 +347,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-29T16:06:04.538Z
-Stopped at: Completed 07-09-PLAN.md - drop release deployed per runbook 4e, phase closeout recorded (17/18), AUTH-07 closed, phase 13/13 Complete
+Last session: 2026-09-29T20:38:42.807Z
+Stopped at: Completed 07-10-PLAN.md - gap G-07-63 closed (CR-01 wire timestamps + WR-01/WR-02), wire suite RED->GREEN, verify green modulo documented :9090 exception
 Resume file: None

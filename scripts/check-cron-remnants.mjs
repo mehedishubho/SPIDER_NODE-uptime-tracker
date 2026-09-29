@@ -1,15 +1,13 @@
 #!/usr/bin/env node
-// check-cron-remnants.mjs — the D-41 cron-remnant gate. From the deletion
+// check-cron-remnants.mjs — the D-41 remnant gate. From the Phase-5 deletion
 // release (05-09) onward this script is a `pnpm verify` leg that fails the
-// chain while ANY legacy scheduler remnant survives; until then it ships
-// INERT (advisory) because src/instrumentation.ts legitimately exists
-// through the overlap window. This plan does NOT wire it into package.json.
+// chain while ANY legacy scheduler remnant survives.
 //
 // D-41 amendment: ROADMAP criterion 2's "CI greps the build" is realized as
 // a verify-chain grep per the 02-CONTEXT D-01 no-CI precedent — no CI
 // system exists on this repo, so pnpm verify IS the build gate.
 //
-// What it flags (the remnant classes the deletion release must remove):
+// What it flags (the remnant classes the deletion releases must remove):
 //   1. any file named instrumentation.ts / instrumentation.js — the legacy
 //      scheduler entrypoint (D-03's deletion target);
 //   2. any import/require specifier ending in node-cron or .../instrumentation;
@@ -20,13 +18,37 @@
 //   6. (D-27) the retired CRON_SECRET env token in any scanned source,
 //      build artifact, or repo-root config file;
 //   7. (D-27) any import/require specifier resolving to one of the four
-//      deleted legacy modules: cron-logic, db-batcher, cleanup-logic, mail.
+//      deleted legacy modules: cron-logic, db-batcher, cleanup-logic, mail;
+//   8. (Phase-7 deletion release, 07-08 — AUTH-07/AUTH-08/DRZ-07/D-05) any
+//      import/require specifier of the legacy auth framework (next-auth and
+//      its @auth/prisma-adapter), the Prisma packages (@prisma/* scopes and
+//      the CLI/internal-module basename "prisma"), or the js-cookie helper;
+//   9. (Phase-7) any file named like a deleted Phase-7 module — the custom
+//      token helper (tokens), the legacy auth config module (auth-legacy),
+//      the Redux auth slice (authSlice), or the delete-after-use re-login
+//      blast script (send-relogin-blast) — by BASENAME so "@/lib/tokens",
+//      "../../auth-legacy" and script imports all trip;
+//  10. (Phase-7) the retired NEXTAUTH_SECRET / NEXTAUTH_URL env tokens and
+//      the delete-after-use notice-window env names (AUTH_NOTICE_START /
+//      AUTH_NOTICE_END, D-05) in any scanned source, build artifact, or
+//      repo-root config file;
+//  11. (Phase-7) a package.json still declaring next-auth, @auth/prisma-
+//      adapter, @prisma/client, @prisma/adapter-pg, prisma, js-cookie or
+//      @types/js-cookie.
 //
-// IN-06/D-19 asymmetry note (kept current with the D-27 extension): the
-// token checks (CRON_MODE, CRON_SECRET) count occurrences INCLUDING comment
-// lines, while the import checks skip comment lines — a comment naming a
-// retired token is still a remnant signal worth failing on; historical
-// prose in the excluded prose homes (docs/, .planning/) is never scanned.
+// The Phase-7 extension (checks 8-11) ships in ADVISORY posture first — the
+// 06-05 pre-arm lifecycle: findings are REPORTED (exit 0) while the Phase-7
+// deletions land across the release, and PHASE7_ENFORCED flips to true (the
+// 07-08 arming step) once the removals are complete. The Phase-5/6 classes
+// (checks 1-7) stay ENFORCED throughout — arming the extension never relaxes
+// the already-shipped gate.
+//
+// IN-06/D-19 asymmetry note (kept current with the D-27 + Phase-7
+// extensions): the token checks (CRON_MODE, CRON_SECRET, NEXTAUTH_*,
+// AUTH_NOTICE_*) count occurrences INCLUDING comment lines, while the import
+// checks skip comment lines — a comment naming a retired token is still a
+// remnant signal worth failing on; historical prose in the excluded prose
+// homes (docs/, .planning/) is never scanned.
 //
 // Scan scope: src/ recursively, dist/worker.js and .next/server when
 // present, plus the repo-root config files playwright.config.ts,
@@ -39,9 +61,10 @@
 // historical prose legitimately names the tokens.
 //
 // Usage: node scripts/check-cron-remnants.mjs [dir|file ...] [--advisory]
-//   Enforcement (default): any finding exits 1 listing file + reason.
-//   --advisory: list findings, exit 0 — the pre-deletion posture (and the
-//               05-09 activation step flips the verify leg to enforcement).
+//   Enforcement (default): any Phase-5/6 finding, or any Phase-7 finding
+//   once PHASE7_ENFORCED is true, exits 1 listing file + reason.
+//   --advisory: list ALL findings, exit 0 — the whole-script override used
+//               by fixture probes and pre-deletion posture checks.
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -64,8 +87,55 @@ const INSTRUMENTATION_FILE_NAMES = new Set(["instrumentation.ts", "instrumentati
 // rename or amend DELETED_MODULE_BASENAMES deliberately.
 const DELETED_CRON_ROUTE_PATH = /(^|[\\/])app[\\/]api[\\/]cron([\\/]|$)/;
 const DELETED_MODULE_BASENAMES = new Set(["cron-logic", "db-batcher", "cleanup-logic", "mail"]);
-const RETIRED_SECRET_TOKEN = "CRON_SECRET";
+// Phase-7 deletion release (07-08): the deleted legacy-auth/Prisma/blast
+// module basenames. "prisma" covers the internal singleton ("@/lib/prisma"),
+// the generated client ("../generated/prisma") AND the bare CLI package
+// specifier; "send-relogin-blast" is the D-05 delete-after-use blast script.
+const PHASE7_DELETED_MODULE_BASENAMES = new Set([
+  "tokens",
+  "auth-legacy",
+  "authSlice",
+  "send-relogin-blast",
+  "prisma",
+]);
+// Phase-7 banned import specifiers: the legacy auth framework, its Prisma
+// adapter, the Prisma client scopes, and the cookie helper. Exact + prefix
+// forms so "next-auth/react" and "@prisma/client" subpaths all trip.
+const PHASE7_EXACT_SPECIFIERS = new Set(["next-auth", "js-cookie"]);
+const PHASE7_SPECIFIER_PREFIXES = ["next-auth/", "@auth/prisma-adapter", "@prisma/", "js-cookie/"];
+// Retired env tokens, comments-INCLUSIVE (IN-06/D-19): the D-27 cron secret
+// plus the Phase-7 pair — the legacy secret/URL names and the D-05
+// delete-after-use notice-window env names.
+const RETIRED_ENV_TOKENS = [
+  "CRON_SECRET",
+  "NEXTAUTH_SECRET",
+  "NEXTAUTH_URL",
+  "AUTH_NOTICE_START",
+  "AUTH_NOTICE_END",
+];
+const PHASE7_RETIRED_ENV_TOKENS = new Set([
+  "NEXTAUTH_SECRET",
+  "NEXTAUTH_URL",
+  "AUTH_NOTICE_START",
+  "AUTH_NOTICE_END",
+]);
+const BANNED_DEPENDENCIES = ["node-cron", "@types/node-cron"];
+const PHASE7_BANNED_DEPENDENCIES = [
+  "next-auth",
+  "@auth/prisma-adapter",
+  "@prisma/client",
+  "@prisma/adapter-pg",
+  "prisma",
+  "js-cookie",
+  "@types/js-cookie",
+];
 const ROOT_CONFIG_FILES = ["playwright.config.ts", "next.config.ts", "ecosystem.config.js"];
+
+// The Phase-7 extension's advisory→armed lifecycle (06-05 pattern): false
+// while the 07-08 deletions land (findings reported, exit 0); flipped to
+// true by the 07-08 arming step, after which every Phase-7 finding fails
+// the verify chain exactly like the Phase-5/6 classes.
+const PHASE7_ENFORCED = false;
 
 const DEFAULT_ROOTS = () => {
   const roots = [path.join("src")];
@@ -85,18 +155,25 @@ function usage() {
   return [
     `Usage: node scripts/${SCRIPT_NAME} [dir|file ...] [--advisory]`,
     "",
-    "D-41/D-27 cron-remnant gate. Flags instrumentation.ts/js files,",
+    "D-41/D-27 remnant gate. Flags instrumentation.ts/js files,",
     "node-cron / .../instrumentation imports, CRON_MODE and the retired",
     "CRON_SECRET tokens, deleted cron route paths (app/api/cron/*), imports",
     "of the four deleted legacy modules (cron-logic, db-batcher,",
-    "cleanup-logic, mail), and node-cron dependency declarations. Default",
-    "targets: src/, dist/worker.js, .next/server, and the repo-root config",
-    "files playwright.config.ts / next.config.ts / ecosystem.config.js (each",
-    "when present) plus ./package.json. docs/, .planning/, node_modules/,",
-    ".git/, .snapshots/ and .env.example are NEVER scanned.",
+    "cleanup-logic, mail), and node-cron dependency declarations. The",
+    "Phase-7 extension (07-08) additionally flags next-auth / @auth/* /",
+    "@prisma/* / js-cookie specifiers, the deleted Phase-7 module basenames",
+    "(tokens, auth-legacy, authSlice, send-relogin-blast, prisma), the",
+    "retired NEXTAUTH_SECRET/NEXTAUTH_URL + AUTH_NOTICE_* env tokens, and",
+    "the Phase-7 banned dependencies. Default targets: src/, dist/worker.js,",
+    ".next/server, and the repo-root config files playwright.config.ts /",
+    "next.config.ts / ecosystem.config.js (each when present) plus",
+    "./package.json. docs/, .planning/, node_modules/, .git/, .snapshots/",
+    "and .env.example are NEVER scanned.",
     "",
-    "  --advisory  list findings but exit 0 (pre-deletion posture; the",
-    "              deletion release 05-09 arms enforcement in pnpm verify)",
+    "  --advisory  list ALL findings but exit 0 (whole-script override for",
+    "              fixture probes; the Phase-7 extension itself reports",
+    "              advisory-with-exit-0 until PHASE7_ENFORCED flips at the",
+    "              07-08 arming step)",
     "  --help      this usage text",
   ].join("\n");
 }
@@ -132,6 +209,23 @@ function legacySchedulerImport(specifier) {
 function deletedModuleImport(specifier) {
   const base = specifier.split("/").pop() ?? "";
   return DELETED_MODULE_BASENAMES.has(base);
+}
+
+// Phase-7 (07-08): banned auth/Prisma/cookie specifiers. Exact forms for
+// the bare package names, prefix forms for subpaths ("next-auth/react",
+// "@prisma/client"); the "prisma" internal/CLI basename is handled by
+// PHASE7_DELETED_MODULE_BASENAMES above.
+function phase7BannedImport(specifier) {
+  if (PHASE7_EXACT_SPECIFIERS.has(specifier)) return true;
+  for (const prefix of PHASE7_SPECIFIER_PREFIXES) {
+    if (specifier.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
+function phase7DeletedModuleImport(specifier) {
+  const base = specifier.split("/").pop() ?? "";
+  return PHASE7_DELETED_MODULE_BASENAMES.has(base);
 }
 
 function isCommentLine(line) {
@@ -180,6 +274,18 @@ function scanCodeFile(file) {
           `imports a deleted legacy module ("${specifier}") at line ${index + 1} (D-27)`
         );
       }
+      if (phase7BannedImport(specifier)) {
+        reasons.push({
+          phase7: true,
+          text: `imports a banned Phase-7 package ("${specifier}") at line ${index + 1} (AUTH-07/DRZ-07)`,
+        });
+      }
+      if (phase7DeletedModuleImport(specifier)) {
+        reasons.push({
+          phase7: true,
+          text: `imports a deleted Phase-7 module ("${specifier}") at line ${index + 1} (AUTH-07/08, DRZ-07, D-05)`,
+        });
+      }
     }
   });
   const cronModeHits = content.split("CRON_MODE").length - 1;
@@ -187,11 +293,12 @@ function scanCodeFile(file) {
     reasons.push(`references the CRON_MODE env token (${tokenHitText(cronModeHits)})`);
   }
   // Comments-inclusive by design (IN-06/D-19 asymmetry — see header).
-  const cronSecretHits = content.split(RETIRED_SECRET_TOKEN).length - 1;
-  if (cronSecretHits > 0) {
-    reasons.push(
-      `references the retired ${RETIRED_SECRET_TOKEN} env token (${tokenHitText(cronSecretHits)})`
-    );
+  for (const token of RETIRED_ENV_TOKENS) {
+    const hits = content.split(token).length - 1;
+    if (hits > 0) {
+      const reason = `references the retired ${token} env token (${tokenHitText(hits)})`;
+      reasons.push(PHASE7_RETIRED_ENV_TOKENS.has(token) ? { phase7: true, text: reason } : reason);
+    }
   }
   return reasons;
 }
@@ -207,8 +314,16 @@ function checkPackageJson(packageJsonPath) {
     const pkg = JSON.parse(readFileSync(packageJsonPath, "utf8"));
     for (const section of ["dependencies", "devDependencies"]) {
       const deps = pkg?.[section] ?? {};
-      for (const name of ["node-cron", "@types/node-cron"]) {
+      for (const name of BANNED_DEPENDENCIES) {
         if (name in deps) reasons.push(`${section} still declares ${name}`);
+      }
+      for (const name of PHASE7_BANNED_DEPENDENCIES) {
+        if (name in deps) {
+          reasons.push({
+            phase7: true,
+            text: `${section} still declares ${name} (Phase-7 deletion release, AUTH-07/DRZ-07)`,
+          });
+        }
       }
     }
   } catch (error) {
@@ -267,21 +382,34 @@ function main(argv) {
   }
   for (const file of codeFiles) {
     for (const reason of scanCodeFile(file)) {
-      findings.push({ file, reason });
+      if (typeof reason === "string") {
+        findings.push({ file, reason });
+      } else {
+        findings.push({ file, reason: reason.text, phase7: true });
+      }
     }
   }
   const packageJsonRelative = packageJsonPath ? path.relative(".", packageJsonPath) || "." : null;
   for (const reason of checkPackageJson(packageJsonPath)) {
-    findings.push({ file: packageJsonRelative, reason });
+    if (typeof reason === "string") {
+      findings.push({ file: packageJsonRelative, reason });
+    } else {
+      findings.push({ file: packageJsonRelative, reason: reason.text, phase7: true });
+    }
   }
 
+  // Phase split: the Phase-5/6 classes stay enforced; the Phase-7 extension
+  // reports advisory until PHASE7_ENFORCED flips (07-08 arming step).
+  const enforcedFindings = findings.filter((f) => !f.phase7 || PHASE7_ENFORCED);
+  const advisoryFindings = findings.filter((f) => f.phase7 && !PHASE7_ENFORCED);
+
   const scannedCount = codeFiles.length + entrypointFiles.length;
-  if (findings.length > 0) {
+  if (enforcedFindings.length > 0) {
     const banner =
-      `[cron-remnants] ${advisory ? "ADVISORY" : "VIOLATIONS"}: ${findings.length} finding(s) ` +
-      `— D-41 cron-remnant gate (${advisory ? "advisory mode: pre-deletion remnants listed, exit 0" : "the legacy scheduler must be fully deleted"}):`;
+      `[cron-remnants] ${advisory ? "ADVISORY" : "VIOLATIONS"}: ${enforcedFindings.length} finding(s) ` +
+      `— D-41 remnant gate${advisory ? " (whole-script --advisory override: findings listed, exit 0)" : " (the legacy scheduler/auth/Prisma stack must be fully deleted)"}:`;
     const lines = [banner];
-    for (const finding of findings) {
+    for (const finding of enforcedFindings) {
       lines.push(`  ${finding.file}: ${finding.reason}`);
     }
     if (advisory) {
@@ -291,11 +419,22 @@ function main(argv) {
     console.error(lines.join("\n"));
     return 1;
   }
+  if (advisoryFindings.length > 0) {
+    const lines = [
+      `[cron-remnants] ADVISORY (Phase-7 extension, pre-arm): ${advisoryFindings.length} finding(s) ` +
+        `— exit 0 while the 07-08 deletions land; the arming step flips these to violations:`,
+    ];
+    for (const finding of advisoryFindings) {
+      lines.push(`  ${finding.file}: ${finding.reason}`);
+    }
+    console.log(lines.join("\n"));
+    return 0;
+  }
 
   console.log(
     `[cron-remnants] green — ${scannedCount} code file(s) scanned across ${roots.join(", ")}` +
       (packageJsonRelative ? ` (+ ${packageJsonRelative})` : "") +
-      ", no cron remnants (D-41/D-27)"
+      ", no cron remnants (D-41/D-27) and no Phase-7 auth/Prisma remnants"
   );
   return 0;
 }

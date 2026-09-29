@@ -236,6 +236,13 @@ None - no external service configuration required.
 - The CR-01 wire contract is regression-pinned at the only seam that could see it; phase-08's windowed-uptime UI can trust every API timestamp as a spec-parseable instant.
 - WINDOWS ledger: this plan closes gap G-07-63 (CR-01) and rides WR-01/WR-02 closed; WR-03 (profile password flow, #4) and WR-04 (gate scan scope) remain open for their planned dispositions.
 
+## Self-Check: PASSED
+
+- `src/lib/serialize.ts`, `tests/lib/serialize.test.ts`, `tests/integration/wire-timestamps.test.ts`, `07-10-SUMMARY.md` — all FOUND on disk
+- Commits FOUND: `df421c7` (test RED), `66b13a2` (feat GREEN), `7c10256` (docs SUMMARY), `b70c3c9` (docs close-out state)
+- Acceptance re-run: wire suite 4/4 GREEN; touched sweep 99/99; typecheck 0 errors; seam grep = 8 routes + poll; raw-parse grep = no matches; schema:gate/worker:boundary/denylist:diff/build/cron:remnants/test:e2e all exit 0
+- Dirty residue untouched and uncommitted as instructed: `skills-lock.json`, `tests/resilience/observations.json`
+
 ---
 *Phase: 07-better-auth-cutover-admin-gating-prisma-removal*
 *Completed: 2026-09-29*

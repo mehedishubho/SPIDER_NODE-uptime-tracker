@@ -137,6 +137,23 @@ const CARVE_OUT_0002_TABLES = [
 ];
 const CARVE_OUT_0002_USER_COLUMNS = ["users.role", "users.email_verified"];
 
+// SANCTIONED DROP LIST, Phase-7 extension (0003_drop_legacy_auth_tables —
+// AUTH-07/D-27/D-32). The drop release's whole point is that the four legacy
+// NextAuth-era tables disappear WITH their data, so the pipeline must KNOW
+// these removals: the digest has no AFTER row to read (the table is gone),
+// the step-8 DDL delta records (never fatals on) removals belonging to these
+// four, and the evidence renders the pre-drop row counts as the data that
+// went with them plus the post-drop table inventory. ANY other removed
+// table/index/column remains FATAL — the drop list is exactly these four
+// (T-07-32). This extends the carve-out inventory the same way 07-06 did —
+// it never restructures the pipeline (03-05 precedent).
+const SANCTIONED_DROPS_0003 = [
+  "accounts",
+  "password_reset_tokens",
+  "sessions",
+  "verification_tokens",
+];
+
 function fail(context, error) {
   throw new Error(
     `rehearse-migrations failed: ${context}. ` +
@@ -274,9 +291,17 @@ function digestQuery({ table, columns }) {
   );
 }
 
-async function collectMetrics(client) {
+async function collectMetrics(client, absentTables = []) {
   const metrics = {};
   for (const spec of DIGEST_TABLES) {
+    if (absentTables.includes(spec.table)) {
+      // Sanctioned 0003 drop: the table no longer exists after the migrate —
+      // there is no AFTER digest to compute. The BEFORE side (collected
+      // pre-migrate) carries the row count that went WITH the table (D-27
+      // provenance, rendered in the evidence).
+      metrics[spec.table] = { count: null, digest: null, dropped: true };
+      continue;
+    }
     const result = await client.query(digestQuery(spec));
     metrics[spec.table] = {
       count: result.rows[0].count,
@@ -323,7 +348,14 @@ async function collectStructure(client) {
 // Step 8: additive-only assertion over the two structure snapshots
 // ---------------------------------------------------------------------------
 
-function assertAdditiveOnly(before, after) {
+function assertAdditiveOnly(before, after, sanctionedDrops = []) {
+  const dropSet = new Set(sanctionedDrops);
+  // Owning table of a pg object reference like `ON public.sessions USING ...`
+  // / `CREATE TABLE public.accounts (` / `ALTER TABLE ONLY public.sessions ...`
+  const ownerOf = (text) => {
+    const m = text.match(/public\.([A-Za-z0-9_]+)/);
+    return m ? m[1] : null;
+  };
   const problems = [];
   const summary = {
     addedTables: [],
@@ -337,6 +369,9 @@ function assertAdditiveOnly(before, after) {
     changedIndexes: [],
     pgDumpAddedLines: [],
     pgDumpRemovedLines: [],
+    sanctionedDroppedTables: [],
+    sanctionedDroppedColumns: [],
+    sanctionedDroppedIndexes: [],
   };
 
   const beforeTables = new Set(before.tables);
@@ -344,7 +379,8 @@ function assertAdditiveOnly(before, after) {
   for (const t of beforeTables) {
     if (!afterTables.has(t)) {
       summary.removedTables.push(t);
-      problems.push(`table dropped: ${t}`);
+      if (dropSet.has(t)) summary.sanctionedDroppedTables.push(t);
+      else problems.push(`table dropped: ${t}`);
     }
   }
   for (const t of afterTables) {
@@ -378,7 +414,9 @@ function assertAdditiveOnly(before, after) {
   for (const [key] of beforeCols) {
     if (!after.columns.some((c) => colKey(c) === key)) {
       summary.removedColumns.push(key);
-      problems.push(`column dropped: ${key}`);
+      const owner = key.split(".")[0];
+      if (dropSet.has(owner)) summary.sanctionedDroppedColumns.push(key);
+      else problems.push(`column dropped: ${key}`);
     }
   }
 
@@ -387,7 +425,9 @@ function assertAdditiveOnly(before, after) {
   for (const [name, def] of beforeIdx) {
     if (!afterIdxNames.has(name)) {
       summary.removedIndexes.push(name);
-      problems.push(`index dropped: ${name}`);
+      const owner = ownerOf(def);
+      if (owner && dropSet.has(owner)) summary.sanctionedDroppedIndexes.push(name);
+      else problems.push(`index dropped: ${name}`);
     }
   }
   for (const idx of after.indexes) {
@@ -404,6 +444,8 @@ function assertAdditiveOnly(before, after) {
   for (const line of beforeLines) {
     if (!afterLines.has(line)) {
       summary.pgDumpRemovedLines.push(line.trim());
+      const owner = ownerOf(line);
+      if (owner && dropSet.has(owner)) continue; // sanctioned 0003 removal
       problems.push(`pg_dump statement disappeared: ${line.trim().slice(0, 120)}`);
     }
   }
@@ -494,12 +536,23 @@ function renderEvidenceMarkdown(e) {
   lines.push(`| Table | Rows (before) | Rows (after) | Digest match | Note |`);
   lines.push(`|---|---|---|---|---|`);
   for (const row of e.tables) {
-    lines.push(`| ${row.table} | ${row.before.count} | ${row.after.count} | ${row.digestMatch ? "EQUAL" : "**CHANGED**"} | ${row.note} |`);
+    const afterCount = row.after.dropped
+      ? "DROPPED (0003 sanctioned)"
+      : row.after.count;
+    lines.push(`| ${row.table} | ${row.before.count} | ${afterCount} | ${row.digestMatch ? "EQUAL" : "**CHANGED**"} | ${row.note} |`);
   }
   lines.push("");
   lines.push("Digests (md5, BEFORE == AFTER):");
   for (const row of e.tables) {
-    lines.push(`- ${row.table}: \`${row.before.digest}\`${row.digestMatch ? "" : ` -> \`${row.after.digest}\` (MISMATCH)`}`);
+    lines.push(
+      `- ${row.table}: \`${row.before.digest}\`${
+        row.digestMatch
+          ? row.after.dropped
+            ? " -> DROPPED (sanctioned 0003)"
+            : ""
+          : ` -> \`${row.after.digest ?? "DROPPED (UNSANCTIONED — FATAL)"}\` (MISMATCH)`
+      }`
+    );
   }
   lines.push("");
   lines.push(`## New tables (no BEFORE baseline — additive arrival)`);
@@ -520,19 +573,39 @@ function renderEvidenceMarkdown(e) {
   lines.push(`## DDL delta (additive-only assertion)`);
   lines.push("");
   const d = e.ddlDelta;
+  const sanctioned = new Set(e.sanctionedDrops ?? []);
+  const tagRemoved = (names) =>
+    names.map((n) => (sanctioned.has(n) ? `${n} (SANCTIONED 0003)` : `${n} **(FATAL)**`)).join(", ");
   lines.push(`- Added tables: ${d.addedTables.length ? d.addedTables.join(", ") : "none"}`);
-  lines.push(`- Removed tables: ${d.removedTables.length ? d.removedTables.join(", ") + " **(FATAL)**" : "none"}`);
+  lines.push(`- Removed tables: ${d.removedTables.length ? tagRemoved(d.removedTables) : "none"}`);
   lines.push(`- Added columns: ${d.addedColumns.length ? d.addedColumns.join(", ") : "none"}`);
-  lines.push(`- Removed columns: ${d.removedColumns.length ? d.removedColumns.join(", ") + " **(FATAL)**" : "none"}`);
+  lines.push(`- Removed columns: ${d.removedColumns.length ? tagRemoved([...new Set(d.removedColumns.map((c) => c.split(".")[0]))]) + " (via sanctioned table drops)" : "none"}`);
   lines.push(`- Changed existing columns (type/nullability/precision): ${d.changedColumns.length ? d.changedColumns.join("; ") + " **(FATAL)**" : "none"}`);
   lines.push(`- Column default changes (recorded, sanctioned — 0001's gen_random_uuid()::text pins): ${d.defaultChanges.length ? d.defaultChanges.join("; ") : "none"}`);
   lines.push(`- Added indexes: ${d.addedIndexes.length ? d.addedIndexes.join(", ") : "none"}`);
-  lines.push(`- Removed/changed indexes: ${[...d.removedIndexes, ...d.changedIndexes].length ? [...d.removedIndexes, ...d.changedIndexes].join(", ") + " **(FATAL)**" : "none"}`);
-  lines.push(`- pg_dump schema-only statement delta: +${d.pgDumpAddedLines.length} added / -${d.pgDumpRemovedLines.length} removed lines`);
+  lines.push(`- Removed/changed indexes: ${[...d.removedIndexes, ...d.changedIndexes].length ? [...d.removedIndexes, ...d.changedIndexes].join(", ") + " (0003 sanctioned drops of the four legacy tables)" : "none"}`);
+  lines.push(`- pg_dump schema-only statement delta: +${d.pgDumpAddedLines.length} added / -${d.pgDumpRemovedLines.length} removed lines (removals belong to the sanctioned 0003 table drops)`);
   if (d.pgDumpAddedLines.length) {
     lines.push("");
     lines.push("Added pg_dump statements:");
     for (const l of d.pgDumpAddedLines) lines.push(`  - \`${l.slice(0, 160)}\``);
+  }
+  if (d.pgDumpRemovedLines.length) {
+    lines.push("");
+    lines.push("Removed pg_dump statements (sanctioned 0003 drop inventory):");
+    for (const l of d.pgDumpRemovedLines) lines.push(`  - \`${l.slice(0, 160)}\``);
+  }
+  lines.push("");
+  lines.push(`## Post-drop table inventory (public schema — the evidence's row/table inventory)`);
+  lines.push("");
+  if (e.postDropInventory && e.postDropInventory.length > 0) {
+    lines.push(`| Table | Rows after the migrate |`);
+    lines.push(`|---|---|`);
+    for (const t of e.postDropInventory) {
+      lines.push(`| ${t.table} | ${t.rows} |`);
+    }
+  } else {
+    lines.push("(none)");
   }
   lines.push("");
   lines.push(`## Timing (D-19 evidence)`);
@@ -711,7 +784,32 @@ async function main() {
     console.log("[4.5/10] capturing structure snapshot BEFORE migrate...");
     const beforeStructure = await collectStructure(client);
 
-    // Step 6: per-statement duration capture + timed migrate.
+    // Step 6: per-statement duration capture + timed migrate. Which
+    // migrations will the runner actually apply? The restored DB's last
+    // journal row determines the pending set (drizzle-kit semantics:
+    // folderMillis > last created_at) — a restored post-cutover dump may
+    // already carry 0001+0002, leaving a DROP-ONLY pending set. Knowing this
+    // up front lets the D-19 zero-capture guard distinguish "probe broken"
+    // from "drop-only release, nothing to time" (07-09 rehearsal finding).
+    const journalAll = JSON.parse(
+      readFileSync("drizzle/meta/_journal.json", "utf8")
+    ).entries;
+    const lastAppliedMs = Number(
+      (
+        await client.query(
+          `SELECT COALESCE(max(created_at), 0)::bigint AS m FROM drizzle.__drizzle_migrations`
+        )
+      ).rows[0].m
+    );
+    const pendingMigrations = journalAll.filter((e) => e.when > lastAppliedMs);
+    const pendingIndexBuilds = pendingMigrations
+      .map((e) => readFileSync(`drizzle/${e.tag}.sql`, "utf8").match(/^\s*CREATE\s+(UNIQUE\s+)?INDEX/gim) || [])
+      .reduce((n, hits) => n + hits.length, 0);
+    if (pendingIndexBuilds === 0) {
+      console.log(
+        `applied migration set (${pendingMigrations.map((e) => e.tag).join(", ") || "none"}) contains no CREATE INDEX statements — drop-only rehearsal, D-19 timings N/A`
+      );
+    }
     await client.query(`ALTER DATABASE ${DB} SET log_min_duration_statement = 0`);
     await client.query("SELECT pg_stat_statements_reset()"); // timings = this migrate only
     console.log("[6/10] running timed `pnpm exec drizzle-kit migrate`...");
@@ -728,31 +826,54 @@ async function main() {
     const statementTimings = parseStatementTimings(); // auxiliary: per query string
     const indexBuilds = await collectIndexBuildTimings(client); // primary: per statement
 
-    // Step 7: AFTER metrics + comparison.
+    // Step 7: AFTER metrics + comparison. The sanctioned 0003 drops have no
+    // AFTER digest to read — collectMetrics skips them and the comparison
+    // treats their absence as sanctioned (any OTHER absence stays fatal).
     console.log("[7/10] collecting AFTER metrics and comparing...");
-    const afterMetrics = await collectMetrics(client);
+    const afterMetrics = await collectMetrics(client, SANCTIONED_DROPS_0003);
     const tableRows = [];
     for (const spec of DIGEST_TABLES) {
       const b = beforeMetrics[spec.table];
       const a = afterMetrics[spec.table];
-      const countMatch = a.count === b.count;
-      const digestMatch = a.digest === b.digest;
-      if (!countMatch) failures.push(`${spec.table}: row count changed ${b.count} -> ${a.count}`);
-      if (!digestMatch) failures.push(`${spec.table}: digest changed (${b.digest} -> ${a.digest})`);
+      let countMatch;
+      let digestMatch;
+      let note = spec.carveOut
+        ? "digest over pre-migration inventory (0001's added columns carved out)"
+        : "";
+      if (a.dropped) {
+        const sanctioned = SANCTIONED_DROPS_0003.includes(spec.table);
+        countMatch = sanctioned;
+        digestMatch = sanctioned;
+        if (!sanctioned) {
+          failures.push(`${spec.table}: absent after migrate but NOT in the sanctioned drop list`);
+        } else {
+          note = `DROPPED by 0003 (sanctioned — data dropped WITH the table per D-27: ${b.count} row(s) dropped, no export/archive)`;
+        }
+      } else {
+        countMatch = a.count === b.count;
+        digestMatch = a.digest === b.digest;
+        if (!countMatch) failures.push(`${spec.table}: row count changed ${b.count} -> ${a.count}`);
+        if (!digestMatch) failures.push(`${spec.table}: digest changed (${b.digest} -> ${a.digest})`);
+      }
       tableRows.push({
         table: spec.table,
         before: b,
         after: a,
         countMatch,
         digestMatch,
-        note: spec.carveOut ? "digest over pre-migration inventory (0001's added columns carved out)" : "",
+        note,
       });
     }
 
-    // Step 8: structure AFTER + additive-only assertion.
+    // Step 8: structure AFTER + additive-only assertion. Removals belonging
+    // to the sanctioned 0003 drops are recorded, never fatal (T-07-32).
     console.log("[8/10] asserting additive-only DDL delta...");
     const afterStructure = await collectStructure(client);
-    const { problems, summary: ddlDelta } = assertAdditiveOnly(beforeStructure, afterStructure);
+    const { problems, summary: ddlDelta } = assertAdditiveOnly(
+      beforeStructure,
+      afterStructure,
+      SANCTIONED_DROPS_0003
+    );
     failures.push(...problems);
 
     const knownTables = new Set(DIGEST_TABLES.map((t) => t.table));
@@ -767,6 +888,15 @@ async function main() {
       // Auth objects (account/session/verification) with their shapes.
       const pinned = CARVE_OUT_0002_TABLES.find((spec) => spec.table === nt.table);
       if (pinned) nt.pinnedInventory = pinned.columns;
+    }
+
+    // Post-drop row/table inventory (0003 drop-release evidence, D-27/D-32):
+    // every table REMAINING in the public schema after the migrate, with its
+    // live row count — the surviving substrate the drop leaves behind.
+    const postDropInventory = [];
+    for (const t of afterStructure.tables) {
+      const r = await client.query(`SELECT count(*)::text AS count FROM "${t}"`);
+      postDropInventory.push({ table: t, rows: r.rows[0].count });
     }
 
     // Bookkeeping proof: the stamp wrote the baseline row and the runner
@@ -787,17 +917,26 @@ async function main() {
 
     // D-19 decision derived from measured index-build timings. 0001 is KNOWN
     // to create indexes — an empty capture means the probe broke, not that
-    // builds were free. Fail loud rather than derive D-19 from nothing.
-    if (indexBuilds.length === 0) {
+    // builds were free. Fail loud rather than derive D-19 from nothing —
+    // UNLESS the applied migration set is drop-only (07-09): then there was
+    // simply nothing to time, and D-19 stands from the additive rehearsals
+    // on real data (0001 2026-09-12, 0002 2026-09-23).
+    if (indexBuilds.length === 0 && pendingIndexBuilds > 0) {
       failures.push(
         "index-build timing probe captured 0 CREATE INDEX statements — the D-19 evidence is missing (pg_stat_statements probe broken)"
       );
     }
     const maxIndexBuild = indexBuilds.reduce((m, t) => (t.ms > m ? t.ms : m), 0);
     const slowIndex = indexBuilds.find((t) => t.ms >= D19_THRESHOLD_MS);
-    const d19 = slowIndex
-      ? { maxIndexBuildMs: maxIndexBuild, decision: `D-19: index build exceeded ${D19_THRESHOLD_MS} ms on real data — \`${slowIndex.statement.slice(0, 120)}\` took ${slowIndex.ms} ms. That index needs the out-of-runner CONCURRENTLY path: a documented psql step in the runbook applied BEFORE drizzle-kit migrate (research Pitfall 1) — a runbook note, NOT a migration edit this phase.` }
-      : { maxIndexBuildMs: maxIndexBuild, decision: `D-19: plain indexes confirmed, no concurrent path needed (max index build ${maxIndexBuild} ms < ${D19_THRESHOLD_MS} ms threshold on real data).` };
+    const d19 =
+      indexBuilds.length === 0 && pendingIndexBuilds === 0
+        ? {
+            maxIndexBuildMs: 0,
+            decision: `D-19: N/A for this rehearsal — the applied migration set (${pendingMigrations.map((e) => e.tag).join(", ") || "none"}) contains no CREATE INDEX statements (drop-only release). The D-19 decision stands from the additive rehearsals on real data: 0001 max 0.841 ms (2026-09-12), 0002 max 0.46 ms (2026-09-23) — plain indexes, no concurrent path.`,
+          }
+        : slowIndex
+        ? { maxIndexBuildMs: maxIndexBuild, decision: `D-19: index build exceeded ${D19_THRESHOLD_MS} ms on real data — \`${slowIndex.statement.slice(0, 120)}\` took ${slowIndex.ms} ms. That index needs the out-of-runner CONCURRENTLY path: a documented psql step in the runbook applied BEFORE drizzle-kit migrate (research Pitfall 1) — a runbook note, NOT a migration edit this phase.` }
+        : { maxIndexBuildMs: maxIndexBuild, decision: `D-19: plain indexes confirmed, no concurrent path needed (max index build ${maxIndexBuild} ms < ${D19_THRESHOLD_MS} ms threshold on real data).` };
 
     // Step 9: evidence.
     console.log("[9/10] writing evidence files...");
@@ -811,9 +950,12 @@ async function main() {
         "pings.error_class + pings.status_code (additive NULL columns)",
         `${CARVE_OUT_0002_USER_COLUMNS.join(" + ")} (0002 D-08 role + D-23 boolean backfill — written outside the pinned pre-migration inventory; admin-plugin columns users.banned/banReason/banExpires ride outside the same way)`,
         `${CARVE_OUT_0002_TABLES.map((t) => t.table).join("/")} (0002 new Better Auth tables — no BEFORE baseline; counted via the new-tables path, arrival asserted by the DDL delta)`,
+        `${SANCTIONED_DROPS_0003.join("/")} (0003 SANCTIONED DROPS — data dropped WITH the tables per D-27; the BEFORE count IS the rows dropped, the AFTER side is absent by design)`,
       ].join("; "),
       tables: tableRows,
       newTables,
+      postDropInventory,
+      sanctionedDrops: SANCTIONED_DROPS_0003,
       ddlDelta,
       timings: { migrateWallMs, statements: statementTimings, indexBuilds },
       bookkeeping: { journalRows, journalExpected: journalEntries },

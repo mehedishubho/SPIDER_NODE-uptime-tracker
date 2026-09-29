@@ -34,9 +34,12 @@ export async function resetE2EData(): Promise<void> {
   // Better Auth tables (Phase 7): account/session cascade from users via
   // their ON DELETE cascade FKs, but `verification` has no users FK
   // (identifier/value shape) — listed explicitly so the wipe stays complete.
+  // The four legacy NextAuth-era tables (accounts, sessions,
+  // verification_tokens, password_reset_tokens) left this list in 07-09:
+  // migration 0003 (D-27/D-32) dropped them physically, so a migrated
+  // database no longer has them to truncate.
   await pool.query(`
     TRUNCATE TABLE users, monitors, pings, incidents, feedbacks,
-      accounts, sessions, verification_tokens, password_reset_tokens,
       account, session, verification
     RESTART IDENTITY CASCADE
   `);

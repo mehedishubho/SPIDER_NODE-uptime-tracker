@@ -18,19 +18,45 @@ import { Client } from "pg";
 //   1. credential rows: one account row (providerId 'credential') per user
 //      with a password, accountId = user id, password copied verbatim
 //   2. OAuth reshape: per-provider account counts equal legacy accounts counts
+//      — CONDITIONAL on the legacy substrate: cases 2-3 seed and read the
+//      legacy `accounts` table, which the 07-09 drop release (migration 0003,
+//      D-27/D-32) physically removed from every migrated database. The
+//      cases self-skip (journal-derived) once 0003 is part of the committed
+//      set; their proof role is fulfilled and recorded (07-06 D-40 snapshot
+//      leg, record §10; production reshape, record §13.3/§16.6). The skip is
+//      the drop working as designed, not a lost proof.
 //   3. D-40 snapshot leg: per-provider NON-NULL refresh/access token counts
-//      preserved exactly
+//      preserved exactly — same legacy-substrate condition as case 2
 //   4. D-23 boolean backfill: email_verified === (emailVerified IS NOT NULL)
 //      for every seeded row — both sides of the mapping
 //   5. D-09 seed-script abort semantics: missing/empty/zero-match
 //      ADMIN_EMAILS exits non-zero without granting; a one-match roster
 //      grants role='admin' (case-insensitive per the D-12 parse contract)
 //   6. additive-only source assertion: the comment-stripped 0002 SQL contains
-//      no DROP and no RENAME anywhere (prohibition P1 / D-30)
+//      no DROP and no RENAME anywhere (prohibition P1 / D-30) — 0003 is the
+//      one sanctioned drop release (AUTH-07/D-32) and asserts its own list
 // ---------------------------------------------------------------------------
 
 const MIGRATION_PATH = path.resolve(process.cwd(), "drizzle", "0002_better_auth_cutover.sql");
 const SEED_SCRIPT = path.resolve(process.cwd(), "scripts", "seed-admin-roles.mjs");
+
+// The committed migration set defines the schema the test DB was built with
+// (global-setup's single runner). When the journal carries the 0003 drop
+// release, the legacy `accounts` table no longer exists on ANY migrated
+// database — the legacy-substrate cases cannot seed or read it.
+const LEGACY_SUBSTRATE_DROPPED = (
+  JSON.parse(readFileSync(path.resolve(process.cwd(), "drizzle", "meta", "_journal.json"), "utf8")) as {
+    entries: { tag: string }[];
+  }
+).entries.some((e) => e.tag === "0003_drop_legacy_auth_tables");
+
+// Legacy-substrate cases (2-3) are SKIPPED, not deleted, when 0003 is in the
+// committed set: `it.skip` keeps the proofs listed and visibly skipped rather
+// than silently vanished. The substrate they seed/read (the legacy `accounts`
+// table) is physically gone from every migrated database BY DESIGN (07-09
+// drop release, D-27/D-32); their historical proof lives in the deploy
+// record (07-06 D-40 snapshot leg §10; production reshape §13.3/§16.6).
+const itWithLegacySubstrate = LEGACY_SUBSTRATE_DROPPED ? it.skip : it;
 
 const RUN = randomUUID();
 const U_PWD_VERIFIED = `mig-user-a-${RUN}`;
@@ -118,12 +144,17 @@ beforeAll(async () => {
 
   // google: refresh AND access non-null. github: access non-null, refresh NULL
   // — proves the D-40 token-count preservation distinguishes null from value.
-  await seedLegacyAccount(`acc-g-${RUN}`, U_OAUTH_VERIFIED, "google", { refreshToken: `rt-google-${RUN}`, accessToken: `at-google-${RUN}` });
-  await seedLegacyAccount(`acc-h-${RUN}`, U_OAUTH_VERIFIED, "github", { refreshToken: null, accessToken: `at-github-${RUN}` });
+  // Legacy-substrate seeding is conditional on the substrate existing (the
+  // 07-09 0003 drop release removes it from every migrated database —
+  // cases 2-3 skip with it; see the header note).
+  if (!LEGACY_SUBSTRATE_DROPPED) {
+    await seedLegacyAccount(`acc-g-${RUN}`, U_OAUTH_VERIFIED, "google", { refreshToken: `rt-google-${RUN}`, accessToken: `at-google-${RUN}` });
+    await seedLegacyAccount(`acc-h-${RUN}`, U_OAUTH_VERIFIED, "github", { refreshToken: null, accessToken: `at-github-${RUN}` });
 
-  // Re-run 0002's backfills verbatim over the seeded legacy rows (idempotent).
+    // Re-run 0002's backfills verbatim over the seeded legacy rows (idempotent).
+    await pg.query(OAUTH_BACKFILL_SQL);
+  }
   await pg.query(CREDENTIAL_BACKFILL_SQL);
-  await pg.query(OAUTH_BACKFILL_SQL);
   await pg.query(BOOLEAN_BACKFILL_SQL);
 });
 
@@ -156,7 +187,7 @@ describe("cutover migration 0002 — backfill semantics on real PG (AUTH-03)", (
     expect(mismatches).toBe(0);
   });
 
-  it("2. reshapes OAuth rows so per-provider account counts equal legacy accounts counts", async () => {
+  itWithLegacySubstrate("2. reshapes OAuth rows so per-provider account counts equal legacy accounts counts", async () => {
     for (const provider of ["google", "github"]) {
       const legacy = await scalar(
         `SELECT count(*) FROM accounts WHERE provider = $1 AND "userId" = ANY($2::text[])`,
@@ -176,7 +207,7 @@ describe("cutover migration 0002 — backfill semantics on real PG (AUTH-03)", (
     expect(badProviderIds).toBe(0);
   });
 
-  it("3. preserves per-provider NON-NULL refresh/access token counts exactly (D-40 snapshot leg)", async () => {
+  itWithLegacySubstrate("3. preserves per-provider NON-NULL refresh/access token counts exactly (D-40 snapshot leg)", async () => {
     for (const provider of ["google", "github"]) {
       const legacyRefresh = await scalar(
         `SELECT count(*) FROM accounts WHERE provider = $1 AND refresh_token IS NOT NULL AND "userId" = ANY($2::text[])`,

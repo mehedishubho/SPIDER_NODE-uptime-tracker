@@ -12,9 +12,15 @@
 // (next_check_at, timestamptz + due index) and consecutive_failures,
 // write_guards, outbox (+unsent index), pings.error_class/status_code, the
 // one-ongoing partial unique index, and gen_random_uuid()::text defaults on
-// the text PKs. This file is now a pull of the docker test database after
-// the full committed migration set (0000 + 0001) ran through the single
-// runner — the state src/db/schema.ts must always describe. The two
+// the text PKs. Migration 0002 (07-06) added the Better Auth core tables
+// (account/session/verification) and the cutover columns; migration 0003
+// (07-09, D-27/D-32 drop release) removed the four legacy NextAuth-era
+// tables (sessions, verification_tokens, password_reset_tokens, accounts)
+// WITH their data — the declarations below no longer describe them, and the
+// schema gate proves schema/DB agreement on the migrated shape. This file is
+// now a pull of the docker test database after
+// the full committed migration set (0000 + 0001 + 0002 + 0003) ran through
+// the single runner — the state src/db/schema.ts must always describe. The two
 // non-verbatim adaptations: (1) pull renders the gen_random_uuid() defaults
 // as `.default((gen_random_uuid()))`, a bare call to an identifier
 // drizzle-orm does not export; they are kept here in the canonical
@@ -61,20 +67,6 @@ export const users = pgTable("users", {
 	banExpires: timestamp({ mode: 'string' }),
 }, (table) => [
 	uniqueIndex("users_email_key").using("btree", table.email.asc().nullsLast().op("text_ops")),
-]);
-
-export const sessions = pgTable("sessions", {
-	id: text().primaryKey().notNull(),
-	sessionToken: text().notNull(),
-	userId: text().notNull(),
-	expires: timestamp({ precision: 3, mode: 'string' }).notNull(),
-}, (table) => [
-	uniqueIndex("sessions_sessionToken_key").using("btree", table.sessionToken.asc().nullsLast().op("text_ops")),
-	foreignKey({
-			columns: [table.userId],
-			foreignColumns: [users.id],
-			name: "sessions_userId_fkey"
-		}).onUpdate("cascade").onDelete("cascade"),
 ]);
 
 export const writeGuards = pgTable("write_guards", {
@@ -159,48 +151,6 @@ export const incidents = pgTable("incidents", {
 			foreignColumns: [monitors.id],
 			name: "incidents_monitorId_fkey"
 		}).onUpdate("cascade").onDelete("cascade"),
-]);
-
-export const verificationTokens = pgTable("verification_tokens", {
-	id: text().primaryKey().notNull(),
-	email: text().notNull(),
-	token: text().notNull(),
-	expires: timestamp({ precision: 3, mode: 'string' }).notNull(),
-}, (table) => [
-	uniqueIndex("verification_tokens_email_token_key").using("btree", table.email.asc().nullsLast().op("text_ops"), table.token.asc().nullsLast().op("text_ops")),
-	uniqueIndex("verification_tokens_token_key").using("btree", table.token.asc().nullsLast().op("text_ops")),
-]);
-
-export const accounts = pgTable("accounts", {
-	id: text().primaryKey().notNull(),
-	userId: text().notNull(),
-	type: text().notNull(),
-	provider: text().notNull(),
-	providerAccountId: text().notNull(),
-	refreshToken: text("refresh_token"),
-	accessToken: text("access_token"),
-	expiresAt: integer("expires_at"),
-	tokenType: text("token_type"),
-	scope: text(),
-	idToken: text("id_token"),
-	sessionState: text("session_state"),
-}, (table) => [
-	uniqueIndex("accounts_provider_providerAccountId_key").using("btree", table.provider.asc().nullsLast().op("text_ops"), table.providerAccountId.asc().nullsLast().op("text_ops")),
-	foreignKey({
-			columns: [table.userId],
-			foreignColumns: [users.id],
-			name: "accounts_userId_fkey"
-		}).onUpdate("cascade").onDelete("cascade"),
-]);
-
-export const passwordResetTokens = pgTable("password_reset_tokens", {
-	id: text().primaryKey().notNull(),
-	email: text().notNull(),
-	token: text().notNull(),
-	expires: timestamp({ precision: 3, mode: 'string' }).notNull(),
-}, (table) => [
-	uniqueIndex("password_reset_tokens_email_token_key").using("btree", table.email.asc().nullsLast().op("text_ops"), table.token.asc().nullsLast().op("text_ops")),
-	uniqueIndex("password_reset_tokens_token_key").using("btree", table.token.asc().nullsLast().op("text_ops")),
 ]);
 
 export const outbox = pgTable("outbox", {

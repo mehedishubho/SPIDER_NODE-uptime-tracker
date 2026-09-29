@@ -53,6 +53,12 @@ const eslintConfig = defineConfig([
     "scripts/gen-capability-registry.cjs",
     "scripts/gen-loop-host-contract.cjs",
     "scripts/lib/**",
+    // Planning-harness tooling dropped into .planning/ (07-09 Rule-3
+    // unblock): untracked generator scripts (gen-uat.cjs) whose require()
+    // style imports are the point of their format — tool-owned content,
+    // never this repo's shippable source. Same posture as the tool dirs
+    // above.
+    ".planning/**",
   ]),
 ]);
 

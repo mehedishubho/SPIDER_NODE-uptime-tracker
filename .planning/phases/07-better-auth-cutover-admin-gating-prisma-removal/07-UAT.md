@@ -324,15 +324,16 @@ reason: operator-only credential action; live password is the minted value in gi
 
 ### 63. [CR-01] Check-now poll + timestamps in a non-UTC environment
 expected: after a check-now enqueue completes, the manual-check poll resolves (never times out) and dashboard timestamps render at the correct instant regardless of server/browser UTC offset.
-result: issue
-reported: CR-01 confirmed by code review against installed drizzle-orm 0.45.2 - mode:string timestamps return naive Postgres text parsed as local time, so new Date(lastChecked) > queuedAt never becomes true in UTC+ (this machine is UTC+6) and false-completes on stale values in UTC- (src/lib/check-now-poll.ts:63); not exercised live to avoid production mutation; tracked open in 07-REVIEW-DISPOSITION.md with WR-01/WR-02/WR-04.
-severity: major
+result: pass
+evidence: RESOLVED by gap-closure wave - 07-10 (66b13a2) restored the ISO-8601 UTC wire contract at the iso() seam on all 8 response routes and hardened the poll comparison (src/lib/check-now-poll.ts:74-75); the unmocked real-DB wire suite tests/integration/wire-timestamps.test.ts runs RED 4/4 against the defect and GREEN 4/4 on the fix; verifier re-proved it independently 2026-09-29 and REMOVED the human item (poll completion unit-proven on legacy naive driver text 7/7, display legs render via new Date(ISO-Z), grep-verified).
+original_report: CR-01 confirmed by code review against installed drizzle-orm 0.45.2 - mode:string timestamps return naive Postgres text parsed as local time, so new Date(lastChecked) > queuedAt never becomes true in UTC+ (this machine is UTC+6) and false-completes on stale values in UTC- (src/lib/check-now-poll.ts:63); not exercised live to avoid production mutation; tracked open in 07-REVIEW-DISPOSITION.md with WR-01/WR-02/WR-04.
+(severity was: major) - closed
 
 ## Summary
 
 total: 63
-passed: 60
-issues: 1
+passed: 61
+issues: 0
 pending: 0
 skipped: 0
 blocked: 2
@@ -341,7 +342,9 @@ blocked: 2
 
 - gap_id: G-07-63
   truth: "Check-now poll completes and timestamps render correctly in non-UTC environments"
-  status: failed
+  status: resolved
+  resolved_by: 07-10-PLAN.md
+  resolved_at: 2026-09-29
   reason: "CR-01 (07-REVIEW.md): Drizzle mode:string timestamps return naive Postgres text; new Date(naive) parses as local time, breaking the poll comparison in UTC+ (never completes) and UTC- (false-completes) - src/lib/check-now-poll.ts:63"
   severity: major
   test: 63

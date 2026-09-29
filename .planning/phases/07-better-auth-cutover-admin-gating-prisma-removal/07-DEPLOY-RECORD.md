@@ -774,7 +774,7 @@ LEG 13 (NOTICE-VISUAL): ATTEST [D-02]
 
 ---
 
-## 16. 07-08 deletion release â€” code half COMPLETE (armed gate green), deploy BLOCKED at Â§4d step 2 (production data store absent)
+## 16. 07-08 deletion release â€” code half COMPLETE (armed gate green), deploy leg RESOLVED by operator decision A â€” restore + replay (Â§16.6); Â§16.4 filled by the continuation
 
 Recorded 2026-09-29T10:46Z by the 07-08 executor. The D-36 approval (Â§14.4/Â§14.5) satisfies the plan's
 precondition and is NOT re-asked; the blocker below is a NEW topology fact discovered at deploy time.
@@ -863,6 +863,55 @@ and the broken-windows ledger entry stays **open** (it blocks `/gsd-ship` until 
 2. Confirm stack health (worker `readyz`, web `/login` 200 on the flip-era artifact), and
 3. Execute runbook **Â§4d steps 2-6** with the continuation agent filling Â§16.4 and re-closing this plan
    (the SUMMARY converts `halted` â†’ `complete` only then).
+
+---
+
+## 16.6 Operator decision A â€” restore + replay EXECUTED (2026-09-29, supersede note for Â§16.5)
+
+**Decision:** **A â€” restore + replay**, chosen interactively by the operator (mehedishubho) on
+2026-09-29. **This supersedes Â§16.5's decision C (defer)** â€” C remains on the record above as
+history (it was the conservative default taken while the checkpoint sat unanswered; the operator
+has now answered). Per Â§16.3, the D-30 reconciliation note for the interrupted window is this
+section: the rows written during the flipâ†’soak window (2026-09-24 21:47 local â†’ 2026-09-25 23:02Z â€”
+post-dump pings, soak sessions, the Â§15.4 recovery hash) are **lost by operator-accepted
+consequence**, not by executor mutation.
+
+### A.1 Restore + replay evidence (2026-09-29, ~14:36â€“14:46Z)
+
+| Step | Result |
+| --- | --- |
+| `spidernode-prod-redis` recreated (it was ALSO absent, Â§16.2) | `redis:7-alpine`, loopback-published :6391, the ORIGINAL 03-08 flags (`--requirepass` from the preserved gitignored `.snapshots/spidernode-prod-redis.pass`, `--appendonly yes --appendfsync everysec --maxmemory 512mb --maxmemory-policy noeviction`, `--restart unless-stopped`); PONG behind the password; `CONFIG GET maxmemory-policy` = noeviction. **Fresh Redis state** (the destroyed volume took the queue history â€” accepted under A: the blast had drained, sessions are DB-backed per 07-03, limiter counters are ephemeral) |
+| `spidernode-dev-db` recreated | per the untracked `docker-compose.dev.yml` spec (postgres:17-alpine, :5454, `uptime_dev`, compose-pinned password, healthcheck) with a **FRESH named volume** (`spidernode-dev_pgdata-dev`, created this session) â€” healthy per compose `--wait` |
+| Restore | `pre-phase7-flip-20260924-2147.dump` (145,254 B) docker-cp'd in; `pg_restore --list` exit 0 (12 TABLE DATA entries); `pg_restore -U postgres -d uptime_dev --no-owner --no-privileges --exit-on-error` **exit 0** |
+| Restored state (pre-flip shape confirmed) | journal = **2** (0000+0001, 0002 pending) Â· users **5** Â· monitors **2** Â· pings **4029** Â· legacy `accounts` 0 / `sessions` 0 rows, all four legacy tables present read-only (D-32 substrate) |
+| Â§4c step-4 migrate (single runner, once â€” M-1) | `drizzle-kit migrate` **exit 0**; journal = **3**; `account` **5 credential rows, all 5 with non-null preserved hashes**; `email_verified = true` on **2** users (the legacy-timestamp truthiness backfill, matching Â§12's pre-flip census); legacy tables still untouched |
+| Â§4c step-5 seed (D-08/D-09/D-10) | `ADMIN_EMAILS=mehedihassanshubho@gmail.com` â† `[seed-admin-roles] PASS: 1 admin grant(s) applied (roster entries: 1)`, exit 0; `SELECT â€¦ WHERE role='admin'` = exactly **1** row: `mehedihassanshubho@gmail.com` |
+| Flip-era artifact built | clean worktree at **`8c974d2`** (the last pre-deletion commit â€” code-identical to the flip release) â†’ `pnpm install --frozen-lockfile` â† `pnpm build` exit 0 (`dist/worker.js` 143.47 KB â€” nondeterministic bundle bytes, 05-07 finding; prisma generate back per the flip-era build script). Build needed the **documented** gitignored `.env.production` extension with `REDIS_URL`/`DATABASE_URL` (the Â§11 step-2/Â§12.2 step-0b module-scope throw-early finding, replayed exactly); file deleted immediately after the build (teardown discipline) |
+| Flip-era worker health | booted via the recorded `.snapshots/0707-prod-worker-env.sh` (DATABASE_URL read from the ambient `.env` per that script's own mechanism; REDIS_URL :6391; `WORKER_SCHEDULER_ENABLED=true`; console email; `ADMIN_IP_ALLOWLIST=127.0.0.1/32,::1/128`) â†’ `GET :9090/readyz` **200** `{"ok":true,"redis":{"ok":true},"db":{"ok":true}}` â€” the worker's Pitfall-7 init validation proves the restored DB live through the app's own auth-bearing boot |
+| Flip-era web health | booted from the same worktree with the Â§4c step-7 env contract (same BETTER_AUTH_SECRET mint; `AUTH_NOTICE_*` window 2026-09-24..2026-10-08) â†’ `GET /login` **200** and the D-02 notice strip **live** in the served HTML (copy marker present exactly once) |
+
+### A.2 PASSWORD RESET FLAG â€” PROMINENT (operator action required after next login)
+
+The accepted consequence under A is now REALITY on the record: the restored `users.password`/
+`account.password` for the operator's real account (`mehedihassanshubho@gmail.com`) is the
+**pre-flip hash the operator no longer knows** (the Â§15.4 recovery write happened DURING the
+soak, after the pre-flip dump). The recovery was **replayed through the documented queue path**
+(console-delivered form, D-06-approved reset bytes; the same round-trip the flip's canary leg d
+exercised) on 2026-09-29 ~14:45Z:
+
+| Leg | Result |
+| --- | --- |
+| `POST /api/auth/request-password-reset` | **200** (neutral anti-enumeration shape) |
+| Console transport | 1 `[email-console]` line in `.snapshots/0708-a1-worker.log`; single-use token extracted in-shell, never committed |
+| `POST /api/auth/reset-password` | **200** (both hash copies updated by the 07-08 rehash-fixed writer) |
+| `POST /api/auth/sign-in/email` | **200** â€” session established (cookie jar: gitignored `.snapshots/0708-admin-cookie.txt`) |
+
+**â†’ The operator's password is now a machine-minted value stored ONLY in the gitignored
+`.snapshots/0708-operator-password.txt`. THE OPERATOR MUST SIGN IN AND CHANGE IT to a
+password of their own choosing at the next opportunity** (the in-product profile flow is
+NOT the password surface for the engine copy â€” WINDOWS #4 â€” so a deliberate change via the
+auth flow, or another direct-DB recovery per Â§15.4, is the operator's call; the minted value
+is a 24-byte base64 secret of the same strength class as the infra mints).
 
 ---
 

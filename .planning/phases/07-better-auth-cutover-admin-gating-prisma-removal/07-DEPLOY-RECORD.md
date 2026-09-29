@@ -824,12 +824,25 @@ down-stack amendment; the ledger entry is open in `.planning/WINDOWS.md`.
 Whichever option is chosen, append the reconciliation note per D-30 (rows written during an interrupted
 window) to this section.
 
-### 16.4 Deploy execution record â€” PENDING (filled by the continuation after Â§4d steps 2-6)
+### 16.4 Deploy execution record â€” FILLED (runbook Â§4d steps 2-6 executed 2026-09-29, one session, in Â§4d order)
 
-- Pre-deploy dump name: PENDING
-- Worker restart timestamp + readyz proof: PENDING
-- Web restart timestamp + /login 200 (no notice strip): PENDING
-- Smoke legs (canary login, feedback 200/403/401, Bull Board 403, monitoring continuity per Â§6): PENDING
+| Field | Value |
+| --- | --- |
+| Deploy SHA (D-10 provenance) | **`eaa5a4d`** â€” `healthz` at boot reported `"sha":"eaa5a4d"`. Code-identical to the release commit `9dfabd8` (the commits after it â€” `1c64fcc`/`2cdbd1f`/`7464a40`/`82237bd`/`cff9376` â€” touch only `.planning/*.md`) |
+| Â§4d step 1 pre-flight | armed `pnpm cron:remnants` **GREEN** (426 code files, Phase-7 classes enforced â€” log `.snapshots/0708-deploy-gate.log`); `pnpm typecheck` clean. Full-chain provenance: the complete `pnpm verify` **GREEN exit 0** ran 2026-09-29 (pre-halt session) on this exact code state (Â§16.1) |
+| Pre-deploy dump (Â§4d step 2) | **`pre-0708-deletion-20260929-1449.dump` (151,617 B)** of the restored+replayed state â€” taken 2026-09-29 ~14:47â€“14:49Z; `pg_restore --list` exit 0 (archive verified) |
+| Artifact (Â§4d step 3) | built in-tree from the deploy SHA: **BUILD_ID `_P7T0BF9iFeKaq9MTy8_N`** Â· `dist/worker.js` 143.61 KB, sha256-16 **`11a3835753f324f1`** Â· gitignored `.env.production` used for the build (07-06 deviation-2 pattern, `NEXT_PUBLIC_BASE_URL=http://127.0.0.1:3007` inlined) and **deleted immediately after** Â· **no Prisma generate step in the build** (DRZ-07) and no generated client in the artifact (T-07-31 closed) |
+| Worker restart (Â§4d step 4) | 2026-09-29 ~14:52Z: the flip-era worker holding :9090 stopped (PID cmdline-verified `worker.js` before kill â Â§11 precedent); deletion worker booted from the tree with the recorded `.snapshots/0707-prod-worker-env.sh` contract (no `AUTH_NOTICE_*`, no retired envs). **readyz 200** `{"ok":true,"redis":{"ok":true},"db":{"ok":true}}`; `GET :9090/admin/queues` unauthenticated â **403** (the gate answer, never 500); `healthz` `{"ok":true,"sha":"eaa5a4d","builtAt":"2026-09-29T14:48:38.908Z","uptimeSeconds":8.156,"pid":20080}` |
+| Web restart (Â§4d step 5) | 2026-09-29 ~14:53Z: the flip-era web holding :3007 stopped (PID cmdline-verified next/pnpm); deletion web booted with the Â§4c step-7 contract **MINUS the retired `AUTH_NOTICE_*` pair**. `GET /login` **200** with **NO notice strip** (copy-marker count in the served HTML = **0** â the D-05 delete-after-use completion proven on production) |
+| Smoke (a) â armed gate = repo proof | `pnpm cron:remnants` re-run **GREEN** on the deployed tree post-build (426 files; log `.snapshots/0708-smoke-gate.log`) â no legacy framework trace survives the release (D-41/D-27) |
+| Smoke (b) â production canary | `POST /api/auth/sign-in/email` â **200** (session established on the deletion web; same BETTER_AUTH_SECRET mint â the flip-era session cookie ALSO survived the restart, DB-backed sessions per 07-03); authenticated `GET /api/monitors` â **200** with live monitor JSON |
+| Smoke (c) â feedback admin gate (D-14/R17) | anonymous â **401** Â· admin session â **200** Â· non-admin session â **403**. Non-admin subject: the operator-owned internal fixture `ops-smoke@spidernode.internal`, session minted via the documented console reset round-trip (Â§15.6 precedent; password stored only in gitignored `.snapshots/`) |
+| Smoke (d) â Bull Board gate (D-17/D-18) | unauthenticated from the allowlisted loopback source â **403** (both at the worker's readyz gate and re-stamped in the smoke pass) |
+| Smoke (e) â monitoring continuity (Â§6 posture) | worker tick + tier-2 check + relay-pass lines in the deletion worker's boot log (pid 20080); pings **4037 â 4038** across the smoke window (the interval-1 production monitor checked, latest row `status=UP`) â the full path webâRedisâworkerâPostgres live under the deletion release |
+| Legacy substrate assertion (P2/D-32/T-07-30) | post-deploy: legacy `accounts`/`sessions`/`verification_tokens`/`password_reset_tokens` all PRESENT (0/0 rows as restored, read-only); Better Auth `account` 5 rows, `session` 3 live rows; `drizzle.__drizzle_migrations` = **3** â this release dropped NOTHING (the physical DROP is 07-09's) |
+| Teardown | flip-era worktree `devsroom-uptime-tracker-flip8c974d2-0708` (built for Â§16.6's A.1 health proof) fully removed (git-deregistered + on-disk deletion incl. node_modules). Its sibling `devsroom-uptime-tracker-legacy51a9fbb-0707` â the 07-07 flip-day teardown item left behind (Â§13.2) â was git-deregistered (`git worktree prune`); its on-disk directory is file-locked by an unrelated process and remains as dead untracked files outside the repo, deletable once the lock clears. The standing stack (deletion web :3007 + worker :9090, Redis :6391, DB :5454) is left **RUNNING** â monitoring live |
+
+**Â§4d verdict: PASS** â the deletion release is deployed and every smoke leg is green with dated evidence. The deleted surfaces' absence is proven by the armed gate (repo proof) plus the live stack answering through Better Auth-only paths; the deleted-at-flip custom auth routes remain 404 by construction (no legacy framework code exists to serve anything else).
 
 ---
 

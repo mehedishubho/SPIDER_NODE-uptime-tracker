@@ -1,137 +1,103 @@
 ---
 phase: 07-better-auth-cutover-admin-gating-prisma-removal
-reviewed: 2026-09-29T20:30:00Z
+reviewed: 2026-09-29T21:11:00Z
 depth: standard
-files_reviewed: 29
+files_reviewed: 19
 files_reviewed_list:
-  - .env.example
-  - docs/DEPLOY-RUNBOOK.md
-  - drizzle/0003_drop_legacy_auth_tables.sql
-  - drizzle/meta/0003_snapshot.json
-  - drizzle/meta/_journal.json
-  - package.json
   - scripts/check-cron-remnants.mjs
-  - scripts/rehearse-migrations.mjs
-  - scripts/schema-gate.mjs
-  - src/app/(authLayout)/login/page.tsx
   - src/app/api/feedback/route.ts
   - src/app/api/incidents/route.ts
-  - src/app/api/monitors/[id]/check/route.ts
   - src/app/api/monitors/[id]/details/route.ts
   - src/app/api/monitors/[id]/route.ts
   - src/app/api/monitors/route.ts
   - src/app/api/status/[userId]/route.ts
   - src/app/api/status/route.ts
-  - src/app/api/telegram/test/route.ts
   - src/app/api/telegram/webhook/route.ts
   - src/app/api/user/profile/route.ts
-  - src/components/dashboardLayout/AppSidebar.tsx
-  - src/components/dashboardLayout/TeamSwitch.tsx
-  - src/db/schema.ts
-  - src/lib/auth-client.ts
-  - src/lib/auth-password.ts
-  - src/redux/api/baseApi.ts
-  - src/redux/features/rootReducer.ts
-  - src/redux/store.ts
+  - src/lib/check-now-poll.ts
+  - src/lib/serialize.ts
+  - tests/api/cron-and-webhook.handler.test.ts
+  - tests/api/feedback-admin.handler.test.ts
+  - tests/api/monitors-id.handler.test.ts
+  - tests/integration/wire-timestamps.test.ts
+  - tests/lib/check-now-poll.test.ts
+  - tests/lib/serialize.test.ts
+  - tests/worker/cron-remnant-gate.test.ts
 findings:
-  critical: 1
-  warning: 4
-  info: 3
-  total: 8
+  critical: 0
+  warning: 1
+  info: 2
+  total: 3
 status: issues_found
 ---
 
-# Phase 07: Code Review Report
+# Phase 07: Code Review Report (Incremental Re-Review — Gap-Closure Wave)
 
-**Reviewed:** 2026-09-29T20:30:00Z
+**Reviewed:** 2026-09-29T21:11:00Z
 **Depth:** standard
-**Files Reviewed:** 29 (of 36 in scope; 7 paths were deleted by design per D-29/D-32/D-05 and verified absent — skipped, not findings)
-**Status:** issues_found
+**Files Reviewed:** 19 (window `3a0d984..HEAD` — gap-closure fix commits only: 07-10 `df421c7` RED / `66b13a2` GREEN, 07-11 `652ddd0` RED / `f71cbdc` GREEN; the window's non-`.planning` files match this list exactly)
+**Status:** issues_found (no Critical; all four targeted findings verified closed; one new Warning in the new test suite, two Info)
 
 ## Summary
 
-Reviewed the phase-07 window (8c974d25..HEAD): the 11 Prisma→Drizzle route ports, the AUTH-09 lazy-rehash both-copies fix, the armed remnant gate, the 0003 drop migration (+ journal/snapshot chain), the Redux/baseApi token-mirror removal, and the runbook §4d/§4e choreography. Deleted-by-design paths (src/lib/prisma.ts, src/lib/auth-legacy.ts, authSlice.ts, next-auth.d.ts, send-relogin-blast.mjs, LoginNotice.tsx, notice-window.ts) were confirmed absent on disk and NOT flagged.
+Incremental re-review of the gap-closure wave. All four open targeted findings (CR-01, WR-01, WR-02, WR-04) are **verified fixed correctly and completely** — see Fix Verification below. The new code is genuinely good: `src/lib/serialize.ts` is a small, well-documented, spec-canonicalizing seam whose `isoRow<T, keyof T>` typing makes a misnamed timestamp key a compile error; every response site adopts it with key lists I verified complete against `src/db/schema.ts`; the wire suite is the first real-driver machine check in the repo and correctly mocks only the session door.
 
-Per-focus verdicts:
+One new defect was found, in the new wire suite itself: its WR-01 legs compare `Date.now()` against a **hardcoded same-day seed instant** (2026-09-29T15:00:00.789Z), making the permanent regression pin clock-dependent — any run before that instant (today-morning UTC, or a skewed/backdated CI clock) false-REDs correct code. Two Info items: the `iso()` unparseable-passthrough branch is untested and can silently restore the CR-01 failure shape on a future format drift, and the new file-NAME gate check gives the generic deleted basenames `mail`/`tokens` a build-failing blast radius on any future legitimate file of those names.
 
-1. **Route ports (11 routes):** ownership scoping, projections, orderings, bounds, and vanished-row 500 guards are faithful to the Prisma originals (verified against the pre-window diff). However, ONE systematic wire-contract break was found: every timestamp field in every ported response changed format because drizzle-orm/node-postgres returns raw Postgres text for timestamp columns while Prisma returned ISO-8601 UTC — **CR-01**. Two smaller drifts: `updatedAt` no longer advances on UPDATE (**WR-01**) and an empty-set PATCH now 500s where Prisma returned 200 (**WR-02**). No N+1, no missing transactions introduced (details route's 3 sequential queries match Prisma's relation load shape; monitor count+insert race is pre-existing, semantics preserved).
-2. **Rehash fix (src/lib/auth-password.ts):** correct. Both stored copies are upgraded keyed on the received hash; a diverged copy is never rewritten by a hash it does not hold; SQL is parameterized; fire-and-forget failure is logged not thrown. The two UPDATEs are not in one transaction, but a partial application only re-creates the tolerated divergence state and the next sign-in retries — benign by design.
-3. **Armed gate (scripts/check-cron-remnants.mjs):** detection logic is sound (specifier forms, comments-inclusive token counts, arming flag, sanctioned exemptions). Two scope weaknesses: the scan never covers `scripts/` or any source outside `src/`, so the exact D-05 class this phase armed against (a re-created `scripts/send-relogin-blast.mjs`) would slip through undetected (**WR-04**); and the `.next` NEXTAUTH_URL read-form exemption is not library-scoped (**IN-01**).
-4. **Drop migration (drizzle/0003):** verified exactly the four sanctioned drops; programmatic diff of 0002→0003 snapshots shows 14→10 tables with zero other changes; no surviving table holds an FK into the dropped set (nothing silently CASCADE-dropped); `users.password` retained; journal (idx 0-3) and snapshot prevId chain intact; irreversibility documented in the SQL header and §4e. Clean.
-5. **Cookie-credentials posture (baseApi.ts, auth-client.ts, TeamSwitch.tsx):** no Authorization header is minted anywhere in src/; `credentials: "include"` carries the Better Auth session cookie; sign-out is the single `authClient.signOut()` call; stale persisted `auth` redux key is dropped harmlessly by combineReducers. Clean.
+## Fix Verification (prior findings closed by this wave)
 
-## Critical Issues
+### CR-01 — VERIFIED FIXED (correct and complete)
 
-### CR-01: Drizzle port changed every API timestamp from ISO-8601 UTC to raw Postgres text — breaks the manual-check completion poll in all non-UTC timezones
+- **The seam:** `src/lib/serialize.ts:33-52` — `iso()` canonicalizes before parsing (`space→T`), appends `Z` to naive UTC wall-clock text, widens bare `+HH` offsets to `+HH:00`, round-trips ISO-Z unchanged, passes `null` through, and parses offset-carrying text directly. Hand-traced against every `drizzle-orm/node-postgres` text form the schema's columns can emit (naive `timestamp(3)` for users/monitors/pings/feedbacks/incidents; timestamptz `+00` for `nextCheckAt`): all normalize to the correct instant. The summary's stated rejection of the review's draft `value + "Z"` form is correct — the draft mishandled ISO-Z passthrough.
+- **Every response site adopted — verified complete, not just grep-listed:** monitors GET/POST (`src/app/api/monitors/route.ts:39,139`), monitors/[id] GET/PATCH-noop/PATCH (`[id]/route.ts:57,149,174`), details incl. pings/incidents (`[id]/details/route.ts:62-66`), incidents (`incidents/route.ts:42`), status (`status/route.ts:48`), status/[userId] (`[userId]/route.ts:72-73`), profile GET/PATCH (`user/profile/route.ts:67,202`), feedback GET/POST (`feedback/route.ts:70,123`). Key lists cross-checked against the schema: monitors rows emit exactly 4 timestamp columns (all listed); pings emit `createdAt`; incidents emit `startedAt`/`resolvedAt`; the nested `monitor`/`user` sub-projections contain no timestamps. `isoRow`'s `keyof T` constraint makes an omitted/misspelled key a typecheck failure (green per the summary), so the per-route coverage is machine-enforced.
+- **No route still emits naive text:** the only response-emitting routes outside the seam are `monitors/[id]/check` (202 `{jobId, queuedAt}` numbers / success-shaped `{message, result: []}` — no timestamp strings) and the DELETE/telegram-test handlers (message-only bodies). The "8 response routes" count is accurate.
+- **The poll now compares instants:** `src/lib/check-now-poll.ts:74-75` normalizes `lastChecked` through `iso()` before `new Date(...).getTime() > opts.queuedAt` — an ISO-Z-parsed UTC instant vs the 202 body's `Date.now()` epoch ms (`[id]/check/route.ts:110`). Correct in any browser timezone; `null` stays a skip; a hypothetical unparseable passthrough yields `NaN` (never satisfies `>`), so no false completion.
 
-**File:** `src/app/api/monitors/route.ts:26-30` (representative; systemic across all 11 ported routes — monitors GET/POST, monitors/[id] GET/PATCH/DELETE, monitors/[id]/details, monitors/[id]/check, incidents, status, status/[userId], telegram/test, user/profile GET/PATCH, feedback POST)
-**Issue:** The ports claim "byte-identical wire contracts", but the response serialization changed. Prisma returned JS `Date` objects, which `NextResponse.json` serializes as ISO-8601 UTC (`"2026-09-29T15:00:00.789Z"`). The Drizzle schema declares these columns `timestamp({ mode: 'string' })`, and the installed `drizzle-orm/node-postgres` driver (0.45.2, `node_modules/drizzle-orm/node-postgres/session.js:26-56`) overrides the pg type parsers so TIMESTAMP/TIMESTAMPTZ values are returned as **raw Postgres wire text** — for the naive `timestamp(3)` columns exposed by these routes that is `"2026-09-29 15:00:00.789"` (space separator, **no timezone designator**). Per ECMAScript, that form is parsed as **local time**, not UTC. Consequences, all verified in the consumers:
+### WR-01 — VERIFIED FIXED (no UPDATE path missed)
 
-- `src/lib/check-now-poll.ts:63` — `new Date(monitor.lastChecked).getTime() > opts.queuedAt` compares against `Date.now()`-based `queuedAt`. In any browser **ahead of UTC** (e.g. the operator's UTC+6) the parsed `lastChecked` lands hours in the past, so the D-01 completion test can never pass within the 30s deadline — the "check now" poll ALWAYS times out and resolves null. In any browser **behind UTC**, stale pre-check values satisfy the test immediately — false-positive completion. The poll was built pre-window (`c031e72`, 06-01) against the Prisma ISO format; this phase silently broke it.
-- Display shifts: `src/components/Dashboard/Dashboard.tsx:610-613`, `src/components/Dashboard/MonitorDetails.tsx:171`, `src/components/Status/PublicStatus.tsx:208` all render `new Date(monitor.lastChecked).toLocaleTimeString()` — the UTC wall-clock is now relabeled local, shifting every shown time by the UTC offset.
-- The handler tests cannot catch this (they stub the `@/db` seam with hand-built rows), which is why 408/408 stayed green.
+All three Prisma-ported UPDATE paths now advance `updatedAt`: `monitors/[id]/route.ts:161`, `user/profile/route.ts:182`, `telegram/webhook/route.ts:91` (fresh `toISOString()`, mirroring the POST inserts' explicit-supply rationale). A full sweep of `src/` found exactly three `.update(` sites — no others. The two raw-SQL UPDATEs are out of WR-01's scope by nature: the check-route claim lease (`[id]/check/route.ts:91-101`, pre-existing Phase-6 path) deliberately advances only `next_check_at`, and the `auth-password.ts:87-92` rehash is a background credential upgrade, not a Prisma-ported entity write. Pins added in all three handler suites (`monitors-id.handler.test.ts:208,260,304-310`, `cron-and-webhook.handler.test.ts:167`) plus real-DB strictly-later re-reads in the wire suite.
 
-**Fix:** Normalize at the API boundary — convert the driver's naive UTC text to ISO-8601 before responding, via one shared helper used by every ported route (confirm the stored convention first: DB session TZ is UTC, so naive values are UTC wall-clock):
+### WR-02 — VERIFIED FIXED (placement and shape correct)
 
-```ts
-// src/lib/serialize.ts
-export function iso(value: string | null): string | null {
-  if (!value) return value;
-  // timestamptz text already carries an offset; naive timestamp text is UTC.
-  return /[z+Z]/.test(value.slice(-3)) ? new Date(value).toISOString() : new Date(value + "Z").toISOString();
-}
-```
+`monitors/[id]/route.ts:145-153` — the empty-set guard sits **after** the ownership 404 (404 wins, per the contract) and **before** the UPDATE (`.set({})` never runs; the handler test pins `db.update` never invoked, `monitors-id.handler.test.ts:280-281`). Response shape is the Prisma-era `{ message: "Monitor updated successfully", monitor }` 200 with the existing row normalized through `isoRow`; the vanished-row 500 is untouched for non-empty sets (wire suite + handler pins). One sub-semantic note, recorded here not as a finding: Prisma's `update({ data: {} })` also bumped `@updatedAt`, so the Prisma-era no-op advanced the column while this one deliberately does not (the wire suite pins the row byte-unchanged). The prior review's prescribed fix and the disposition record define the no-write no-op as the accepted contract, so no action.
 
-Apply to `createdAt`, `updatedAt`, `lastChecked`, `startedAt`, `resolvedAt` (and `emailVerified` where exposed) in each route's response mapping, then add a regression test on the real DB asserting the JSON timestamp matches `/^\d{4}-\d{2}-\d{2}T.*Z$/`. Alternative (larger): switch the schema columns to `mode: 'date'` and map at the boundary — but that re-touches the gate-protected schema file; the route-level mapper is the minimal fix.
+### WR-04 — VERIFIED FIXED (no bypass in the asked direction; exemption scope sound)
+
+- **Perimeter:** `scripts/check-cron-remnants.mjs:190` pushes `scripts/` unconditionally (fail-loud `collectFiles` throw if absent — consistent with the pre-existing unconditional `src/` root; explicit-arg fixture runs bypass `DEFAULT_ROOTS` entirely).
+- **File-NAME check:** `check-cron-remnants.mjs:463-478` — basename-minus-extension over both deleted-module sets, Phase-7 hits phase7-marked (mirroring specifier severity discipline), zero imports required; pin 5f proves a clean-content `send-relogin-blast.mjs` trips by name.
+- **The asked bypass hole does not exist:** the three exemptions (`RETIRED_TOKEN_EXEMPT_FILE_NAMES`, lines 159-163) are keyed by basename WITH extension and consulted only in `scanCodeFile`'s two token counters (lines 350-374). A **renamed** file forfeits the exemption and its retired tokens trip — exactly what pin 5h proves. Imports (lines 321-345), route paths, file names, and dependency checks still apply to all three exempt files. The reverse direction (writing retired tokens into a file *named* `rehearse-cutover.mjs`) inherits the exemption, but that requires overwriting a git-tracked in-tree tool and every other check class still fires — a narrow, documented, acceptable residue.
+- Pin set (5f/5g/5h/5i) is genuine RED-originated discipline with mkdtemp/rmSync hygiene; 5i pins the real-repo scripts root green with the roots line asserted.
 
 ## Warnings
 
-### WR-01: `updatedAt` no longer advances on UPDATE in the ported write paths (Prisma @updatedAt lost)
+### WR-05: Wire-suite WR-01 legs are clock-dependent — hardcoded same-day seed instant false-REDs any run before 15:00 UTC
 
-**File:** `src/app/api/monitors/[id]/route.ts:130-134`; also `src/app/api/user/profile/route.ts:170-182` and `src/app/api/telegram/webhook/route.ts:84-88`
-**Issue:** Prisma's client-side `@updatedAt` auto-bumped the column on every `update`; the ports were aware of this on INSERT (monitors POST and feedback POST supply `updatedAt` explicitly, with an explanatory comment) but the UPDATE paths `.set(updateData)` without it. `updatedAt` is NOT NULL with no DB default, so the UPDATE succeeds but silently leaves the stale value — and the responses (`returning({ ... updatedAt: users.updatedAt })`) now return outdated `updatedAt` to clients. Directly contradicts the routes' own "identical projections and wire contracts" claim.
-**Fix:** Add `updatedAt: new Date().toISOString()` to each `.set()` (or a shared `withUpdatedAt(updateData)` helper) in monitors PATCH, profile PATCH, and the telegram webhook user update.
+**File:** `tests/integration/wire-timestamps.test.ts:46-47,128,145`
+**Issue:** `SEED_INSTANT` is hardcoded to `"2026-09-29T15:00:00.789Z"` — 15:00 UTC **on the authoring day** — and the WR-01 legs assert `new Date(...).getTime()` (from `Date.now()`-based `updatedAt`) `toBeGreaterThan(SEED_MS)`. Any execution before that instant on 2026-09-29 (e.g., this morning UTC; the wave's own verify passed only because it ran ~20:07 UTC), or on any machine with a skewed/backdated clock, fails both WR-01 legs as false REDs even though the code under test is correct. The CR-01/WR-02 legs are clock-independent, but this suite is a *permanent* regression pin: its seed must not encode a relative-to-now date. (Self-healing after today, which is the only reason this is a Warning and not a Critical-flake.)
+**Fix:** Seed a fixed past instant — every assertion (strict ISO-Z form, millisecond round-trip, strictly-later advance) still holds:
 
-### WR-02: monitors PATCH with an empty update set now 500s where Prisma returned 200
+```ts
+const SEED_INSTANT = "2020-01-01T00:00:00.000Z";
+```
 
-**File:** `src/app/api/monitors/[id]/route.ts:81-86,101-134`
-**Issue:** The route deliberately tolerates an empty body (`// Ignore JSON parse error if body is empty (manual ping)`), but with `body = {}` the built `updateData` is empty and Drizzle's `.set({})` throws ("No values to set"), surfacing as the catch-all 500 "Failed to update monitor". Prisma's `update({ data: {} })` was a no-op success returning the row (200). An edge-case wire-contract drift on a request shape the code explicitly anticipates. (The profile PATCH guards this case with its own "No fields provided" 400 — the monitors PATCH has no equivalent guard.)
-**Fix:** Before the UPDATE: `if (Object.keys(updateData).length === 0) { return NextResponse.json({ message: "Monitor updated successfully", monitor: existingMonitor }, { status: 200 }); }` (no-op success, Prisma-equivalent), or return a descriptive 400 if the no-op contract is consciously retired.
-
-### WR-03: Profile-route password flow verifies/writes `users.password` while the engine authenticates `account.password` — a profile-set password never changes the login credential
-
-**File:** `src/app/api/user/profile/route.ts:128-161`
-**Issue:** PATCH's password branch bcrypt-compares `currentPassword` against `existingUser.password` (the legacy `users` copy) and writes the new hash back to the same column. Better Auth signs in against `account.password`, so: (a) after a "successful" password change the OLD password keeps working at sign-in — a password rotation that fails to revoke the compromised credential; (b) the NEW password fails at sign-in; (c) for post-cutover users (no `users.password` row) the whole flow is inert yet flips `hasPassword` to true. This is recorded as open WINDOWS ledger entry #4 (Phase-8 scope) — listed here so the adversarial record carries it: it is a live security-relevant defect in a reviewed file, not merely a UX quirk.
-**Fix:** Route the flow through Better Auth's server API (`auth.api.changePassword({ body: { currentPassword, newPassword }, headers })`) so both the verification and the write hit the engine's credential — that also keeps the rehash/divergence machinery in one place. Until Phase 8, minimally reject password changes in this route (501 with a "use the reset flow" message) rather than writing a credential that does not take effect.
-
-### WR-04: Armed remnant gate never scans `scripts/` (or any source outside `src/`) — a re-created D-05 blast script is invisible
-
-**File:** `scripts/check-cron-remnants.mjs:147-158` (`DEFAULT_ROOTS`) and `94-100,233-236` (deleted-basename checks apply only to import specifiers inside scanned roots)
-**Issue:** The default scan roots are `src/`, `dist/worker.js`, `.next/server`, three root config files, and package.json (dependencies only). The D-05 delete-after-use blast script this phase deleted lived at `scripts/send-relogin-blast.mjs`; re-creating that file (or any `scripts/*.mjs` remnant, or a root-level `instrumentation.ts`) produces zero findings — the basename rules trip only on import specifiers inside scanned roots, and package.json's `scripts` block is never inspected. T-07-28's "armed gate is the permanent reintroduction blocker" has a hole exactly where one of its named remnants lived. (A live demonstration exists in-tree: `scripts/auth-soak-gate.mjs:75` still names the deleted `LoginNotice.tsx` in a comment, unflagged because `scripts/` is out of scope.)
-**Fix:** Add `scripts` to `DEFAULT_ROOTS()` (and `check-worker-boundary`-style root config files as needed), keeping the existing prose-home exclusions; add a fixture pin asserting a `send-relogin-blast`-named file under a scanned root trips check 9 by file name, not only by import specifier.
+or derive it once at module load: `const SEED_INSTANT = new Date(Date.now() - 3_600_000).toISOString();`
 
 ## Info
 
-### IN-01: `.next` NEXTAUTH_URL read-form exemption is not library-scoped
+### IN-04: `iso()` silently passes through unparseable text — the passthrough branch is untested and can silently restore the CR-01 failure shape
 
-**File:** `scripts/check-cron-remnants.mjs:311-316`
-**Issue:** For any `.next/**` artifact, ALL exact `process.env.NEXTAUTH_URL` property-read occurrences are subtracted — not just better-auth's bundled helper. A third-party (or injected) dependency whose only .next trace is that read form is silently exempted. Documented and fixture-pinned, and any real framework reintroduction still trips the src/ + package.json checks first, so residual risk is narrow. Note the asymmetry: the same bundled read in `dist/worker.js` would NOT be exempted (currently green, but a future worker-side better-auth bundle change could red the gate from this inconsistency).
-**Fix:** When convenient, scope the exemption to chunks whose content also matches a better-auth fingerprint, or extend it to `dist/worker.js` symmetrically with its own pin; otherwise leave documented as-is.
+**File:** `src/lib/serialize.ts:50` (behavior); `tests/lib/serialize.test.ts` (missing pin)
+**Issue:** `if (Number.isNaN(instant.getTime())) return value;` returns the RAW driver text, which downstream `new Date()` calls parse as LOCAL time — exactly the CR-01 defect shape — with no signal, no log, and no test coverage. The documented rationale ("a serializer never fabricates a date") is sound, but the choice means a future driver/typeId format change would silently leak non-ISO text past every route seam while the suite stays green (the wire suite pins only the known forms). CR-01's own lesson was that silent format drift sails through 408 green tests.
+**Fix:** Pin the passthrough contract in `tests/lib/serialize.test.ts` (`expect(iso("not-a-date")).toBe("not-a-date")`), and emit a one-line `console.error` (or accept a strict-mode flag) on the passthrough branch so drift surfaces instead of silently shipping.
 
-### IN-02: Rehearsal evidence renderer labels FATAL removals as sanctioned
+### IN-05: File-NAME gate check gives the generic basenames `mail` and `tokens` a build-failing blast radius on any future legitimate file
 
-**File:** `scripts/rehearse-migrations.mjs:586`
-**Issue:** The DDL-delta evidence line appends "(0003 sanctioned drops of the four legacy tables)" to "Removed/changed indexes" unconditionally — including when a removal was NOT in `SANCTIONED_DROPS_0003` (which correctly fails the rehearsal). The verdict stays correct (exit non-zero), but the committed evidence markdown would mislabel a fatal, unsanctioned index drop as sanctioned — evidence-truthfulness wart in a file whose output is cited as proof.
-**Fix:** Render the sanction tag per-name via the existing `tagRemoved` helper instead of the unconditional suffix.
-
-### IN-03: Orphaned display data and unused imports left in TeamSwitch after the authSlice removal
-
-**File:** `src/components/dashboardLayout/TeamSwitch.tsx:2,8,30-39`
-**Issue:** `Avatar/AvatarImage/AvatarFallback` imports, the `Activity` icon alias, and `displayName/displayEmail/displayAvatar/displayFallback` are consumed only by commented-out JSX blocks (pre-existing dead code, now fully orphaned since AppSidebar passes user data that nothing renders). Harmless, but dead weight in a file this phase modified.
-**Fix:** Delete the commented-out blocks and the imports/derived values they uniquely feed, or extract the profile-chip into a real component when it returns.
+**File:** `scripts/check-cron-remnants.mjs:113,118-124,463-478`
+**Issue:** The new check trips on mere existence of a code file named `mail.*` (Phase-5 set, always-enforced) or `tokens.*` (Phase-7 set, enforced) anywhere under scanned roots — both are plausible names for future legitimate modules (an email helper, an API-token utility), whereas the old specifier check tripped only on *imports of* such a module. The header documents the escape hatch ("a future module legitimately reusing one of these names is a conscious act — rename or amend DELETED_MODULE_BASENAMES deliberately", lines 109-111) and the failure is loud with a clear message, so this is documented-by-design friction, not a correctness bug — but the file-name check widened that documented tradeoff from "importing ./mail" to "a file named mail.ts exists".
+**Fix:** None required now. When a legitimate `mail.*`/`tokens.*` module is genuinely needed, amend the basename set deliberately (the documented path), or consider scoping the two most generic names to their historical directories at that time.
 
 ---
 
-_Reviewed: 2026-09-29T20:30:00Z_
+_Reviewed: 2026-09-29T21:11:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
-_Depth: standard_
+_Depth: standard (incremental re-review — gap-closure window 3a0d984..HEAD only)_

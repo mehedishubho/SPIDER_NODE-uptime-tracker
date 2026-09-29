@@ -274,7 +274,7 @@ Plans:
   3. No endpoint accepts a secret via query string and no `CRON_SECRET` reference remains in the codebase; error responses never leak stack traces or internals
   4. With SMTP down, account registration still completes and the verification email arrives once SMTP recovers (queued, bounded attempts, backoff); a permanently undeliverable address stops retrying via a typed unrecoverable error; the existing HTML template renders unchanged from its new location
 
-**Plans**: 5/5 plans executed
+**Plans**: 5/5 plans executed + 1 gap-closure plan (06-VERIFICATION: 2 enqueue-failure-path gaps)
 
 Plans:
 **Wave 1** *(no dependencies)*
@@ -293,6 +293,10 @@ Plans:
 **Wave 4** *(final — blocked on 06-04 approval)*
 
 - [x] 06-05-PLAN.md — Production feature release + setWebhook cutover + 24h soak gate, then deletion release: cron routes/modules/secret/playwright writer deleted, D-41 gate extended, D-27 pin inventory (SEC-06)
+
+**Wave 5** *(gap closure — blocked on 06-01 + 06-02; from 06-VERIFICATION gaps_found)*
+
+- [ ] 06-06-PLAN.md — Enqueue-failure-path closure: compensating next_check_at restore on failed check-now enqueue (CR-01/gap 1) + producer-side 3s deadline bounding every web-side producer await for the silently-unreachable Redis mode (gap 2) (API-01, API-02)
 
 ### Phase 7: Better Auth Cutover, Admin Gating & Prisma Removal
 

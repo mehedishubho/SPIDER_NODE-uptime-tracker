@@ -507,6 +507,43 @@ The deletion release removes the expand half of the cutover (D-29 release 2): th
 
 ---
 
+## 4e. Phase-7 drop release (07-09 — the four legacy auth tables leave the database)
+
+The drop release is the phase's additive-inverse release (D-32): migration `drizzle/0003_drop_legacy_auth_tables.sql` drops the four legacy NextAuth-era tables — `sessions`, `verification_tokens`, `password_reset_tokens`, `accounts` — **WITH their data** (D-27: expired tokens are worthless, the `accounts` rows were reshaped into Better Auth's `account` at 0002; the one-release read-only window WAS the protection — there is **no export/archive step**). The sanctioned drop list is exactly those four tables and NOTHING else — `users` (including the inert `users.password` column) and the Better Auth tables `account`/`session`/`verification` are untouched (T-07-32). It executes only after the deletion release (§4d) is deployed **and its short soak is observed** — the drop inherits the D-36 deletion approval and needs no new approval (D-32/D-36).
+
+**The rollback form changes with this release.** There is NO un-drop migration — **the pre-drop `pg_dump` backup (step 2) is the ONLY rollback artifact**, and restoring it is the documented revert. §7's redeploy-only lever dies with the legacy tables by design: an older artifact could still boot, but the NextAuth fallback it would reach for no longer exists — that is what "dropped in an explicit drop release" means. The drop migration itself was **rehearsed on the anonymized production snapshot before ever reaching production** (§3d; evidence in `07-DEPLOY-RECORD.md`), and `pnpm schema:gate` proves schema/DB agreement on the migrated shape (the reconciled `src/db/schema.ts` no longer declares the dropped tables).
+
+1. **Pre-flight — the gates prove the tree before anything touches the database.**
+   - *Action:* `pnpm rehearse:migrations` green on the anonymized snapshot (§3d) with the post-drop row/table inventory in the evidence and the DDL delta sanctioning exactly the four table removals; `docker compose -f docker-compose.test.yml up -d --wait && pnpm exec drizzle-kit migrate && pnpm schema:gate` green (the reconciled schema vs. the migrated test DB — empty diff, the drops reflected on BOTH sides); `pnpm cron:remnants` green (armed, the tree proof) and `pnpm typecheck` clean.
+   - *Verification:* all commands exit 0; the rehearsal evidence names the four dropped tables and shows no other DDL.
+   - *Rollback:* nothing has deployed — fix and re-run.
+2. **Backup — the ONLY rollback artifact of this release.**
+   - *Action:* `docker exec spidernode-dev-db pg_dump -U postgres -F c uptime_dev > .snapshots/pre-0709-drop-<date>.dump`.
+   - *Verification:* the dump is non-empty and `pg_restore --list` exits 0 (archive verified).
+   - *Rollback:* abort the release — production data unchanged.
+3. **Migrate — the single runner, once (M-1).**
+   - *Action:* `DATABASE_URL=<production> pnpm exec drizzle-kit migrate` — applies `0003_drop_legacy_auth_tables.sql`: `DROP TABLE IF EXISTS ... CASCADE` for exactly the four legacy tables. Never at web or worker boot, never concurrently. The running pair is not touching the dropped tables (the deletion release removed every code path — the armed gate is the proof), so the migrate needs no process stop first.
+   - *Verification:* exit 0; journal carries the new entry (3 → 4); the `information_schema` census shows the four tables GONE while `users`/`account`/`session`/`verification` (and every other surviving table) remain.
+   - *Rollback:* restore the step-2 backup (`pg_restore --clean --if-exists`), then restart the pair on the previous artifact. There is no un-drop migration — never attempt to hand-recreate the tables.
+4. **Artifact — build once, deploy in place (executing topology).**
+   - *Action:* `pnpm build` from the release commit with the gitignored `.env.production` carrying `NEXT_PUBLIC_ENV=production` + `NEXT_PUBLIC_BASE_URL=<production origin>` (the 07-06 deviation-2 pattern; delete the file immediately after the build). No Prisma generate step exists anywhere in the chain (DRZ-07).
+   - *Verification:* BUILD_ID + `dist/worker.js` sha recorded in `07-DEPLOY-RECORD.md`; `/healthz` git-sha at boot matches the release commit (D-10 provenance).
+   - *Rollback:* abort — nothing has touched the process topology.
+5. **Restart worker, then wait for `readyz` (§4 ordering — worker gates the release).**
+   - *Action:* stop the running worker (PID cmdline-verified before kill); boot the drop-release worker from this tree with the §4d step-4 env contract.
+   - *Verification:* `curl -fsS http://127.0.0.1:9090/readyz` passes; Bull Board answers 403 unauthenticated (the gate answer, never a 500); `healthz` reports the release SHA.
+   - *Rollback:* restore the step-2 backup FIRST if the drop itself is implicated, then the previous artifact pair; a mere artifact problem is §7's redeploy form.
+6. **Restart web.**
+   - *Action:* stop the running web (PID cmdline-verified); boot the drop-release web (`pnpm start`) with the §4d step-5 env contract.
+   - *Verification:* `GET /login` returns 200 (no notice strip — it died with the deletion release).
+   - *Rollback:* §7 redeploy form — the schema change is code-independent for Better Auth paths (they read only the retained tables).
+7. **Post-proofs — the surviving substrate serves the canary; monitoring stays live.**
+   - *Action:* (a) the `information_schema` drop census (step 3's verification, re-stamped post-restart); (b) canary re-login with the operator's current password — `POST /api/auth/sign-in/email` → 200, session established, authenticated `GET /api/monitors` → 200 with live data, **executed AFTER the drop** (T-07-33: Better Auth reads only `users`/`account`/`session`/`verification` — all retained; the login proves it on production data); (c) one monitoring-continuity smoke per §6 posture — worker tick/tier-2/relay lines in the new boot log and fresh ping rows after the restart.
+   - *Verification:* every proof green with dated evidence in `07-DEPLOY-RECORD.md`.
+   - *Rollback:* any red item → the step-2 backup restore is the revert (D-41 posture: no debugging on production; post-mortem on the snapshot).
+
+---
+
 | Setting | Value | Applies to | Why (one line) |
 |---|---|---|---|
 | **`kill_timeout`** | **`20000`** (≥ 20 s) | worker (required), web | Lets in-flight jobs finish and flush before SIGKILL — deploys must not manufacture "stalled" jobs (J-3). Must be ≥ max job duration. |

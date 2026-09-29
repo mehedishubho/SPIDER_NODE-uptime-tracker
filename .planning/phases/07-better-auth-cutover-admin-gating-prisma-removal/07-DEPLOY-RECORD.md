@@ -928,3 +928,68 @@ is a 24-byte base64 secret of the same strength class as the infra mints).
 
 ---
 
+## 17. 07-09 drop release EXECUTED (runbook Â§4e, 2026-09-29 ~15:46â€“15:58Z, one session, in Â§4e order)
+
+Recorded 2026-09-29T16:0xZ by the 07-09 executor. The four legacy NextAuth-era tables are
+**physically dropped from production WITH their data** (D-27); the surviving auth substrate
+served the post-drop canary; monitoring never blinked.
+
+### 17.1 Precondition reconciliation (D-32 short soak)
+
+The plan's precondition â€” "07-08 deletion release deployed and its short soak observed" â€” is
+**MET**: the deletion release deployed 2026-09-29 ~14:52â€“14:53Z with every Â§4d smoke leg green
+(Â§16.4, deploy SHA `eaa5a4d`); the legacy tables had been retained **read-only across one full
+release** (flip 2026-09-24T19:00Z â†’ deletion deploy 2026-09-29T14:53Z, the soak-era canary
+logins/gates all against them; Â§13.3/Â§16.4), and the drop inherits the D-36 deletion approval
+with no new approval needed (plan Task 2 action, D-32/D-36). The dispatch briefing instructed
+the drop explicitly. Stack health at pre-flight: DB :5454 healthy, Redis :6391 up, web /login
+200, worker readyz ok (healthz sha `eaa5a4d`, uptime ~57 min).
+
+### 17.2 Task 1 â€” 0003 authored, schema reconciled, rehearsed (commit `5f33b51`)
+
+| Check | Result |
+| --- | --- |
+| Migration file | `drizzle/0003_drop_legacy_auth_tables.sql` â€” house header (AUTH-07/D-27/D-32; T-07-32 sanctioned list asserted; users.password stays INERT; rollback = Â§4e step-2 backup only), `DROP TABLE IF EXISTS ... CASCADE` for EXACTLY sessions, verification_tokens, password_reset_tokens, accounts |
+| schema.ts reconciled | the four legacy pgTable declarations removed (pull format preserved); header describes the post-0003 shape |
+| Rehearsal pipeline | `scripts/rehearse-migrations.mjs` extended the carve-out inventory ONLY (03-05 precedent): sanctioned drops carry no AFTER digest (BEFORE count = rows dropped), the DDL delta sanctions exactly these removals (anything else FATAL, T-07-32), D-19 goes N/A for a drop-only applied set, evidence gains the post-drop row/table inventory |
+| Rehearsal run 1 | **FAILED** â€” D-19 probe captured 0 CREATE INDEX statements (drop-only set has none; the guard read it as a broken probe). Pipeline fix (Rule 1): the pending-set is derived from the journal + last applied row, and a drop-only set records "D-19 N/A â€” stands from the additive rehearsals (0001 max 0.841 ms, 0002 max 0.46 ms)" |
+| Rehearsal run 2 + 3 | **REHEARSAL PASSED** (dump `pre-0708-deletion-20260929-1449.dump`, throwaway `spidernode-rehearse` :5460 torn down in `finally`; migrate 1143 ms / 923 ms, journal rows **4**; evidence `.snapshots/rehearsal-20260929.md` + committed copy `03-REHEARSAL-EVIDENCE-20260929.md`) â digest: users 5 EQUAL, pings 4034 EQUAL, incidents 10 EQUAL, monitors 2 EQUAL; sanctioned drops rendered as `accounts 0 / password_reset_tokens 0 / sessions 0 / verification_tokens 4 â†’ DROPPED (0003 sanctioned)`; DDL delta: removed = EXACTLY the four tables + their 10 indexes, 14 pg_dump statement removals ALL owned by the four; post-drop inventory: 10 tables, nothing else changed |
+| Test-DB proof | `docker compose test up --wait` â† `drizzle-kit migrate` applies 0003 â† `pnpm schema:gate` **green** (empty diff, 10 tables / 91 columns / 9 indexes / 8 FKs) â the reconciled declaration removal and the drops match exactly |
+| Test-side co-fixes | `tests/setup/seed.ts` truncate list drops the four gone tables; `tests/integration/cutover-migration.test.ts` legacy-substrate cases 2-3 self-skip (journal-derived `it.skip` â the substrate they seed is physically gone BY DESIGN; proof role fulfilled and recorded: 07-06 record Â§10 D-40 snapshot leg, production reshape Â§13.3/Â§16.6); vitest 394 passed / 2 skipped / 1 environmental EADDRINUSE-9090 (the documented 06-05 IN-01 deferral â the production worker holds :9090) |
+| Rule-3 unblock | `eslint.config.mjs` globalIgnores += `.planning/**` (untracked planning-harness generator scripts; same posture as the 07-08 tool-dir ignore) |
+| Typecheck | clean |
+
+### 17.3 Â§4e execution ledger (steps 1-7, one session, in Â§4e order)
+
+| Step | Evidence |
+| --- | --- |
+| 1. Pre-flight | armed `pnpm cron:remnants` GREEN (426 code files â `.snapshots/0709-preflight-gate.log`); typecheck clean; rehearsal + schema:gate green (Â§17.2) |
+| 2. Backup (the ONLY rollback artifact) | **`pre-0709-drop-20260929-1556.dump` (153,839 B)** â `pg_dump -U postgres -F c uptime_dev` via docker exec; archive verified in-container (`pg_restore --list` exit 0, **15 TABLE DATA entries**; host has no pg_restore on PATH â verified inside the container instead) |
+| Pre-drop census | journal = **3** (0003 pending); 14 public tables; legacy read-only rows: sessions **0**, verification_tokens **4**, password_reset_tokens **0**, accounts **0** (the 4 verification-token rows dropped WITH the table â D-27); substrate: users 5, account 5, session 3, verification 0 |
+| 3. Migrate (single runner, once â M-1) | `drizzle-kit migrate` **exit 0**; journal = **4**; running pair untouched during migrate (no code path reads the dropped tables â the armed gate is the proof) |
+| Post-migrate census (T-07-32 drop proof) | 10 public tables (`account, feedbacks, incidents, monitors, outbox, pings, session, users, verification, write_guards`); **`legacy_left = 0`** â the four tables GONE; substrate intact: users **5**, account **5**, session **3**, verification **0** |
+| 4. Artifact | built in-tree from the deploy state: **BUILD_ID `FhPbRPfKnOTQR4IwjSQx6`** Â· `dist/worker.js` 143,964 B, sha256-16 **`098908730ae95df9`** Â· gitignored `.env.production` used for the build (07-06 deviation-2 pattern, production origin inlined) and **deleted immediately after** Â· no Prisma generate exists anywhere in the chain (DRZ-07) |
+| 5. Worker restart (readyz-gated, Â§4 ordering) | 2026-09-29 ~15:53Z: old worker stopped (PID 20080, cmdline-verified `worker.js` before kill â Â§11 precedent); drop worker booted via the recorded `.snapshots/0707-prod-worker-env.sh` contract â **readyz 200** `{"ok":true,"redis":{"ok":true},"db":{"ok":true}}`; `GET :9090/admin/queues` unauthenticated â **403** (the gate answer, never 500); `healthz` `{"ok":true,"sha":"5f33b51",...,"pid":38424}` |
+| 6. Web restart | 2026-09-29 ~15:55Z: old web stopped (PID 26020, cmdline-verified next/pnpm); drop web booted with the Â§4d step-5 contract â `GET /login` **200**, notice-strip copy-marker count **0** |
+| 7a. Census re-stamp (post-restart) | `legacy_left = 0`, 10 public tables, journal **4**, substrate 5/5/3/0 â unchanged by the restarts |
+| 7b. Canary re-login AFTER the drop (T-07-33) | `POST /api/auth/sign-in/email` (operator's current password, Â§16.6-minted value; cookie jar gitignored `.snapshots/0709-canary-cookie.txt`) â **200**; authenticated `GET /api/monitors` â **200** with live monitor JSON â Better Auth reads only users/account/session/verification, all retained, proven on production data post-drop |
+| 7c. Armed gate on the deployed tree | `pnpm cron:remnants` re-run **GREEN** post-build (426 files; `.snapshots/0709-postproof-gate.log`) |
+| 7d. Monitoring continuity (Â§6 posture) | worker pid 38424 boot log (58 lines, **0 error lines**): schedulers upserted (check-tick / maintenance-cleanup / relay-pass); check jobs for the interval-1 monitor at **15:54:12, 15:55:42, 15:57:12Z** (tier-2 lines, `flushGated:false`); relay-pass every ~5 s (45 passes in-window, candidates 0); **pings 4084 â 4086** across the proof window, latest row `monitor=2 status=UP at=15:57:12.014` â the full path live under the drop release |
+
+**Â§4e verdict: PASS** â the four legacy tables are physically gone with their data, the drop
+release artifact serves the stack, the post-drop canary is green, and monitoring is live. The
+D-30/D-41 posture for this release: any red item's revert is the step-2 backup restore, never
+an un-drop migration (none exists); nothing went red.
+
+Deploy provenance note (07-08 precedent): `healthz` sha **`5f33b51`** is the Task-1 commit â
+code-identical to the deployed tree (the commits after it in this plan touch only
+`docs/DEPLOY-RUNBOOK.md` + this record + planning metadata).
+
+### 17.4 Teardown
+
+Throwaway rehearsal container torn down by the pipeline (`finally`); no worktrees were used
+this plan. The standing stack (drop web :3007 + worker :9090, Redis :6391, DB :5454) is left
+**RUNNING** â monitoring live on the drop release. The `.snapshots/0709-*` logs and the
+pre-drop backup stay in gitignored `.snapshots/`.
+
+---

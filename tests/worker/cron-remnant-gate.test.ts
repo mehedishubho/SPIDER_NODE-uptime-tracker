@@ -390,6 +390,113 @@ describe("cron-remnant gate — scripts/check-cron-remnants.mjs (D-41)", () => {
     }
   });
 
+  // -----------------------------------------------------------------------
+  // 07-11 (WR-04 gap closure, G-07-63): the armed gate's default perimeter
+  // gains scripts/ — the D-05 delete-after-use blast script lived at
+  // scripts/send-relogin-blast.mjs, so re-creating it (or any scripts/*.mjs
+  // remnant) previously produced ZERO findings. Pins 5f/5g prove the new
+  // FILE-NAME trip teeth, 5h pins the exemption scope (exact file names,
+  // never content shapes), 5i is the real-repo scripts-root green pin whose
+  // RED run proved the unextended gate tripped on the in-tree historical
+  // tools (rehearse-cutover.mjs CRON_MODE/CRON_SECRET throwaway lever, the
+  // gate body's own token definitions, auth-soak-gate.mjs AUTH_NOTICE_*).
+  // -----------------------------------------------------------------------
+
+  it("5f. WR-04: a send-relogin-blast-named file holding ONLY clean code (zero imports) trips by FILE NAME", async () => {
+    // The D-05 remnant class: a file whose NAME matches a deleted module is
+    // a remnant even with zero import specifiers — the original blast script
+    // was invoked by name, not imported. Content stays clean so the finding
+    // can ONLY come from the file-name check.
+    const dir = makeDir();
+    try {
+      write(
+        dir,
+        path.join("scripts", "send-relogin-blast.mjs"),
+        [
+          "// re-created blast script fixture — clean code, the NAME is the signal",
+          "export const recipients = [];",
+          "export function blast(users) {",
+          "  return users.map((u) => u.email);",
+          "}",
+          "",
+        ].join("\n")
+      );
+      const result = await runRemnants([dir]);
+      expect(result.code).not.toBe(0);
+      const out = `${result.stdout}${result.stderr}`;
+      expect(out).toContain("send-relogin-blast.mjs");
+      expect(out).toContain("file NAME matches a deleted Phase-7 module");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("5g. WR-04: a Phase-5-set-named file (db-batcher) with clean content also trips by FILE NAME", async () => {
+    // The file-name check covers BOTH basename sets: Phase-5-set hits land as
+    // plain always-enforced findings (same severity discipline as the
+    // specifier checks).
+    const dir = makeDir();
+    try {
+      write(
+        dir,
+        path.join("scripts", "db-batcher.ts"),
+        ["export const batchSize = 100;", "export function batch(items) { return items; }", ""].join("\n")
+      );
+      const result = await runRemnants([dir]);
+      expect(result.code).not.toBe(0);
+      const out = `${result.stdout}${result.stderr}`;
+      expect(out).toContain("db-batcher.ts");
+      expect(out).toContain("file NAME matches a deleted legacy module");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("5h. 07-11 exemption scope: a RENAMED copy of exempt-file content still trips — exemptions bind to EXACT file names, never content shapes", async () => {
+    // The three 07-11 retired-token exemptions (check-cron-remnants.mjs /
+    // rehearse-cutover.mjs / auth-soak-gate.mjs) are keyed by exact file
+    // name. The soak gate's window-read line, copied under a different name,
+    // must still trip — renaming can never smuggle exempt content past the
+    // gate (the 5e read-form precedent, applied to the name dimension).
+    // This pin is a scope GUARD, not a RED proof: it passes before and after
+    // the 07-11 implementation.
+    const dir = makeDir();
+    try {
+      write(
+        dir,
+        path.join("scripts", "soak-window-copy.mjs"),
+        [
+          "// renamed copy of auth-soak-gate.mjs's window-read line",
+          "export const bounds = [process.env.AUTH_NOTICE_START, process.env.AUTH_NOTICE_END];",
+          "",
+        ].join("\n")
+      );
+      const result = await runRemnants([dir]);
+      expect(result.code).not.toBe(0);
+      const out = `${result.stdout}${result.stderr}`;
+      expect(out).toContain("soak-window-copy.mjs");
+      expect(out).toContain("AUTH_NOTICE_START");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("5i. WR-04: the REAL repo scripts/ root scans green — the three in-tree historical tools are exactly exempted (RED pre-07-11: the unextended gate tripped on the rehearsal tool + the gate body)", async () => {
+    // The real-repo pin: scripts/ as an explicit target must be GREEN once
+    // the 07-11 exemptions land. Pre-implementation this tripped non-zero
+    // (rehearse-cutover.mjs THROWAWAY_CRON_SECRET + CRON_MODE sweep pin, the
+    // gate's own token definitions, auth-soak-gate.mjs AUTH_NOTICE_* reads)
+    // — the captured RED proving the exemption set is load-bearing, not
+    // decorative. Like pin 5, this runs from the repo cwd.
+    const result = await runRemnants([path.join("scripts")]);
+    expect(result.code).toBe(0);
+    const out = `${result.stdout}${result.stderr}`;
+    expect(out).toContain("green");
+    // The green line must report the scripts root so the pin cannot pass by
+    // scanning nothing.
+    expect(out).toContain("scripts");
+  });
+
   it("6. --help prints usage and exits 0", async () => {
     const { stdout } = await execFileAsync("node", [REMNANT_SCRIPT, "--help"]);
     expect(stdout).toContain("Usage");

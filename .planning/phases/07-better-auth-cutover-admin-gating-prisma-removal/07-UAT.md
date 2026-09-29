@@ -8,7 +8,12 @@ updated: 2026-09-29T20:23:48
 
 ## Current Test
 
-[testing paused - CR-01 gap open; 2 operator/environment items blocked]
+number: 62
+name: [07-08] Operator password change after DB restore
+expected: |
+  the operator logs in with the machine-minted credential and changes it via the auth flow (not the profile route - WINDOWS #4).
+awaiting: user response
+
 
 ## Tests
 
@@ -320,7 +325,7 @@ reason: zero OAuth accounts/credentials exist on this topology; formally disposi
 expected: the operator logs in with the machine-minted credential and changes it via the auth flow (not the profile route - WINDOWS #4).
 result: blocked
 blocked_by: other
-reason: operator-only credential action; live password is the minted value in gitignored .snapshots/0708-operator-password.txt (record sec 16.6 A.2); user must change it at next login.
+reason: operator-only credential action - LIVE PROBE 2026-09-29 21:3xZ: sign-in with the minted credential returned 200 + session cookie, so the password is still the machine-minted value (account.updatedAt 20:44:55Z was a lazy-rehash login, not a change); user must log in and change it via the auth flow (not the profile route - WINDOWS #4).
 
 ### 63. [CR-01] Check-now poll + timestamps in a non-UTC environment
 expected: after a check-now enqueue completes, the manual-check poll resolves (never times out) and dashboard timestamps render at the correct instant regardless of server/browser UTC offset.

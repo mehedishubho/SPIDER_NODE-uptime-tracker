@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 1
+open_count: 2
 waived_count: 0
 fixed_count: 3
-total_count: 4
-last_updated: 2026-09-29T14:58:43.300Z
+total_count: 5
+last_updated: 2026-09-29T16:03:12.088Z
 ---
 
 # Broken Windows Ledger
@@ -19,6 +19,7 @@ last_updated: 2026-09-29T14:58:43.300Z
 | 2 | 07 | deviation | src/lib/auth-password.ts |  | 07-07 soak finding: lazy-rehash UPDATE targets account.password while verify/hashPassword read users.password (adapter mapping) — rehash matches 0 rows when the copies diverge; practical impact ~nil (bcrypt-10 both sides); one-line fix + test queued in 07-08 plan | fixed |  | 2026-09-25T12:08:11.766Z | 2026-09-29T10:42:19.438Z |
 | 3 | 07 | unmet-truth | .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-DEPLOY-RECORD.md |  | 07-08 deletion deploy BLOCKED at runbook 4d step 2: the production DB (spidernode-dev-db container + volume) was destroyed by the machine-level event that also deleted git.exe (stack dark since 2026-09-25T23:02Z); newest surviving backup is the pre-flip pre-phase7-flip-20260924-2147.dump — restore-vs-wait is an irreversible production-data decision reserved to the operator (record section 16) | fixed |  | 2026-09-29T10:42:43.566Z | 2026-09-29T14:58:43.300Z |
 | 4 | 07 | deviation | src/app/api/user/profile/route.ts |  | Discovered during the 07-08 DRZ-07 conversion sweep: the profile PATCH password flow verifies/writes the legacy users.password copy while the Better Auth engine reads/writes account.password — a profile-set password never changes the login password (pre-existing since the flip, preserved behavior-neutral through the conversion); the real fix routes the flow through better-auth changePassword — Phase-8 scope, operator to prioritize | open |  | 2026-09-29T10:42:43.932Z |  |
+| 5 | 07 | skipped-test | tests/integration/cutover-migration.test.ts |  | Cutover-migration cases 2-3 (OAuth reshape + D-40 token-preservation) self-skip it.skip once 0003 is in the committed journal - the legacy accounts table they seed/read is physically gone from every migrated database BY DESIGN (07-09 drop release, D-27/D-32); their proof role is fulfilled and recorded (07-06 record s10 D-40 snapshot pass B incl. NULL-refresh propagation; production reshape s13.3/s16.6) | open |  | 2026-09-29T16:03:12.088Z |  |
 
 ````json
 [
@@ -71,6 +72,19 @@ last_updated: 2026-09-29T14:58:43.300Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-29T10:42:43.932Z",
+    "resolved_at": null,
+    "milestone": "v1.0"
+  },
+  {
+    "id": 5,
+    "kind": "skipped-test",
+    "phase": "07",
+    "file": "tests/integration/cutover-migration.test.ts",
+    "line": null,
+    "description": "Cutover-migration cases 2-3 (OAuth reshape + D-40 token-preservation) self-skip it.skip once 0003 is in the committed journal - the legacy accounts table they seed/read is physically gone from every migrated database BY DESIGN (07-09 drop release, D-27/D-32); their proof role is fulfilled and recorded (07-06 record s10 D-40 snapshot pass B incl. NULL-refresh propagation; production reshape s13.3/s16.6)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-29T16:03:12.088Z",
     "resolved_at": null,
     "milestone": "v1.0"
   }

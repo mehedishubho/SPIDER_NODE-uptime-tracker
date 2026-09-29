@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 07
 current_phase_name: Better Auth Cutover, Admin Gating & Prisma Removal
 status: executing
-stopped_at: Completed 07-08-PLAN.md deploy leg - deletion release deployed per runbook 4d, smoke green (record 16.4/16.6); 07-09 (drop release) unblocked but not started
-last_updated: "2026-09-29T14:59:44.005Z"
+stopped_at: Completed 07-09-PLAN.md - drop release deployed per runbook 4e, phase closeout recorded (17/18), AUTH-07 closed, phase 13/13 Complete
+last_updated: "2026-09-29T16:06:05.243Z"
 last_activity: 2026-09-29
 last_activity_desc: Phase 07 execution started
-state_head: 4303d273d3fb458631f0efb753ea80d71691dd40
+state_head: 9cefe65c8771740c80220779ae4d3a9fb4cee1a6
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 59
-  completed_plans: 58
+  completed_plans: 59
 milestone_name: milestone
 ---
 
@@ -28,12 +28,12 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 
 ## Current Position
 
-Phase: 07 (Better Auth Cutover, Admin Gating & Prisma Removal) — EXECUTING
-Plan: 9 of 9 (07-08 closed HALTED — deploy deferred, record §16.5)
-Status: 07-09 (drop release) BLOCKED by the 07-08 halt; operator DB-restore decision pending
-Last activity: 2026-09-29 — 07-08 closed HALTED on the deploy leg (operator decision C)
+Phase: 07 (Better Auth Cutover, Admin Gating & Prisma Removal) — ALL 9 PLANS EXECUTED, ready for verification
+Plan: 9 of 9 (07-09 closed COMPLETE — drop release deployed per runbook §4e, record §17/§18)
+Status: ready_for_verification — `/gsd-verify-work 07`; phase requirements 13/13 Complete (AUTH-07 closed by 07-09)
+Last activity: 2026-09-29 — 07-09 drop release executed (legacy tables dropped with their data, post-drop canary green)
 
-Progress: [█████████████████████] 58/59 plans (98%)
+Progress: [███████████████████████] 59/59 plans (100%)
 
 ## Performance Metrics
 
@@ -121,6 +121,7 @@ Progress: [█████████████████████] 58/5
 | Phase 7 P07 | ~26h elapsed (3 sessions; close-out leg ~6 min active) | 3 tasks | 4 files |
 | Phase 07 P07-08 | ~2h (halted on deploy) | 2 tasks | 56 files |
 | Phase 07 P07-08 | ~2h (halted on deploy) | 2 tasks | 56 files |
+| Phase 07 P09 | ~17min (close-out session; Task 1 resumed prior-session work) | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -317,6 +318,9 @@ Recent decisions affecting current work:
 - [Phase 07]: 07-08: AUTH-07/AUTH-08/DRZ-07 deliberately left Pending — the deploy-side proof legs are unexercised while the deploy is deferred (02-03 false-signal precedent); the armed remnant gate + fully green verify make the deferred deploy pure choreography (artifact 9dfabd8)
 - [Phase 07]: 07-08: operator decision A (restore + replay) executed interactively 2026-09-29, superseding C - spidernode-dev-db + prod-redis recreated, pre-flip dump restored, 0002 re-applied, 1 admin grant, flip-era stack health proven, deletion release deployed per runbook 4d with all smoke legs green (record 16.4/16.6)
 - [Phase 07]: 07-08: AUTH-07 deliberately left Pending at close - its literal closure clause (legacy tables retained read-only one release, THEN DROPPED) is 07-09's must-have; DRZ-07 and AUTH-08 marked complete after the deployed deletion release passed all smoke legs (record 16.4)
+- [Phase 07]: Drop release executed per runbook 4e: backup pre-0709-drop-20260929-1556.dump (153,839 B, archive-verified) -> migrate journal 3->4 -> readyz-gated worker restart (healthz sha 5f33b51) -> web restart -> census legacy_left=0 with substrate 5/5/3/0 intact -> post-drop canary re-login 200 + /api/monitors 200 -> continuity pings 4084->4086; record 17
+- [Phase 07]: Rollback form change authored into 4e: no un-drop migration exists - the pre-drop pg_dump is the ONLY revert; the redeploy lever dies with the legacy tables by design (D-32)
+- [Phase 07]: Rehearsal pipeline extended by carve-out inventory only (03-05 rule): sanctioned drops render BEFORE-count-as-rows-dropped, the DDL delta stays FATAL on any non-sanctioned removal (T-07-32), D-19 N/A for a drop-only set; AUTH-07 closed at closeout - phase 13/13 Complete
 
 ### Pending Todos
 
@@ -341,6 +345,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-29T14:59:40.509Z
-Stopped at: Completed 07-08-PLAN.md deploy leg - deletion release deployed per runbook 4d, smoke green (record 16.4/16.6); 07-09 (drop release) unblocked but not started
+Last session: 2026-09-29T16:06:04.538Z
+Stopped at: Completed 07-09-PLAN.md - drop release deployed per runbook 4e, phase closeout recorded (17/18), AUTH-07 closed, phase 13/13 Complete
 Resume file: None

@@ -1,19 +1,18 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 7
+current_phase: 07
 current_phase_name: Better Auth Cutover, Admin Gating & Prisma Removal
 status: executing
-stopped_at: Completed 07-07-PLAN.md
-last_updated: "2026-09-25T12:11:55.993Z"
-last_activity: 2026-09-23
-last_activity_desc: Phase 7 execution started
-state_head: 3497ae2ab6a37d9a02bf271b7f2b8040010fa10e
+stopped_at: HALTED 07-08-PLAN.md at runbook 4d step 2 — deploy deferred (operator decision C, record 16.5); SUMMARY committed
+last_updated: "2026-09-29T11:04:05.862Z"
+last_activity: 2026-09-29
+last_activity_desc: Phase 07 execution started
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 59
-  completed_plans: 57
+  completed_plans: 58
 milestone_name: milestone
 ---
 
@@ -24,16 +23,16 @@ milestone_name: milestone
 See: .planning/PROJECT.md (updated 2026-09-19)
 
 **Core value:** Modernize the infrastructure without breaking existing monitoring — never lose or corrupt uptime data, silently stop checking, or lock users out irrecoverably.
-**Current focus:** Phase 7 — Better Auth Cutover, Admin Gating & Prisma Removal
+**Current focus:** Phase 07 — Better Auth Cutover, Admin Gating & Prisma Removal
 
 ## Current Position
 
-Phase: 7 (Better Auth Cutover, Admin Gating & Prisma Removal) — EXECUTING
-Plan: 8 of 9
-Status: Ready to execute
-Last activity: 2026-09-23 — Phase 7 execution started
+Phase: 07 (Better Auth Cutover, Admin Gating & Prisma Removal) — EXECUTING
+Plan: 9 of 9 (07-08 closed HALTED — deploy deferred, record §16.5)
+Status: 07-09 (drop release) BLOCKED by the 07-08 halt; operator DB-restore decision pending
+Last activity: 2026-09-29 — 07-08 closed HALTED on the deploy leg (operator decision C)
 
-Progress: [████████████████████] 50/50 plans (100%)
+Progress: [█████████████████████] 58/59 plans (98%)
 
 ## Performance Metrics
 
@@ -119,6 +118,8 @@ Progress: [████████████████████] 50/50 p
 | Phase 7 P05 | 36min | 3 tasks | 8 files |
 | Phase 7 P06 | ~24h elapsed (3 sessions; continuation close-out leg) | 3 tasks | 8 files |
 | Phase 7 P07 | ~26h elapsed (3 sessions; close-out leg ~6 min active) | 3 tasks | 4 files |
+| Phase 07 P07-08 | ~2h (halted on deploy) | 2 tasks | 56 files |
+| Phase 07 P07-08 | ~2h (halted on deploy) | 2 tasks | 56 files |
 
 ## Accumulated Context
 
@@ -311,6 +312,8 @@ Recent decisions affecting current work:
 - [Phase 7]: [Phase 7]: 07-07: D-38 Google/GitHub legs + D-40 live no-re-consent assertion DISPOSITIONED not-exercisable (standin OAuth creds, zero OAuth accounts ever) — verbatim assertion reserved for the server deploy; token preservation stands on 07-06's D-40 snapshot pass
 - [Phase 7]: [Phase 7]: 07-07: D-36 APPROVE recorded (operator early close) — final soak gate run PASS 6/7/0 over 2026-09-24T19:00Z→09-25T18:00Z, SHORT-WINDOW note covered, ~14.4h reboot outage recorded plainly, nightly 03:15Z pass UNOBSERVED/deferred to server deploy; 07-08 deletion release authorized
 - [Phase 7]: [Phase 7]: 07-07: rehash field mismatch found in soak — verify/hashPassword read users.password while the AUTH-09 rehash UPDATE targets account.password (0 rows matched when copies diverge; impact ~nil, bcrypt-10 both sides) — one-line fix + test queued in 07-08, open in WINDOWS.md
+- [Phase 07]: 07-08: operator decision C at the blocking-human checkpoint — deletion deploy DEFERRED (A/B presented and unanswered; C = conservative default). Production DB container+volume destroyed by the machine-level event (stack dark since 09-25T23:02Z); newest backup is the pre-flip 09-24 dump; the restore decision is the operator's — resume per 07-DEPLOY-RECORD §16.5
+- [Phase 07]: 07-08: AUTH-07/AUTH-08/DRZ-07 deliberately left Pending — the deploy-side proof legs are unexercised while the deploy is deferred (02-03 false-signal precedent); the armed remnant gate + fully green verify make the deferred deploy pure choreography (artifact 9dfabd8)
 
 ### Pending Todos
 
@@ -323,6 +326,7 @@ None yet.
 - [Phase 6/7] 03-REVIEW carry-forwards still open: WR-05 (hard-coded journal count 2 in rehearse-migrations.mjs) — fix before Phase 7 rehearsal reuse; WR-06 (limiter keys on raw `x-forwarded-for`) pairs with Phase 6's S-series security work. (CR-01 stale 0001_snapshot.json + WR-01 `bool_ops` on `idx_monitors_due` were repaired in Phase 3/4 — snapshot refreshed 2026-09-13, schema.ts:98 carries `bool_ops`; WR-02 rehearsal 0.0.0.0 bind was fixed by 05-06 D-45.) The 01-VERIFICATION design-debt register CR-01/CR-02 was consumed at Phase 4/5 planning (04-04 D-35 in-UPDATE `uptime_percent`; 05-04 D-08 gated-window §20.1 amendment)
 - [Phase 6] Code-review inputs from 05-REVIEW.md (committed 5128d49): WR-01 (enqueue-maintenance.mjs hangs forever on unreachable Redis), WR-02 (relayRedis() second ioredis client never quit in drainAndTeardown), WR-03 (daily maintenance hardcoded dryRun:true — no autonomous retention post-cutover) + 9 Info findings; deferred-items.md (playwright.config.ts:63 stale CRON_MODE=vercel writer; stand-in CRON_SECRET mint; junction-shim procedure)
 - [Phase 8] WR-02 accepted input: light-mode legibility of unmigrated marketing surfaces + light dashboard/toast polish notes are Phase-8 planning inputs (02-UAT.md Decision Record, 2026-09-12); mixed emerald/rose ternaries flagged for Phase 8 UI-03 review also ride along
+- 07-08 HALTED on the deploy leg: production deletion deploy (runbook 4d) blocked at the backup step — spidernode-dev-db absent; operator must choose restore option A/B (record §16.3) before 07-09 (drop release) can be offered
 
 ## Deferred Items
 
@@ -334,6 +338,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-25T12:11:39.254Z
-Stopped at: Completed 07-07-PLAN.md
+Last session: 2026-09-29T11:04:05.710Z
+Stopped at: HALTED 07-08-PLAN.md at runbook 4d step 2 — deploy deferred (operator decision C, record 16.5); SUMMARY committed
 Resume file: None

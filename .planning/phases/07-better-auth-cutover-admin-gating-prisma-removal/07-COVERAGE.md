@@ -15,4 +15,4 @@
 | automatic token refresh via engine helpers | INTEGRATE | Better Auth refresh support replaces NextAuth's implicit behavior; tokens preserved so refresh works |
 | same-email cross-provider account linking | OPT-OUT | deliberate non-goal — `disableImplicitLinking: true` reproduces NextAuth's `OAuthAccountNotLinked` refusal (D-26) |
 | provider-side revoke flows | OPT-OUT | not used today; no revocation surface exists in the legacy app; out of scope per "no new capability" phase boundary |
-| Better Auth admin-plugin management endpoints (ban/unban, impersonate, user list) | OPT-OUT | not an external API but recorded here too — plugin enabled for the role primitive only (D-13); endpoints stay unused |
+| Better Auth admin-plugin endpoints (ban/unban, impersonate, user list) | OPT-OUT | not an external API but recorded here too — plugin enabled for the role primitive only (D-13); endpoints stay unused |

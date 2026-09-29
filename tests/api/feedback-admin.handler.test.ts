@@ -48,6 +48,17 @@ const FIXTURE_ROWS = [
   },
 ];
 
+// 07-10 (G-07-63/CR-01): the stubbed driver-form rows flow through the
+// route's response normalizer, so the WIRE body carries the ISO-8601 UTC Z
+// forms of the same instants — the exact restoration the seam owns.
+const EXPECTED_ROWS = [
+  {
+    ...FIXTURE_ROWS[0],
+    createdAt: "2026-09-01T10:00:00.000Z",
+    updatedAt: "2026-09-01T10:00:00.000Z",
+  },
+];
+
 /** The admin/non-admin fixtures: the harness ids with `role` added (D-13). */
 const sessionAdmin = {
   user: { ...sessionA.user, image: null, role: "admin" },
@@ -126,7 +137,7 @@ describe("GET /api/feedback — admin-gate matrix (D-14/R17)", () => {
     };
     expect(Object.keys(projection.user).sort()).toEqual(["email", "image", "name"]);
 
-    await expect(res.json()).resolves.toEqual(FIXTURE_ROWS);
+    await expect(res.json()).resolves.toEqual(EXPECTED_ROWS);
 
     const lines = adminAccessLines();
     expect(lines).toHaveLength(1);

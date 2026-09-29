@@ -3,6 +3,7 @@ import { getAuthSession } from "@/lib/session";
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api-error";
 import { assertUrlAllowed, UrlNotAllowedError } from "@/lib/ssrf";
+import { isoRow } from "@/lib/serialize";
 import { db } from "@/db";
 import { monitors } from "@/db/schema";
 
@@ -13,6 +14,10 @@ import { monitors } from "@/db/schema";
 // pre-checks keep their not-found paths, and the write paths keep Prisma's
 // vanished-row behavior (an empty RETURNING maps to the same 500 the Prisma
 // P2025 rejection produced).
+// 07-10 (G-07-63/CR-01): GET/PATCH response rows normalize their timestamps
+// through the ONE serialize seam (ISO-8601 UTC Z — the Prisma-era wire
+// contract); the PATCH write rides WR-01 (updatedAt advances) and WR-02 (an
+// empty update set is the Prisma-equivalent 200 no-op, never a .set({}) 500).
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -48,7 +53,10 @@ export async function GET(req: Request, { params }: RouteParams) {
             return NextResponse.json({ error: "Monitor not found" }, { status: 404 })
         }
 
-        return NextResponse.json({ monitor }, { status: 200 })
+        return NextResponse.json(
+            { monitor: isoRow(monitor, ["lastChecked", "createdAt", "updatedAt", "nextCheckAt"]) },
+            { status: 200 },
+        )
     } catch (error) {
         console.error("Get Single Monitor Error:", error);
         return NextResponse.json(
@@ -127,9 +135,30 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         if (interval) updateData.interval = parseInt(interval);
         if (isActive !== undefined) updateData.isActive = Boolean(isActive);
 
+        // WR-02 (07-10): an EMPTY update set is the explicitly-tolerated
+        // empty-body shape above ("manual ping"). Drizzle's .set({}) throws
+        // ("No values to set" → the catch's 500) where Prisma's
+        // update({ data: {} }) was a no-op SUCCESS returning the row — answer
+        // the Prisma-equivalent 200 with the existing monitor BEFORE any
+        // UPDATE runs. The ownership 404 above already won, and the
+        // vanished-row 500 below keeps its semantics for non-empty sets.
+        if (Object.keys(updateData).length === 0) {
+            return NextResponse.json(
+                {
+                    message: "Monitor updated successfully",
+                    monitor: isoRow(existingMonitor, ["lastChecked", "createdAt", "updatedAt", "nextCheckAt"]),
+                },
+                { status: 200 }
+            );
+        }
+
         const [updatedMonitor] = await db
             .update(monitors)
-            .set(updateData)
+            // `updatedAt` is supplied explicitly on update (WR-01, 07-10):
+            // the column is NOT NULL with no DB default and Prisma's
+            // client-side @updatedAt no longer exists — without it every
+            // PATCH silently kept the stale value.
+            .set({ ...updateData, updatedAt: new Date().toISOString() })
             .where(eq(monitors.id, monitorId))
             .returning();
         if (!updatedMonitor) {
@@ -140,7 +169,10 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         }
 
         return NextResponse.json(
-            { message: "Monitor updated successfully", monitor: updatedMonitor },
+            {
+                message: "Monitor updated successfully",
+                monitor: isoRow(updatedMonitor, ["lastChecked", "createdAt", "updatedAt", "nextCheckAt"]),
+            },
             { status: 200 }
         );
     } catch (error) {

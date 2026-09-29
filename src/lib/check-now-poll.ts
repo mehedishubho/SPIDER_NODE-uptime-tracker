@@ -11,7 +11,15 @@
 //     never re-enqueues.
 //   - Timer discipline (UI-SPEC): the loop stops on completion, give-up, or
 //     abort — it may never outlive the component that started it.
+//   - 07-10 (G-07-63/CR-01): the completion comparison normalizes the polled
+//     value through the shared iso() seam BEFORE comparing instants — a raw
+//     naive Postgres text (space separator, no designator) parses as LOCAL
+//     time per ECMAScript, which either never completes (UTC+ browsers) or
+//     false-completes on stale values (UTC−). iso() is an isomorphic pure
+//     helper, so the client bundle gains nothing but that function.
 // ---------------------------------------------------------------------------
+
+import { iso } from "@/lib/serialize";
 
 /** The minimum row shape the poll needs (the Dashboard's Monitor satisfies it). */
 export interface PolledMonitor {
@@ -60,7 +68,11 @@ export async function pollMonitorCheckResult<T extends PolledMonitor = PolledMon
     if (opts.signal?.aborted) return null;
     const monitors = await opts.fetchMonitors();
     const monitor = monitors.find((m) => m.id === opts.monitorId) as T | undefined;
-    if (monitor?.lastChecked && new Date(monitor.lastChecked).getTime() > opts.queuedAt) {
+    // G-07-63: normalize BEFORE comparing — the polled value may be the raw
+    // naive Postgres text, which ECMAScript would read as LOCAL time. Null
+    // (never-checked) stays a skip.
+    const lastChecked = monitor?.lastChecked ? iso(monitor.lastChecked) : null;
+    if (monitor && lastChecked && new Date(lastChecked).getTime() > opts.queuedAt) {
       return monitor;
     }
   }

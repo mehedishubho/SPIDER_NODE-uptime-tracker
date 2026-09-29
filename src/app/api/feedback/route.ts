@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { getAuthSession } from "@/lib/session";
+import { isoRow } from "@/lib/serialize";
 import { db } from "@/db";
 import { feedbacks, users } from "@/db/schema";
 import { apiError } from "@/lib/api-error";
@@ -19,6 +20,9 @@ import { getIP } from "@/lib/rate-limit";
 // createdAt-desc ordering. 07-08 (deletion release, DRZ-07): POST's create
 // leaves Prisma for the ONE Drizzle client — the text PK has no DB default
 // (Prisma supplied a client-side cuid), so the insert generates a UUID.
+// 07-10 (G-07-63/CR-01): GET rows and the POST returning row normalize
+// createdAt/updatedAt through the ONE serialize seam — ISO-8601 UTC Z on
+// the wire.
 
 /** D-16: one structured audit line per admin-surface hit (allowed or refused). */
 function logAdminSurfaceAccess(userId: string, route: string, ip: string): void {
@@ -62,7 +66,10 @@ export async function POST(req: NextRequest) {
       })
       .returning();
 
-    return NextResponse.json(feedback, { status: 201 });
+    return NextResponse.json(
+      isoRow(feedback, ["createdAt", "updatedAt"]),
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Failed to create feedback:", error);
     return NextResponse.json(
@@ -112,7 +119,10 @@ export async function GET(req: NextRequest) {
       .where(status ? eq(feedbacks.status, status) : undefined)
       .orderBy(desc(feedbacks.createdAt));
 
-    return NextResponse.json(rows, { status: 200 });
+    return NextResponse.json(
+      rows.map((row) => isoRow(row, ["createdAt", "updatedAt"])),
+      { status: 200 },
+    );
   } catch (error) {
     console.error("Failed to fetch feedback:", error);
     return NextResponse.json(

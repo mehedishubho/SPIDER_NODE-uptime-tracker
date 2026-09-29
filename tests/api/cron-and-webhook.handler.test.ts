@@ -163,7 +163,8 @@ describe("POST /api/telegram/webhook", () => {
     const [set] = updateEntry!.calls.find((call) => call.method === "set")!.args as [
       Record<string, unknown>,
     ];
-    expect(set).toEqual({ telegramChatId: "556677" });
+    // 07-10 (WR-01): the deep-link binding's UPDATE set carries updatedAt.
+    expect(set).toEqual({ telegramChatId: "556677", updatedAt: expect.any(String) });
     // Byte-identical plain-name pin — characters outside the escape set
     // render unchanged (D-24 content escaping, not redesign).
     expect(webhookMocks.sendTelegramAlert).toHaveBeenCalledWith(

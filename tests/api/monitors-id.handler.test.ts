@@ -204,7 +204,8 @@ describe("PATCH /api/monitors/[id]", () => {
     const [set] = updateEntry!.calls.find((call) => call.method === "set")!.args as [
       Record<string, unknown>,
     ];
-    expect(set).toEqual({ url: "https://public.example.test/new" });
+    // 07-10 (WR-01): updatedAt rides every UPDATE set.
+    expect(set).toEqual({ url: "https://public.example.test/new", updatedAt: expect.any(String) });
     await expect(res.json()).resolves.toEqual({
       message: "Monitor updated successfully",
       monitor: updated,
@@ -255,7 +256,29 @@ describe("PATCH /api/monitors/[id]", () => {
     const [set] = updateEntry!.calls.find((call) => call.method === "set")!.args as [
       Record<string, unknown>,
     ];
-    expect(set).toEqual({ name: "Renamed Only", interval: 10 });
+    // 07-10 (WR-01): updatedAt rides every UPDATE set.
+    expect(set).toEqual({ name: "Renamed Only", interval: 10, updatedAt: expect.any(String) });
+  });
+
+  it("WR-02 (07-10): PATCH with an EMPTY update set answers the Prisma-equivalent 200 no-op — no UPDATE runs", async () => {
+    mockSession(sessionA);
+    dbState.results = [[monitorOfA]];
+
+    const res = mustRespond(await PATCH(
+      buildRequest({ path: "/api/monitors/5", method: "PATCH", body: {} }),
+      routeParams({ id: "5" }),
+    ));
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      message: "Monitor updated successfully",
+      monitor: monitorOfA,
+    });
+    // The update builder is NEVER invoked — a no-op success, not an empty
+    // write (Drizzle's .set({}) throws "No values to set"; the WR-02 guard
+    // short-circuits before it, after the ownership 404 above would have).
+    expect(h.db.update).not.toHaveBeenCalled();
+    expect(dbLog.find((entry) => entry.op === "update")).toBeUndefined();
   });
 
   it("200 on success — update runs UNSCOPED (where: { id } only); the url field IS re-validated (D-25)", async () => {
@@ -277,7 +300,14 @@ describe("PATCH /api/monitors/[id]", () => {
     const [set] = updateEntry!.calls.find((call) => call.method === "set")!.args as [
       Record<string, unknown>,
     ];
-    expect(set).toEqual({ name: "Renamed", url: "https://a.test/new", interval: 15, isActive: false });
+    // 07-10 (WR-01): updatedAt rides every UPDATE set.
+    expect(set).toEqual({
+      name: "Renamed",
+      url: "https://a.test/new",
+      interval: 15,
+      isActive: false,
+      updatedAt: expect.any(String),
+    });
     // The multi-field update DID run admission on its url field (mock default:
     // allowed) before the update landed.
     expect(ssrfMocks.assertUrlAllowed).toHaveBeenCalledWith("https://a.test/new");

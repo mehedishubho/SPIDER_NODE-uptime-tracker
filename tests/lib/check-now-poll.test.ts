@@ -133,4 +133,23 @@ describe("pollMonitorCheckResult (D-01/D-02 — poll the monitor read, never job
     // Custom 1s cadence over a 5s deadline — also pins the overrides.
     expect(fetchMonitors).toHaveBeenCalledTimes(5);
   });
+
+  it("G-07-63: a legacy naive Postgres lastChecked text (space, no designator) still completes — normalized as UTC", async () => {
+    // The driver's raw timestamp(3) form for an instant AFTER queuedAt.
+    // Literal UTC derivation (toISOString is UTC-based), TZ-independent to
+    // BUILD; the COMPARISON was the timezone-dependent part — on the
+    // unhardened poll this value parses as LOCAL time and, on any UTC+
+    // machine, lands hours in the past so the monitor never completes (the
+    // CR-01 signature this case pins shut).
+    const queuedAt = Date.now();
+    const naivePostgresText = new Date(queuedAt + 5_000).toISOString().slice(0, 23).replace("T", " ");
+    const fetchMonitors = vi.fn().mockResolvedValue([{ id: 5, lastChecked: naivePostgresText }]);
+
+    const pending = pollMonitorCheckResult<Row>({ monitorId: 5, queuedAt, fetchMonitors });
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    await expect(pending).resolves.toEqual({ id: 5, lastChecked: naivePostgresText });
+    // Resolved on the FIRST read, well inside the 30s deadline.
+    expect(fetchMonitors).toHaveBeenCalledTimes(1);
+  });
 });

@@ -5,6 +5,7 @@ import { getAuthSession } from "@/lib/session";
 import { NextResponse } from "next/server";
 import { v2 as cloudinary } from 'cloudinary';
 import bcrypt from "bcryptjs";
+import { isoRow } from "@/lib/serialize";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 
@@ -14,6 +15,11 @@ import { users } from "@/db/schema";
 // derive hasPassword and is stripped from the response); PATCH's write keeps
 // the vanished-row 500 Prisma's P2025 rejection produced; DELETE keeps the
 // DB-side cascade semantics Prisma relied on.
+// 07-10 (G-07-63/CR-01): GET/returning rows normalize createdAt/updatedAt
+// through the ONE serialize seam — ISO-8601 UTC Z on the wire; the PATCH
+// write rides WR-01 (updatedAt advances). NOTE: the PATCH password branch
+// is review WR-03 (WINDOWS ledger #4, Phase-8 scope) — deliberately
+// untouched here.
 
 // Cloudinary Configuration
 cloudinary.config({
@@ -58,7 +64,7 @@ export async function GET() {
         return NextResponse.json(
             {
                 user: {
-                    ...userData,
+                    ...isoRow(userData, ["createdAt", "updatedAt"]),
                     hasPassword: Boolean(password),
                 },
             },
@@ -169,7 +175,11 @@ export async function PATCH(req: Request) {
 
         const [updatedUser] = await db
             .update(users)
-            .set(updateData)
+            // `updatedAt` is supplied explicitly on update (WR-01, 07-10):
+            // the column is NOT NULL with no DB default and Prisma's
+            // client-side @updatedAt no longer exists — without it every
+            // PATCH silently kept the stale value.
+            .set({ ...updateData, updatedAt: new Date().toISOString() })
             .where(eq(users.id, session.user.id))
             .returning({
                 id: users.id,
@@ -189,7 +199,7 @@ export async function PATCH(req: Request) {
         return NextResponse.json(
             {
                 message: "Profile updated successfully",
-                user: updatedUser
+                user: isoRow(updatedUser, ["updatedAt"])
             },
             { status: 200 }
         )

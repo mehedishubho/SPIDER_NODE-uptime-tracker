@@ -83,7 +83,12 @@ export async function POST(req: Request) {
                     // catch's 500 'Webhook Handler Failed'.
                     const [user] = await db
                         .update(users)
-                        .set({ telegramChatId: chatId })
+                        // `updatedAt` is supplied explicitly on update
+                        // (WR-01, 07-10): the column is NOT NULL with no DB
+                        // default and Prisma's client-side @updatedAt no
+                        // longer exists — the deep-link binding must advance
+                        // it like every other UPDATE path.
+                        .set({ telegramChatId: chatId, updatedAt: new Date().toISOString() })
                         .where(eq(users.id, userId))
                         .returning({ id: users.id, name: users.name });
                     if (!user) {

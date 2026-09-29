@@ -58,7 +58,7 @@ export function iso(value: string | null): string | null {
  * non-timestamp values are left untouched.
  */
 export function isoRow<T extends object>(row: T, keys: ReadonlyArray<keyof T>): T {
-  const out: Record<string, unknown> = { ...row };
+  const out = { ...(row as Record<string, unknown>) };
   for (const key of keys) {
     const current = out[key as string];
     if (typeof current === "string" || current === null) {

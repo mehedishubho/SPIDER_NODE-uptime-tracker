@@ -1,6 +1,7 @@
 import { desc, eq, and } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { getAuthSession } from '@/lib/session';
+import { isoRow } from '@/lib/serialize';
 import { db } from '@/db';
 import { incidents, monitors, pings } from '@/db/schema';
 
@@ -9,6 +10,9 @@ import { incidents, monitors, pings } from '@/db/schema';
 // three queries the relation load performed — the ownership-scoped monitor
 // row, then its 100 newest pings (createdAt desc) and 20 newest incidents
 // (startedAt desc) — assembled into the identical response shape.
+// 07-10 (G-07-63/CR-01): the assembled response normalizes every timestamp
+// (monitor row, pings[].createdAt, incidents[].startedAt/resolvedAt) through
+// the ONE serialize seam — ISO-8601 UTC Z on the wire.
 
 export async function GET(
     req: Request,
@@ -53,7 +57,15 @@ export async function GET(
             .limit(20);
 
         return NextResponse.json(
-            { monitor: { ...monitor, pings: monitorPings, incidents: monitorIncidents } },
+            {
+                monitor: {
+                    ...isoRow(monitor, ["lastChecked", "createdAt", "updatedAt", "nextCheckAt"]),
+                    pings: monitorPings.map((ping) => isoRow(ping, ["createdAt"])),
+                    incidents: monitorIncidents.map((incident) =>
+                        isoRow(incident, ["startedAt", "resolvedAt"])
+                    ),
+                },
+            },
             { status: 200 },
         );
 

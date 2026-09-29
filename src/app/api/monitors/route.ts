@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { rateLimit, getIP } from "@/lib/rate-limit";
 import { apiError } from "@/lib/api-error";
 import { assertUrlAllowed, UrlNotAllowedError } from "@/lib/ssrf";
+import { isoRow } from "@/lib/serialize";
 import { db } from "@/db";
 import { monitors } from "@/db/schema";
 
@@ -13,6 +14,9 @@ import { monitors } from "@/db/schema";
 // the POST create (status "PENDING", trimmed inputs, SSRF-admitted URL).
 // `updatedAt` is supplied explicitly on insert: the column is NOT NULL with
 // no DB default and Prisma's client-side @updatedAt no longer exists.
+// 07-10 (G-07-63/CR-01): every response row's timestamps normalize through
+// the ONE serialize seam — the driver's raw Postgres text parsed as LOCAL
+// time; the Prisma-era wire contract is ISO-8601 UTC Z.
 // ----------------------------------------------------
 // 1. GET ALL MONITORS FOR LOGGED-IN USER (GET)
 // ----------------------------------------------------
@@ -29,7 +33,14 @@ export async function GET() {
       .where(eq(monitors.userId, session.user.id))
       .orderBy(desc(monitors.createdAt));
 
-    return NextResponse.json({ monitors: monitorsRows }, { status: 200 });
+    return NextResponse.json(
+      {
+        monitors: monitorsRows.map((row) =>
+          isoRow(row, ["lastChecked", "createdAt", "updatedAt", "nextCheckAt"])
+        ),
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error("Featch Monitors Error:", error);
     return NextResponse.json(
@@ -123,7 +134,10 @@ export async function POST(req: Request) {
       .returning();
 
     return NextResponse.json(
-      { message: "Monitor listed successfully", monitor: newMonitor },
+      {
+        message: "Monitor listed successfully",
+        monitor: isoRow(newMonitor, ["lastChecked", "createdAt", "updatedAt", "nextCheckAt"]),
+      },
       { status: 201 }
     )
 

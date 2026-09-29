@@ -1,6 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { getAuthSession } from "@/lib/session";
 import { NextResponse } from "next/server";
+import { isoRow } from "@/lib/serialize";
 import { db } from "@/db";
 import { monitors, users } from "@/db/schema";
 
@@ -13,6 +14,8 @@ import { monitors, users } from "@/db/schema";
 // ONE Drizzle client with identical projections — the { id, name } user row
 // (null when missing, as Prisma's findUnique returned) and the ACTIVE-only
 // monitor list with the status-page select shape, createdAt-asc.
+// 07-10 (G-07-63/CR-01): monitor lastChecked normalizes through the ONE
+// serialize seam — ISO-8601 UTC Z on the wire.
 // ----------------------------------------------------
 export async function GET() {
   try {
@@ -41,7 +44,10 @@ export async function GET() {
       .where(and(eq(monitors.userId, session.user.id), eq(monitors.isActive, true)))
       .orderBy(asc(monitors.createdAt));
 
-    return NextResponse.json({ user: user ?? null, monitors: monitorRows }, { status: 200 });
+    return NextResponse.json(
+      { user: user ?? null, monitors: monitorRows.map((row) => isoRow(row, ["lastChecked"])) },
+      { status: 200 },
+    );
   } catch (error) {
     console.error("Status API Error:", error);
     return NextResponse.json(

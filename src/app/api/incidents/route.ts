@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { getAuthSession } from "@/lib/session";
 import { NextResponse } from "next/server";
+import { isoRow } from "@/lib/serialize";
 import { db } from "@/db";
 import { incidents, monitors } from "@/db/schema";
 
@@ -11,6 +12,8 @@ import { incidents, monitors } from "@/db/schema";
 // (where.monitor.userId + the monitor { id, name, url, status } include) is
 // ported to the equivalent Drizzle join, preserving the projection shape,
 // the startedAt-desc ordering, and the take-100 bound.
+// 07-10 (G-07-63/CR-01): startedAt/resolvedAt normalize through the ONE
+// serialize seam — ISO-8601 UTC Z on the wire.
 // ----------------------------------------------------
 export async function GET() {
   try {
@@ -35,7 +38,10 @@ export async function GET() {
       .orderBy(desc(incidents.startedAt))
       .limit(100);
 
-    return NextResponse.json({ incidents: incidentRows }, { status: 200 });
+    return NextResponse.json(
+      { incidents: incidentRows.map((row) => isoRow(row, ["startedAt", "resolvedAt"])) },
+      { status: 200 },
+    );
   } catch (error) {
     console.error("Fetch Incidents Error:", error);
     return NextResponse.json(

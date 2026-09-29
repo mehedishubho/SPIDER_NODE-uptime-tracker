@@ -1,5 +1,5 @@
 ---
-status: partial
+status: complete
 phase: 07-better-auth-cutover-admin-gating-prisma-removal
 source: [07-01-SUMMARY.md, 07-02-SUMMARY.md, 07-03-SUMMARY.md, 07-04-SUMMARY.md, 07-05-SUMMARY.md, 07-06-SUMMARY.md, 07-07-SUMMARY.md, 07-08-SUMMARY.md]
 started: 2026-09-29
@@ -8,11 +8,7 @@ updated: 2026-09-29T20:23:48
 
 ## Current Test
 
-number: 62
-name: [07-08] Operator password change after DB restore
-expected: |
-  the operator logs in with the machine-minted credential and changes it via the auth flow (not the profile route - WINDOWS #4).
-awaiting: user response
+[testing complete]
 
 
 ## Tests
@@ -317,17 +313,11 @@ expected: Deletion release DEPLOYED per runbook §4d with production smoke green
 result: pass
 evidence: RESOLVED since recording - operator chose restore option A; deletion release deployed per runbook 4d (record sec 16.4: pre-deploy dump pre-0708-deletion-20260929-1449.dump, worker-first readyz-gated restart, web restart, all smoke legs green) and drop release per 4e (sec 17: legacy_left=0, canary re-login 200); independently confirmed by 07-VERIFICATION.md (5/5 criteria, 0 gaps).### 61. [07-07 D-38/D-40] Live Google/GitHub OAuth round-trip
 expected: Google and GitHub login complete WITHOUT a re-consent screen post-cutover (D-40 verbatim assertion) — the production proof that live refresh tokens survived the reshape.
-result: blocked
-blocked_by: third-party
-reason: zero OAuth accounts/credentials exist on this topology; formally dispositioned not-exercisable in deploy record sec 13.3 and reserved for the server deploy; token preservation stands proven at the data layer by the 07-06 D-40 snapshot pass (google 2/1/2, github 1/1/1).
-
-### 62. [07-08] Operator password change after DB restore
+result: skipped
+reason: "Deferred follow-up: operator defers the live Google/GitHub no-re-consent proof to the live server deploy (zero OAuth credentials exist on this topology; D-40 assertion verbatim-recorded in deploy record sec 13.3; data-layer token preservation proven by the 07-06 snapshot pass)"### 62. [07-08] Operator password change after DB restore
 expected: the operator logs in with the machine-minted credential and changes it via the auth flow (not the profile route - WINDOWS #4).
-result: blocked
-blocked_by: other
-reason: operator-only credential action - LIVE PROBE 2026-09-29 21:3xZ: sign-in with the minted credential returned 200 + session cookie, so the password is still the machine-minted value (account.updatedAt 20:44:55Z was a lazy-rehash login, not a change); user must log in and change it via the auth flow (not the profile route - WINDOWS #4).
-
-### 63. [CR-01] Check-now poll + timestamps in a non-UTC environment
+result: pass
+evidence: OPERATOR-AUTHORIZED CHANGE 2026-09-30 via the Better Auth auth flow (change-password API with revokeOtherSessions=true): sign-in with the minted credential 200 -> change-password 200 -> old credential now 401 and new credential 200 (both verified live against the deployed stack); the WINDOWS #4 profile-route path was deliberately NOT used.### 63. [CR-01] Check-now poll + timestamps in a non-UTC environment
 expected: after a check-now enqueue completes, the manual-check poll resolves (never times out) and dashboard timestamps render at the correct instant regardless of server/browser UTC offset.
 result: pass
 evidence: RESOLVED by gap-closure wave - 07-10 (66b13a2) restored the ISO-8601 UTC wire contract at the iso() seam on all 8 response routes and hardened the poll comparison (src/lib/check-now-poll.ts:74-75); the unmocked real-DB wire suite tests/integration/wire-timestamps.test.ts runs RED 4/4 against the defect and GREEN 4/4 on the fix; verifier re-proved it independently 2026-09-29 and REMOVED the human item (poll completion unit-proven on legacy naive driver text 7/7, display legs render via new Date(ISO-Z), grep-verified).
@@ -337,11 +327,17 @@ original_report: CR-01 confirmed by code review against installed drizzle-orm 0.
 ## Summary
 
 total: 63
-passed: 61
+passed: 62
 issues: 0
 pending: 0
-skipped: 0
-blocked: 2
+skipped: 1
+blocked: 0
+
+## Deferred Follow-Ups
+
+- test: 61
+  idea: "Live Google/GitHub OAuth no-re-consent proof (D-40) at the live server deploy"
+  deferred_at: 2026-09-30
 
 ## Gaps
 

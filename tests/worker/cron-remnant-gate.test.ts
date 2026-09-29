@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -210,14 +210,17 @@ describe("cron-remnant gate — scripts/check-cron-remnants.mjs (D-41)", () => {
     }
   });
 
-  it("5. the real repo carries no Phase-5/6 remnant class in the DEFAULT posture (post 05-09/06-05; the Phase-7 extension ends its pre-arm advisory at the 07-08 arming step)", async () => {
+  it("5. the real repo SOURCE carries no Phase-5/6 remnant class (post 05-09/06-05; the Phase-7 extension ends its pre-arm advisory at the 07-08 arming step)", async () => {
     // 05-09/06-05 invariant: the enforced classes (instrumentation entrypoint,
     // node-cron, CRON_MODE/CRON_SECRET, deleted cron route paths, the four
-    // deleted legacy modules) find nothing legitimate on the real repo — in
-    // EITHER posture, pre- or post-Phase-7-arming. Exit 0 in both postures:
-    // pre-arm the default run reports only Phase-7 advisory findings (exit 0
-    // while the 07-08 deletions land); post-arm it scans green outright.
-    const result = await runRemnants([]);
+    // deleted legacy modules) find nothing legitimate in the real source tree.
+    // The scan targets src/ EXPLICITLY: since the 07-08 arming the DEFAULT
+    // roots include .next/server, and inside the verify chain `pnpm test`
+    // runs BEFORE `pnpm build` — the stale pre-build artifacts would false-fail
+    // the now-enforced gate here. The full-repo default scan (package.json +
+    // .next included) is the verify chain's own cron:remnants leg, which runs
+    // after the build.
+    const result = await runRemnants(["src"]);
     expect(result.code).toBe(0);
     const out = `${result.stdout}${result.stderr}`;
     expect(out).not.toContain("instrumentation.ts");
@@ -226,6 +229,27 @@ describe("cron-remnant gate — scripts/check-cron-remnants.mjs (D-41)", () => {
     expect(out).not.toContain("CRON_SECRET");
     expect(out).not.toContain("recreates a deleted cron route path");
     expect(out).not.toContain("deleted legacy module");
+    expect(out).not.toContain("banned Phase-7 package");
+    // The Phase-7 dependency ban on the real package.json (07-08, DRZ-07) —
+    // asserted directly so the pin never depends on build-artifact freshness.
+    const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    const declared = { ...pkg.dependencies, ...pkg.devDependencies };
+    for (const banned of [
+      "node-cron",
+      "@types/node-cron",
+      "next-auth",
+      "@auth/prisma-adapter",
+      "@prisma/client",
+      "@prisma/adapter-pg",
+      "prisma",
+      "js-cookie",
+      "@types/js-cookie",
+    ]) {
+      expect(declared, `banned dependency resurfaced: ${banned}`).not.toHaveProperty(banned);
+    }
   });
 
   it("5d. Phase-7 classes are DETECTED on a fixture in --advisory posture (banned specifiers, deleted basenames, retired tokens — stable across the advisory→armed lifecycle)", async () => {
@@ -319,6 +343,48 @@ describe("cron-remnant gate — scripts/check-cron-remnants.mjs (D-41)", () => {
       const out = `${result.stdout}${result.stderr}`;
       expect(out).toContain("deleted legacy module");
       expect(out).toContain("./mail");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("5e. the better-auth client's bundled NEXTAUTH_URL read-form is exempt in .next artifacts only — any other occurrence still trips", async () => {
+    // 07-08 armed-gate discovery: the kept better-auth client's baseURL
+    // inference helper reads process.env.NEXTAUTH_URL as a legacy fallback and
+    // is bundled into every .next SSR chunk — a third-party literal no repo
+    // deletion can remove. The exemption subtracts ONLY the exact
+    // `process.env.<TOKEN>` read-form occurrences inside .next/** files;
+    // string literals, comments, and all occurrences in src/ or dist/ trip.
+    const dir = makeDir();
+    try {
+      write(
+        dir,
+        path.join(".next", "server", "chunks", "ssr", "lib_bundle.js"),
+        [
+          'const a = process.env.NEXT_PUBLIC_AUTH_URL ?? (process.env.NEXTAUTH_URL ?? process.env.VERCEL_URL);',
+          'const b = process.env.NEXTAUTH_URL;',
+          "",
+        ].join("\n")
+      );
+      write(
+        dir,
+        path.join(".next", "server", "chunks", "ssr", "auth_remnant.js"),
+        ['export const legacy = "NEXTAUTH_URL";', ""].join("\n")
+      );
+      write(
+        dir,
+        path.join("src", "lib", "source-mention.ts"),
+        ['// mentions NEXTAUTH_URL in a comment — source never exempts', 'export const x = 1;', ""].join("\n")
+      );
+      const result = await runRemnants([dir]);
+      expect(result.code).not.toBe(0);
+      const out = `${result.stdout}${result.stderr}`;
+      // The read-form occurrences in the bundle file are exempt...
+      expect(out).not.toContain("lib_bundle.js");
+      // ...the string literal in the same .next tree trips...
+      expect(out).toContain("auth_remnant.js");
+      // ...and the SOURCE comment never qualifies for the exemption.
+      expect(out).toContain("source-mention.ts");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

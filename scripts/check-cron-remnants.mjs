@@ -120,6 +120,12 @@ const PHASE7_RETIRED_ENV_TOKENS = new Set([
   "AUTH_NOTICE_END",
 ]);
 const BANNED_DEPENDENCIES = ["node-cron", "@types/node-cron"];
+// 07-08: retired tokens whose bare property-read form occurs inside the
+// bundled better-auth CLIENT code (its baseURL inference chain reads
+// NEXT_PUBLIC_AUTH_URL, then NEXTAUTH_URL, then VERCEL_URL). Only the
+// read-form occurrences in .next/** build artifacts are exempted — see the
+// scanCodeFile comment at the token loop.
+const BUNDLED_READFORM_TOKENS = new Set(["NEXTAUTH_URL"]);
 const PHASE7_BANNED_DEPENDENCIES = [
   "next-auth",
   "@auth/prisma-adapter",
@@ -131,11 +137,12 @@ const PHASE7_BANNED_DEPENDENCIES = [
 ];
 const ROOT_CONFIG_FILES = ["playwright.config.ts", "next.config.ts", "ecosystem.config.js"];
 
-// The Phase-7 extension's advisory→armed lifecycle (06-05 pattern): false
-// while the 07-08 deletions land (findings reported, exit 0); flipped to
-// true by the 07-08 arming step, after which every Phase-7 finding fails
-// the verify chain exactly like the Phase-5/6 classes.
-const PHASE7_ENFORCED = false;
+// The Phase-7 extension's advisory→armed lifecycle (06-05 pattern): the
+// extension shipped ADVISORY while the 07-08 deletions landed (findings
+// reported, exit 0); the 07-08 arming step flips this to true — every
+// Phase-7 finding now fails the verify chain exactly like the Phase-5/6
+// classes, permanently.
+const PHASE7_ENFORCED = true;
 
 const DEFAULT_ROOTS = () => {
   const roots = [path.join("src")];
@@ -293,8 +300,20 @@ function scanCodeFile(file) {
     reasons.push(`references the CRON_MODE env token (${tokenHitText(cronModeHits)})`);
   }
   // Comments-inclusive by design (IN-06/D-19 asymmetry — see header).
+  // 07-08 exemption (armed-gate discovery): inside the WEB build artifact
+  // bundle (.next/**) the kept better-auth client's own baseURL-inference
+  // helper reads `process.env.NEXTAUTH_URL` as a legacy fallback — a
+  // third-party literal this repo cannot delete and that no repo-authored
+  // remnant requires. For those files, occurrences in the exact
+  // `process.env.<TOKEN>` property-read form are subtracted from the count;
+  // every other occurrence (our comments, string literals, assignments) still
+  // trips. Source scans (src/) stay fully comments-inclusive and never exempt.
+  const isWebBuildArtifact = file.split(/[\\/]/).includes(".next");
   for (const token of RETIRED_ENV_TOKENS) {
-    const hits = content.split(token).length - 1;
+    let hits = content.split(token).length - 1;
+    if (isWebBuildArtifact && BUNDLED_READFORM_TOKENS.has(token)) {
+      hits -= content.split(`process.env.${token}`).length - 1;
+    }
     if (hits > 0) {
       const reason = `references the retired ${token} env token (${tokenHitText(hits)})`;
       reasons.push(PHASE7_RETIRED_ENV_TOKENS.has(token) ? { phase7: true, text: reason } : reason);

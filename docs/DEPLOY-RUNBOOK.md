@@ -473,6 +473,40 @@ The flip release ships the milestone's biggest migration (`drizzle/0002_better_a
 
 ---
 
+## 4d. Phase-7 deletion release (07-08 — the legacy auth/Prisma stack leaves the artifact)
+
+The deletion release removes the expand half of the cutover (D-29 release 2): the legacy auth framework and its adapter, both Prisma client packages + the CLI, the cookie helper, the `prisma/` directory, `src/lib/prisma.ts`, `src/lib/auth-legacy.ts`, the Redux auth slice (token mirror), `src/types/next-auth.d.ts`, the D-05 delete-after-use blast script, and the notice-strip surfaces + `AUTH_NOTICE_*` env pair. The armed `cron:remnants` gate (PHASE7_ENFORCED, in `pnpm verify`) keeps every one of these remnant classes out permanently. **Zero schema migrations ride this release** — `drizzle/` is untouched. The 0002-era Better Auth tables are untouched; the LEGACY tables (`sessions`, `verification_tokens`, `password_reset_tokens`, `accounts`) remain in place **read-only** — the physical DROP is a separate follow-up release (D-32), so the D-30 redeploy lever survives this release intact.
+
+**Never first-on-production (D-34):** the deletion-deploy choreography mirrors the 06-05 deletion release, and the deletion itself was rehearsed in every prior stand-in cycle — the risk here is the deploy mechanics, which are §4's own restart form, plus the armed-gate state of the tree.
+
+1. **Pre-flight — the armed gate proves the tree, then the full chain.**
+   - *Action:* `pnpm cron:remnants` exits 0 with the Phase-7 extension ENFORCED (any remnant finding fails — this is the release's own gate); then the full `pnpm verify` green (lint, typecheck, test, schema:gate, worker:boundary, denylist:diff, build, cron:remnants again post-build, e2e). The build no longer runs a Prisma generate step (DRZ-07) and the generated client is absent from the artifact (T-07-31).
+   - *Verification:* both gate chains exit 0; `rg` over `src/` and `package.json` for the banned specifiers/packages returns nothing.
+   - *Rollback:* nothing has deployed — fix and re-run.
+2. **Backup — full `pg_dump` immediately before any process touches the release.**
+   - *Action:* `docker exec spidernode-dev-db pg_dump -U postgres -F c uptime_dev > .snapshots/pre-0708-deletion-<date>.dump`.
+   - *Verification:* the dump is non-empty and `pg_restore --list` exits 0.
+   - *Rollback:* abort the release — production data unchanged.
+   - **Down-stack amendment (07-08 record §16):** if the stack is already STOPPED when the deletion deploy begins, this step is also what proves the production data store EXISTS. If the DB container/volume is absent (machine-level loss), the deploy HALTS before this step — restoring a dump is a production-data decision for the operator, never an executor default.
+3. **Artifact — build once, deploy in place (executing topology).**
+   - *Action:* build both artifacts from the release commit (`pnpm build` with the gitignored `.env.production` carrying `NEXT_PUBLIC_ENV=production` + `NEXT_PUBLIC_BASE_URL=<production origin>` — the 07-06 deviation-2 pattern; delete the file immediately after the build). On the executing topology the deploy is an in-tree restart of the freshly built artifacts (the VPS tarball form of §2 applies at the first real VPS deploy).
+   - *Verification:* BUILD_ID + `dist/worker.js` sha recorded in `07-DEPLOY-RECORD.md`; `/healthz` git-sha at boot matches the release commit (D-10 provenance).
+   - *Rollback:* abort — nothing has touched production.
+4. **Restart worker, then wait for `readyz` (§4 ordering — worker gates the release).**
+   - *Action:* stop the running worker if one holds `:9090`; boot the deletion worker from this tree with the §4c step 6 env contract (DATABASE_URL, REDIS_URL, BETTER_AUTH_URL/SECRET — the SAME mint as the web; WORKER_SCHEDULER_ENABLED=true; WORKER_HEALTH_PORT=9090; EMAIL_PROVIDER per the executing posture; ADMIN_IP_ALLOWLIST). No `AUTH_NOTICE_*` and no retired envs in the env contract.
+   - *Verification:* `curl -fsS http://127.0.0.1:9090/readyz` passes; the Bull Board base answers 403 unauthenticated (the gate answer, never a 500); `healthz` reports the release SHA.
+   - *Rollback:* §7 — restore the previous release artifact pair and restart (worker first, `readyz`).
+5. **Restart web.**
+   - *Action:* stop the running web if one holds `:3007`; boot the deletion web (`pnpm start`) with the §4c step 7 env contract MINUS the retired pair (`AUTH_NOTICE_*` dies with this release — the strip is gone; no `NEXTAUTH_*` since the flip).
+   - *Verification:* `GET /login` returns 200 with NO notice strip (the D-05 delete-after-use completion).
+   - *Rollback:* §7 — restore the previous web artifact and restart.
+6. **Smoke — the deleted stack proves its own absence; the live stack proves continuity.**
+   - *Action:* (a) the armed gate IS the repo proof (step 1) — no legacy framework trace survives the release; (b) production canary: credentials login still green on a real account, authenticated `/api/monitors` 200 with live monitor data; (c) feedback admin gate still 200 (admin) / 403 (non-admin) / 401 (anon); (d) Bull Board still gated (403 unauth from an allowlisted source); (e) monitoring continuity: worker tick/relay activity in the boot log and fresh ping rows (§6 continuity posture; the §6a synthetic-check form applies at the next VPS deploy).
+   - *Verification:* every leg green with dated evidence in `07-DEPLOY-RECORD.md`.
+   - *Rollback:* any red item → step 4/5's redeploy form; the previous release still boots (the legacy tables it would fall back to are untouched by this release — D-32).
+
+---
+
 | Setting | Value | Applies to | Why (one line) |
 |---|---|---|---|
 | **`kill_timeout`** | **`20000`** (≥ 20 s) | worker (required), web | Lets in-flight jobs finish and flush before SIGKILL — deploys must not manufacture "stalled" jobs (J-3). Must be ≥ max job duration. |

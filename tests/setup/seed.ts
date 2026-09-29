@@ -67,6 +67,16 @@ export async function seedE2EUser(
      VALUES ($1, $2, $3, $4, $5, TRUE, 'UTC', NOW(), NOW())`,
     [id, name, email, passwordHash, new Date()]
   );
+  // 07-08 (07-07-era e2e gap): Better Auth's credential sign-in resolves the
+  // hash from the credential ACCOUNT row (sign-in.mjs: credentialAccount =
+  // accounts.find(providerId === 'credential')) — a users.password seed alone
+  // yields INVALID_EMAIL_OR_PASSWORD. This mirrors 0002's migrated row shape
+  // (users.password copied into the credential account at cutover).
+  await pool.query(
+    `INSERT INTO account ("id", "userId", "providerId", "accountId", "password", "createdAt", "updatedAt")
+     VALUES (gen_random_uuid()::text, $1, 'credential', $1, $2, NOW(), NOW())`,
+    [id, passwordHash]
+  );
   return id;
 }
 

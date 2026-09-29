@@ -29,12 +29,24 @@ test.afterAll(async () => {
 
 // Shared login flow — LoginForm does redirect: false + client-side redirect
 // (selectors read from src/components/Auth/LoginForm.tsx).
+// 07-08: the D-24 engine sign-in limiter (the sensitive-route default, 3 per
+// 10s — the ONE documented improvement delta of the flip) 429s this suite's
+// rapid successive UI logins. Retry within the test budget, outliving the
+// 10s window, instead of disabling a production guard for tests.
 async function loginViaUi(page: Page) {
-  await page.goto("/login");
-  await page.locator('input[type="email"]').fill(E2E_EMAIL);
-  await page.locator('input[type="password"]').fill(E2E_PASSWORD);
-  await page.getByRole("button", { name: "Sign In" }).click();
-  await expect(page).toHaveURL(/\/dashboard/);
+  for (let attempt = 0; ; attempt++) {
+    await page.goto("/login");
+    await page.locator('input[type="email"]').fill(E2E_EMAIL);
+    await page.locator('input[type="password"]').fill(E2E_PASSWORD);
+    await page.getByRole("button", { name: "Sign In" }).click();
+    try {
+      await page.waitForURL(/\/dashboard/, { timeout: 8_000 });
+      return;
+    } catch (error) {
+      if (attempt >= 2) throw error;
+      await page.waitForTimeout(11_000);
+    }
+  }
 }
 
 test("seeded user logs in and the dashboard renders the seeded monitor", async ({

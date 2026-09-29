@@ -19,9 +19,10 @@ import {
 // Contracts live in the *.handler.test.ts files with the
 // check seams mocked.
 //
-// Login follows the NextAuth quirks recorded in 02-02-SUMMARY: seeded
-// emailVerified users, CSRF round-trip over raw HTTP, assert the SESSION
-// (cookie state via /api/auth/session) — never a 3xx or an error message.
+// Login is the Better Auth engine flow over raw HTTP (07-08: the NextAuth
+// CSRF round-trip died with the legacy stack — /api/auth/csrf 404s under
+// Better Auth): POST /api/auth/sign-in/email against the seeded credential
+// account row, then assert the SESSION (cookie state via /api/auth/get-session).
 // ---------------------------------------------------------------------------
 
 const USER_A = {
@@ -49,27 +50,28 @@ let ctxB: APIRequestContext;
 let ctxAnon: APIRequestContext;
 let createdMonitorId = 0;
 
-/** HTTP login per the 02-02-SUMMARY quirks (CSRF round-trip + session assert). */
+/** HTTP login per the Better Auth engine flow (sign-in + get-session assert). */
 async function loginOverHttp(ctx: APIRequestContext, email: string, password: string) {
-  const csrfRes = await ctx.get("/api/auth/csrf");
-  expect(csrfRes.status()).toBe(200);
-  const { csrfToken } = (await csrfRes.json()) as { csrfToken: string };
-
-  // maxRedirects: 0 — whether today's callback answers 200 JSON or a 302, the
-  // cookie jar has what we need; outcome is proven via the session endpoint.
-  const loginRes = await ctx.post("/api/auth/callback/credentials", {
-    form: { email, password, csrfToken },
-    maxRedirects: 0,
-  });
+  // 07-08: the D-24 engine sign-in limiter (3 per 10s) is shared across the
+  // webServer boot — the smoke project's UI logins land in the same window.
+  // Retry outliving the window instead of disabling a production guard.
+  let loginRes: Awaited<ReturnType<APIRequestContext["post"]>> | undefined;
+  for (let attempt = 0; ; attempt++) {
+    loginRes = await ctx.post("/api/auth/sign-in/email", {
+      data: { email, password },
+    });
+    if (loginRes.status() !== 429 || attempt >= 2) break;
+    await new Promise((resolve) => setTimeout(resolve, 11_000));
+  }
   expect(
-    [200, 302].includes(loginRes.status()),
-    `credentials login failed for ${email}: ${loginRes.status()} ${await loginRes.text()}`,
-  ).toBeTruthy();
+    loginRes!.status(),
+    `credentials login failed for ${email}: ${loginRes!.status()} ${await loginRes!.text()}`,
+  ).toBe(200);
 
-  const sessionRes = await ctx.get("/api/auth/session");
+  const sessionRes = await ctx.get("/api/auth/get-session");
   expect(sessionRes.status()).toBe(200);
-  const session = (await sessionRes.json()) as { user?: { email?: string } };
-  expect(session.user?.email, `no session established for ${email}`).toBe(email);
+  const session = (await sessionRes.json()) as { user?: { email?: string } } | null;
+  expect(session?.user?.email, `no session established for ${email}`).toBe(email);
 }
 
 test.beforeAll(async () => {
@@ -82,7 +84,7 @@ test.beforeAll(async () => {
   await seedOngoingIncident(USER_B.monitorId, B_INCIDENT_DESCRIPTION);
 
   // Three ISOLATED cookie jars (two logged-in users + anonymous) via the
-  // request factory — each context keeps its own NextAuth session cookie.
+  // request factory — each context keeps its own Better Auth session cookie.
   const baseURL = test.info().project.use.baseURL!;
   ctxA = await requestFactory.newContext({ baseURL });
   ctxB = await requestFactory.newContext({ baseURL });

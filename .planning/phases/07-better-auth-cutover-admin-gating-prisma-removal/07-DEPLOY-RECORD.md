@@ -771,3 +771,65 @@ LEG 12 (INBOX-RESET): ATTEST [D-31]
   - observed: {"attestation":"PASS-CONSOLE-FORM — reset round-trip console-delivered 2026-09-25T17:58Z with the D-06-approved reset bytes (token left unconsumed; 1h expiry); queue counters: enqueue → retry-backoff → delivered 0-failed"}
 LEG 13 (NOTICE-VISUAL): ATTEST [D-02]
   - observed: {"attestation":"PASS — strip verified in served /login HTML (grep 2026-09-24) + 07-06 screenshot evidence + operator observation; window 2026-09-24..2026-10-08 live"}
+
+---
+
+## 16. 07-08 deletion release â€” code half COMPLETE (armed gate green), deploy BLOCKED at Â§4d step 2 (production data store absent)
+
+Recorded 2026-09-29T10:46Z by the 07-08 executor. The D-36 approval (Â§14.4/Â§14.5) satisfies the plan's
+precondition and is NOT re-asked; the blocker below is a NEW topology fact discovered at deploy time.
+
+### 16.1 What shipped (the code half of the deletion release â€” committed)
+
+| Artifact | State |
+| --- | --- |
+| Legacy auth + Prisma + cookie-helper deletion | COMPLETE â€” `next-auth`, `@auth/prisma-adapter`, `@prisma/client`, `@prisma/adapter-pg`, `prisma`, `js-cookie`, `@types/js-cookie` removed (36 packages); `prisma/`, `src/lib/prisma.ts`, `src/lib/auth-legacy.ts`, `authSlice.ts`, `src/types/next-auth.d.ts`, the D-05 blast script + test, and the gitignored generated client deleted (commit `b20b599`) |
+| DRZ-07 sweep | The 11 remaining Prisma-consuming API routes ported to the ONE Drizzle client with wire contracts preserved (commit `b20b599`) |
+| Client token mirror (AUTH-08) | baseApi sends no Authorization header from state; auth slice + persistence whitelist + TeamSwitch/AppSidebar consumers removed (commit `b20b599`) |
+| 07-07 queued rehash fix (Â§15.3 / WINDOWS #2) | The AUTH-09 lazy rehash upgrades BOTH stored copies (account + legacy users) keyed on the received hash; divergence case pinned; WINDOWS #2 marked fixed |
+| D-05 delete-after-use completion | Notice strip component + env predicate + its test + the e2e strip spec + the login-page mount deleted; `AUTH_NOTICE_*` retired from `.env.example`; `NEXTAUTH_*` pair retired from `.env.example` + playwright webServer env |
+| Remnant gate | **ARMED** (`PHASE7_ENFORCED = true`, commit this section): every Phase-7 finding now fails `pnpm verify`; gate gains the documented third-party read-form exemption (better-auth client's bundled `NEXTAUTH_URL` baseURL-inference fallback in `.next/**` artifacts â€” the only occurrence no repo deletion can remove) with a fixture pin (5e) |
+| Runbook | Â§4d "Phase-7 deletion release" authored (pre-flight â†’ backup â†’ in-tree artifact â†’ worker-first readyz-gated restart â†’ web restart â†’ smoke), incl. the down-stack amendment |
+| Verify | Full `pnpm verify` GREEN exit 0 (2026-09-29): lint 0 errors Â· typecheck clean Â· vitest **408/408** (48 files) Â· schema:gate green Â· worker:boundary green Â· denylist:diff green (11 tokens) Â· build clean (no Prisma generate) Â· `cron:remnants` **armed GREEN, 426 files** Â· e2e **18/18** (port 3100 was free this cycle; the 07-07-era unrun-verify WINDOWS #1 marked fixed) |
+| E2E re-seams (Rule-3 sweep) | `tests/api/monitors.core.spec.ts` login moved off the dead NextAuth csrf flow onto `POST /api/auth/sign-in/email` + `/api/auth/get-session`; `seedE2EUser` now also creates the credential `account` row (0002 shape) Better Auth requires; `loginViaUi`/`loginOverHttp` retry outliving the D-24 engine sign-in limiter (3/10s â€” the documented improvement delta) instead of disabling it; playwright chromium re-installed (the machine event also wiped the ms-playwright cache) |
+
+### 16.2 Â§4d deploy execution â€” BLOCKED BEFORE STEP 2 (machine evidence, 2026-09-29T10:2xZ)
+
+| Probe | Observed |
+| --- | --- |
+| web :3007 / worker :9090 | NOT LISTENING â€” `curl` connection refused; last worker log line `.snapshots/0707-prod-worker.log` = 2026-09-25T23:02:45Z (relay pass), last web log line = Redis connect error at the same wall clock â€” the stack was STOPPED after the 07-07 close-out and never re-booted |
+| production Redis :6391 | NOT LISTENING |
+| production DB (`spidernode-dev-db`, :5454, `uptime_dev`) | **CONTAINER ABSENT** â€” `docker ps -a` lists only the test stack (`spidernode-test-db`/`spidernode-test-redis`) and two unrelated exited (255) WordPress containers; `docker volume ls` shows no dev-db volume; the container AND its data were destroyed by the machine-level event that also deleted git.exe between 2026-09-25T23:02Z and 2026-09-29T08:45Z (the same event is documented in the 07-08 execution environment briefing: git reinstalled, user-SID migration) |
+| Backup inventory (`.snapshots/`) | Newest production dump = `pre-phase7-flip-20260924-2147.dump` (145,254 B, 2026-09-24 21:47 local â€” the Â§4c step-3 pre-flip backup). **No dump exists of the post-flip window** (2026-09-24 21:47 â†’ 2026-09-25 23:02Z: the 0002 output, the admin seed, the soak-era logins/sessions/monitoring rows, the blast queue records) |
+| Â§4d step 2 (pre-deploy `pg_dump`) | **UNEXECUTABLE** â€” there is no production database to dump. Steps 3-6 are equally blocked: worker/web boot require `DATABASE_URL`; `readyz` gates on the DB ping |
+
+**Why the executor did not self-recover:** restoring the newest dump recreates the PRE-FLIP database. It would
+(a) discard every row written during the flipâ†’soak window, and (b) revert the operator's own Â§15 deviation-4
+credential recovery (the direct-DB password write happened DURING the soak, after the dump) â€” the restored
+`users.password` would be the pre-recovery hash the operator no longer knows. That is an irreversible
+production-data decision (D-30/D-32 class), never an executor default. The deploy HALTS here per Â§4d step 2's
+down-stack amendment; the ledger entry is open in `.planning/WINDOWS.md`.
+
+### 16.3 Operator decision required to unblock (choose one; then the continuation executes Â§4d steps 2-6)
+
+- **A â€” restore + replay (recommended shape):** recreate `spidernode-dev-db` (postgres:17-alpine, port 5454,
+  db `uptime_dev`) and restore `pre-phase7-flip-20260924-2147.dump`; re-run the Â§4c step-4 migrate (journal
+  = 2 rows â†’ 0002 applies cleanly, additive) + step-5 seed. Production rolls forward to the flip-era schema on
+  the pre-flip data, accepting the loss of the soak-window rows (~1.5 days of the operator's own monitors'
+  pings, all-internal fixture accounts; the sole real account's password must be reset/recovered again).
+- **B â€” newer restore source:** if a post-flip dump exists outside this repo's `.snapshots/`, restore that
+  instead (none is recorded in this repo).
+- **C â€” defer:** leave the deletion release un-deployed; the committed artifact waits and monitoring stays dark.
+
+Whichever option is chosen, append the reconciliation note per D-30 (rows written during an interrupted
+window) to this section.
+
+### 16.4 Deploy execution record â€” PENDING (filled by the continuation after Â§4d steps 2-6)
+
+- Pre-deploy dump name: PENDING
+- Worker restart timestamp + readyz proof: PENDING
+- Web restart timestamp + /login 200 (no notice strip): PENDING
+- Smoke legs (canary login, feedback 200/403/401, Bull Board 403, monitoring continuity per Â§6): PENDING
+
+---
+

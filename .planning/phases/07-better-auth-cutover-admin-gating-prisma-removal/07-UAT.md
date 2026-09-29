@@ -8,7 +8,7 @@ updated: 2026-09-29T20:23:48
 
 ## Current Test
 
-[testing paused - 1 item outstanding (deletion deploy deferred, record sec 16.5)]
+[testing paused - CR-01 gap open; 2 operator/environment items blocked]
 
 ## Tests
 
@@ -309,19 +309,43 @@ reason: evidence record sec 14: FINAL RUN D-31 production soak verdict PASS (6 p
 
 ### 60. [07-08] human_judgment
 expected: Deletion release DEPLOYED per runbook §4d with production smoke green (the plan's must_have truth #6 and Task 3 human-check)
+result: pass
+evidence: RESOLVED since recording - operator chose restore option A; deletion release deployed per runbook 4d (record sec 16.4: pre-deploy dump pre-0708-deletion-20260929-1449.dump, worker-first readyz-gated restart, web restart, all smoke legs green) and drop release per 4e (sec 17: legacy_left=0, canary re-login 200); independently confirmed by 07-VERIFICATION.md (5/5 criteria, 0 gaps).### 61. [07-07 D-38/D-40] Live Google/GitHub OAuth round-trip
+expected: Google and GitHub login complete WITHOUT a re-consent screen post-cutover (D-40 verbatim assertion) — the production proof that live refresh tokens survived the reshape.
 result: blocked
-blocked_by: server
-reason: deletion deploy deferred - production DB destroyed (record sec 16.2), operator decision C recorded sec 16.5; the deploy and its sec 16.4 smoke are pending the DB-restore decision (A or B); zero production mutations by design
+blocked_by: third-party
+reason: zero OAuth accounts/credentials exist on this topology; formally dispositioned not-exercisable in deploy record sec 13.3 and reserved for the server deploy; token preservation stands proven at the data layer by the 07-06 D-40 snapshot pass (google 2/1/2, github 1/1/1).
+
+### 62. [07-08] Operator password change after DB restore
+expected: the operator logs in with the machine-minted credential and changes it via the auth flow (not the profile route - WINDOWS #4).
+result: blocked
+blocked_by: other
+reason: operator-only credential action; live password is the minted value in gitignored .snapshots/0708-operator-password.txt (record sec 16.6 A.2); user must change it at next login.
+
+### 63. [CR-01] Check-now poll + timestamps in a non-UTC environment
+expected: after a check-now enqueue completes, the manual-check poll resolves (never times out) and dashboard timestamps render at the correct instant regardless of server/browser UTC offset.
+result: issue
+reported: CR-01 confirmed by code review against installed drizzle-orm 0.45.2 - mode:string timestamps return naive Postgres text parsed as local time, so new Date(lastChecked) > queuedAt never becomes true in UTC+ (this machine is UTC+6) and false-completes on stale values in UTC- (src/lib/check-now-poll.ts:63); not exercised live to avoid production mutation; tracked open in 07-REVIEW-DISPOSITION.md with WR-01/WR-02/WR-04.
+severity: major
 
 ## Summary
 
-total: 60
-passed: 59
-issues: 0
+total: 63
+passed: 60
+issues: 1
 pending: 0
 skipped: 0
-blocked: 1
+blocked: 2
 
 ## Gaps
 
-[none yet]
+- gap_id: G-07-63
+  truth: "Check-now poll completes and timestamps render correctly in non-UTC environments"
+  status: failed
+  reason: "CR-01 (07-REVIEW.md): Drizzle mode:string timestamps return naive Postgres text; new Date(naive) parses as local time, breaking the poll comparison in UTC+ (never completes) and UTC- (false-completes) - src/lib/check-now-poll.ts:63"
+  severity: major
+  test: 63
+  root_cause: "" 
+  artifacts: []
+  missing: []
+  debug_session: ""

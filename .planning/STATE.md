@@ -4,10 +4,11 @@ milestone: v1.0
 current_phase: 07
 current_phase_name: Better Auth Cutover, Admin Gating & Prisma Removal
 status: executing
-stopped_at: HALTED 07-08-PLAN.md at runbook 4d step 2 — deploy deferred (operator decision C, record 16.5); SUMMARY committed
-last_updated: "2026-09-29T11:04:05.862Z"
+stopped_at: Completed 07-08-PLAN.md deploy leg - deletion release deployed per runbook 4d, smoke green (record 16.4/16.6); 07-09 (drop release) unblocked but not started
+last_updated: "2026-09-29T14:59:44.005Z"
 last_activity: 2026-09-29
 last_activity_desc: Phase 07 execution started
+state_head: 4303d273d3fb458631f0efb753ea80d71691dd40
 progress:
   total_phases: 8
   completed_phases: 5
@@ -314,6 +315,8 @@ Recent decisions affecting current work:
 - [Phase 7]: [Phase 7]: 07-07: rehash field mismatch found in soak — verify/hashPassword read users.password while the AUTH-09 rehash UPDATE targets account.password (0 rows matched when copies diverge; impact ~nil, bcrypt-10 both sides) — one-line fix + test queued in 07-08, open in WINDOWS.md
 - [Phase 07]: 07-08: operator decision C at the blocking-human checkpoint — deletion deploy DEFERRED (A/B presented and unanswered; C = conservative default). Production DB container+volume destroyed by the machine-level event (stack dark since 09-25T23:02Z); newest backup is the pre-flip 09-24 dump; the restore decision is the operator's — resume per 07-DEPLOY-RECORD §16.5
 - [Phase 07]: 07-08: AUTH-07/AUTH-08/DRZ-07 deliberately left Pending — the deploy-side proof legs are unexercised while the deploy is deferred (02-03 false-signal precedent); the armed remnant gate + fully green verify make the deferred deploy pure choreography (artifact 9dfabd8)
+- [Phase 07]: 07-08: operator decision A (restore + replay) executed interactively 2026-09-29, superseding C - spidernode-dev-db + prod-redis recreated, pre-flip dump restored, 0002 re-applied, 1 admin grant, flip-era stack health proven, deletion release deployed per runbook 4d with all smoke legs green (record 16.4/16.6)
+- [Phase 07]: 07-08: AUTH-07 deliberately left Pending at close - its literal closure clause (legacy tables retained read-only one release, THEN DROPPED) is 07-09's must-have; DRZ-07 and AUTH-08 marked complete after the deployed deletion release passed all smoke legs (record 16.4)
 
 ### Pending Todos
 
@@ -338,6 +341,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-29T11:04:05.710Z
-Stopped at: HALTED 07-08-PLAN.md at runbook 4d step 2 — deploy deferred (operator decision C, record 16.5); SUMMARY committed
+Last session: 2026-09-29T14:59:40.509Z
+Stopped at: Completed 07-08-PLAN.md deploy leg - deletion release deployed per runbook 4d, smoke green (record 16.4/16.6); 07-09 (drop release) unblocked but not started
 Resume file: None

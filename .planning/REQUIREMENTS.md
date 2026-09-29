@@ -44,7 +44,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [x] **DRZ-04**: Schema addenda in the Drizzle schema: `monitors.next_check_at` + partial index `(is_active, next_check_at)`, `write_guards`, `outbox`, partial unique index `incidents(monitor_id) WHERE status='ONGOING'`, pinned ID-generation defaults, `error_class` metadata, `consecutive_failures` reserved
 - [x] **DRZ-05**: Drizzle adopted additively (new code uses Drizzle only) sharing one `pg` Pool with Prisma during transition; no dual-write
 - [x] **DRZ-06**: Migrations rehearsed against an anonymized local prod snapshot with row-count + checksum verification before production
-- [ ] **DRZ-07**: Prisma fully removed after cutover: `prisma/`, generated client, `@prisma/*` deps, adapter config deleted
+- [x] **DRZ-07**: Prisma fully removed after cutover: `prisma/`, generated client, `@prisma/*` deps, adapter config deleted
 
 ### Worker & Orchestration
 
@@ -108,7 +108,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [x] **AUTH-05**: OAuth accounts reshaped to Better Auth's `account` table with a verified field map (`providerId` casing confirmed by dry-run); refresh tokens preserved
 - [x] **AUTH-06**: Forced re-login at cutover announced in-app/email (Q-4)
 - [ ] **AUTH-07**: NextAuth deps and custom auth routes removed; legacy `sessions`/token tables retained read-only one release, then dropped
-- [ ] **AUTH-08**: Duplicated client auth state removed (Redux `auth` slice, token mirror, `js-cookie`); Better Auth client is the single source; Redux retained for UI/domain state only
+- [x] **AUTH-08**: Duplicated client auth state removed (Redux `auth` slice, token mirror, `js-cookie`); Better Auth client is the single source; Redux retained for UI/domain state only
 - [x] **AUTH-09**: Lazy rehash-on-login: bcrypt verify upgrades the stored hash to the modern default
 
 ### Email
@@ -271,9 +271,9 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | AUTH-05 | Phase 7 | Complete |
 | AUTH-06 | Phase 7 | Complete |
 | AUTH-07 | Phase 7 | Pending |
-| AUTH-08 | Phase 7 | Pending |
+| AUTH-08 | Phase 7 | Complete |
 | AUTH-09 | Phase 7 | Complete |
-| DRZ-07 | Phase 7 | Pending |
+| DRZ-07 | Phase 7 | Complete |
 | EML-04 | Phase 7 | Complete |
 | SEC-04 | Phase 7 | Complete |
 | OBS-04 | Phase 7 | Complete |

@@ -1,9 +1,18 @@
-import { prisma } from "@/lib/prisma";
+import { count, desc, eq } from "drizzle-orm";
 import { getAuthSession } from "@/lib/session";
 import { NextResponse } from "next/server";
 import { rateLimit, getIP } from "@/lib/rate-limit";
 import { apiError } from "@/lib/api-error";
 import { assertUrlAllowed, UrlNotAllowedError } from "@/lib/ssrf";
+import { db } from "@/db";
+import { monitors } from "@/db/schema";
+
+// 07-08 deletion release (DRZ-07): the Prisma-era queries are ported to the
+// ONE Drizzle client (src/db — D-05/DRZ-05) with byte-identical wire
+// contracts: the GET projection/order, the 10-monitor free-tier count, and
+// the POST create (status "PENDING", trimmed inputs, SSRF-admitted URL).
+// `updatedAt` is supplied explicitly on insert: the column is NOT NULL with
+// no DB default and Prisma's client-side @updatedAt no longer exists.
 // ----------------------------------------------------
 // 1. GET ALL MONITORS FOR LOGGED-IN USER (GET)
 // ----------------------------------------------------
@@ -14,12 +23,13 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const monitors = await prisma.monitor.findMany({
-      where: { userId: session.user.id },
-      orderBy: { createdAt: "desc" },
-    });
+    const monitorsRows = await db
+      .select()
+      .from(monitors)
+      .where(eq(monitors.userId, session.user.id))
+      .orderBy(desc(monitors.createdAt));
 
-    return NextResponse.json({ monitors }, { status: 200 });
+    return NextResponse.json({ monitors: monitorsRows }, { status: 200 });
   } catch (error) {
     console.error("Featch Monitors Error:", error);
     return NextResponse.json(
@@ -52,9 +62,10 @@ export async function POST(req: Request) {
     }
 
     // Check Monitor Limit
-    const currentMonitorsCount = await prisma.monitor.count({
-      where: { userId: session.user.id }
-    });
+    const [{ value: currentMonitorsCount }] = await db
+      .select({ value: count() })
+      .from(monitors)
+      .where(eq(monitors.userId, session.user.id));
 
     if (currentMonitorsCount >= 10) {
       return NextResponse.json(
@@ -99,15 +110,17 @@ export async function POST(req: Request) {
       throw error;
     }
 
-    const newMonitor = await prisma.monitor.create({
-      data: {
+    const [newMonitor] = await db
+      .insert(monitors)
+      .values({
         name: name.trim(),
         url: url.trim(),
         interval: interval ? parseInt(interval) : 5,
         userId: session.user.id,
-        status: "PENDING"
-      }
-    })
+        status: "PENDING",
+        updatedAt: new Date().toISOString(),
+      })
+      .returning();
 
     return NextResponse.json(
       { message: "Monitor listed successfully", monitor: newMonitor },

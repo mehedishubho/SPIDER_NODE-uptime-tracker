@@ -63,8 +63,6 @@ export default defineConfig({
       // this — and the limiter stays REAL against the test Redis so the 429
       // characterization parity is exercised end-to-end.
       REDIS_URL: TEST_REDIS_URL,
-      NEXTAUTH_URL: baseURL,
-      NEXTAUTH_SECRET: "test-secret",
       // 07-04: the flipped engine's throw-early gate (src/lib/auth.ts
       // requireProductionEnv) fails the production boot without the Better
       // Auth envs — the e2e server needs the same test-scoped values the

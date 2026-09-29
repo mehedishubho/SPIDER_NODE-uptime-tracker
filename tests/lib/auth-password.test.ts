@@ -15,8 +15,13 @@ import { BCRYPT_PREFIXES, hashPassword, verifyPassword } from "@/lib/auth-passwo
 //   2. unknown prefix refuses (fail closed — no fallback acceptance)
 //   3. hash() emits bcrypt at 10 rounds (register-route rounds parity)
 //   4. AUTH-09 lazy rehash: a successful legacy verify upgrades the stored
-//      account.password (docker PG, real db.execute seam) and the upgrade is
-//      still a verifying 10-round bcrypt hash; a failed verify upgrades nothing
+//      credential hash copies (docker PG, real db.execute seam) and the
+//      upgrade is still a verifying 10-round bcrypt hash; a failed verify
+//      upgrades nothing. 07-08 (07-07 §15.3 fix): BOTH stored copies upgrade
+//      — "account".password (the row the engine reads at sign-in) and the
+//      legacy "users".password column — whenever they still hold the received
+//      hash; an already-diverged copy is never rewritten by a hash it does
+//      not hold.
 // ---------------------------------------------------------------------------
 
 const RUN = randomUUID();
@@ -86,6 +91,14 @@ async function storedHash(): Promise<string | null> {
   return res.rows[0]?.password ?? null;
 }
 
+/** The legacy users.password copy (read by the profile route's checks). */
+async function storedUserHash(): Promise<string | null> {
+  const res = await pg.query(`SELECT "password" FROM users WHERE "id" = $1`, [
+    CANARY_USER_ID,
+  ]);
+  return res.rows[0]?.password ?? null;
+}
+
 describe("verifyPassword — A-1 prefix routing (AUTH-01)", () => {
   it("1. accepts the correct password for every legacy bcrypt prefix", async () => {
     for (const prefix of BCRYPT_PREFIXES) {
@@ -126,10 +139,15 @@ describe("hashPassword — rounds parity", () => {
 });
 
 describe("lazy rehash — AUTH-09 upgrade on the real db.execute seam (docker PG)", () => {
-  it("5. upgrades the stored legacy hash on a successful verify; the upgrade still verifies", async () => {
-    // Re-pin the stored row to the exact legacy hash (other cases in this
-    // file may have raced the upgrade first).
+  it("5. upgrades BOTH stored copies on a successful verify; the upgrades still verify", async () => {
+    // Re-pin BOTH stored copies to the exact legacy hash (other cases in this
+    // file may have raced the upgrade first) — the 07-08 fix upgrades the
+    // account row AND the legacy users copy whenever they hold the hash.
     await pg.query(`UPDATE account SET "password" = $2 WHERE "userId" = $1 AND "providerId" = 'credential'`, [
+      CANARY_USER_ID,
+      A_PREFIX_HASH,
+    ]);
+    await pg.query(`UPDATE users SET "password" = $2 WHERE "id" = $1`, [
       CANARY_USER_ID,
       A_PREFIX_HASH,
     ]);
@@ -146,10 +164,22 @@ describe("lazy rehash — AUTH-09 upgrade on the real db.execute seam (docker PG
     await expect(bcrypt.compare(CORRECT_PASSWORD, upgraded!)).resolves.toBe(true);
     // The upgraded hash routes through the router again (second sign-in leg).
     await expect(verifyPassword({ password: CORRECT_PASSWORD, hash: upgraded! })).resolves.toBe(true);
+
+    // 07-08: the legacy users copy upgraded WITH the account row — the copies
+    // can never diverge through the rehash path (07-07 §15.3).
+    const upgradedUserCopy = await waitFor(async () => {
+      const hash = await storedUserHash();
+      return hash && hash !== A_PREFIX_HASH ? hash : null;
+    });
+    expect(upgradedUserCopy).toBe(upgraded);
   });
 
-  it("6. a failed verify leaves the stored hash untouched", async () => {
+  it("6. a failed verify leaves both stored copies untouched", async () => {
     await pg.query(`UPDATE account SET "password" = $2 WHERE "userId" = $1 AND "providerId" = 'credential'`, [
+      CANARY_USER_ID,
+      B_PREFIX_HASH,
+    ]);
+    await pg.query(`UPDATE users SET "password" = $2 WHERE "id" = $1`, [
       CANARY_USER_ID,
       B_PREFIX_HASH,
     ]);
@@ -161,5 +191,33 @@ describe("lazy rehash — AUTH-09 upgrade on the real db.execute seam (docker PG
     // No upgrade window: assert directly (a false verify never schedules work).
     expect(await storedHash()).toBe(before);
     expect(await storedHash()).toBe(B_PREFIX_HASH);
+    expect(await storedUserHash()).toBe(B_PREFIX_HASH);
+  });
+
+  it("7. a DIVERGED users copy is never rewritten by a hash it does not hold (07-08 contract)", async () => {
+    // Divergence shape recorded by the 07-07 soak finding: the engine wrote
+    // account.password (e.g. a post-cutover reset) while the legacy users
+    // copy still holds an older hash. The rehash upgrades the copy the
+    // received hash came from (account) and never rewrites the diverged
+    // sibling — that reconciliation belongs to the profile route's own
+    // password write.
+    await pg.query(`UPDATE account SET "password" = $2 WHERE "userId" = $1 AND "providerId" = 'credential'`, [
+      CANARY_USER_ID,
+      A_PREFIX_HASH,
+    ]);
+    await pg.query(`UPDATE users SET "password" = $2 WHERE "id" = $1`, [
+      CANARY_USER_ID,
+      B_PREFIX_HASH,
+    ]);
+
+    const verified = await verifyPassword({ password: CORRECT_PASSWORD, hash: A_PREFIX_HASH });
+    expect(verified).toBe(true);
+
+    const upgraded = await waitFor(async () => {
+      const hash = await storedHash();
+      return hash && hash !== A_PREFIX_HASH ? hash : null;
+    });
+    expect(upgraded).not.toBeNull();
+    expect(await storedUserHash()).toBe(B_PREFIX_HASH); // untouched
   });
 });

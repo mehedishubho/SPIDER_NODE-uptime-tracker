@@ -210,15 +210,64 @@ describe("cron-remnant gate — scripts/check-cron-remnants.mjs (D-41)", () => {
     }
   });
 
-  it("5. --advisory against today's real repo is green now that 05-09 removed instrumentation.ts", async () => {
-    // Post-deletion-release invariant (05-09): src/instrumentation.ts no
-    // longer exists, so advisory mode finds no legitimate remnants — the
-    // gate is armed and the real repo must scan green.
-    const result = await runRemnants(["--advisory"]);
+  it("5. the real repo carries no Phase-5/6 remnant class in the DEFAULT posture (post 05-09/06-05; the Phase-7 extension ends its pre-arm advisory at the 07-08 arming step)", async () => {
+    // 05-09/06-05 invariant: the enforced classes (instrumentation entrypoint,
+    // node-cron, CRON_MODE/CRON_SECRET, deleted cron route paths, the four
+    // deleted legacy modules) find nothing legitimate on the real repo — in
+    // EITHER posture, pre- or post-Phase-7-arming. Exit 0 in both postures:
+    // pre-arm the default run reports only Phase-7 advisory findings (exit 0
+    // while the 07-08 deletions land); post-arm it scans green outright.
+    const result = await runRemnants([]);
     expect(result.code).toBe(0);
     const out = `${result.stdout}${result.stderr}`;
-    expect(out).toContain("green");
     expect(out).not.toContain("instrumentation.ts");
+    expect(out).not.toContain("node-cron");
+    expect(out).not.toContain("CRON_MODE");
+    expect(out).not.toContain("CRON_SECRET");
+    expect(out).not.toContain("recreates a deleted cron route path");
+    expect(out).not.toContain("deleted legacy module");
+  });
+
+  it("5d. Phase-7 classes are DETECTED on a fixture in --advisory posture (banned specifiers, deleted basenames, retired tokens — stable across the advisory→armed lifecycle)", async () => {
+    // The 07-08 extension's RED-teeth proof as a permanent fixture pin (the
+    // in-flight RED spot-check is recorded in 07-08-SUMMARY.md). --advisory
+    // keeps exit 0 in BOTH postures, so this pin survives the arming step.
+    const dir = makeDir();
+    try {
+      write(
+        dir,
+        path.join("src", "lib", "legacy-auth.ts"),
+        [
+          'import NextAuth from "next-auth";',
+          'import { prisma } from "@/lib/prisma";',
+          'import { PrismaAdapter } from "@auth/prisma-adapter";',
+          "export const legacy = NextAuth({});",
+          "void prisma;",
+          "void PrismaAdapter;",
+          "",
+        ].join("\n")
+      );
+      write(
+        dir,
+        path.join("src", "lib", "blast-echo.ts"),
+        ['import { runBlast } from "./send-relogin-blast";', "export { runBlast };", ""].join("\n")
+      );
+      write(
+        dir,
+        path.join("src", "lib", "env-legacy.ts"),
+        ['export const secret = process.env.NEXTAUTH_SECRET;', ""].join("\n")
+      );
+      const result = await runRemnants(["--advisory", dir]);
+      expect(result.code).toBe(0);
+      const out = `${result.stdout}${result.stderr}`;
+      expect(out).toContain("next-auth");
+      expect(out).toContain("@auth/prisma-adapter");
+      expect(out).toContain("@/lib/prisma");
+      expect(out).toContain("send-relogin-blast");
+      expect(out).toContain("NEXTAUTH_SECRET");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("5b. token asymmetry: CRON_SECRET inside a COMMENT still trips, a deleted-module mention in a comment does NOT", async () => {

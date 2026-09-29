@@ -1,10 +1,12 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import "./_harness";
 import {
   buildRequest,
+  dbLog,
+  dbState,
   h,
   mockSession,
-  resetPrismaMocks,
+  resetDbMocks,
   routeParams,
   sessionA,
   sessionNoUserId,
@@ -32,6 +34,11 @@ import { POST as POST_FEEDBACK } from "@/app/api/feedback/route";
 // line — lives in tests/api/feedback-admin.handler.test.ts (the Drizzle-read
 // @/db seam rides there too).
 //
+// 07-08 deletion release (DRZ-07): the model-access seam is @/db (the ONE
+// Drizzle client); multi-query routes resolve per-query fixtures through the
+// dbState.results queue, and the status-page select projections are pinned
+// via the select() call args.
+//
 // No rate limiter on any of these routes — static imports are safe.
 // ---------------------------------------------------------------------------
 
@@ -39,7 +46,7 @@ const PUBLIC_USER_ID = "public-user-id-for-status";
 
 beforeEach(() => {
   mockSession(null);
-  resetPrismaMocks();
+  resetDbMocks();
 });
 
 describe("GET /api/status (own status page)", () => {
@@ -48,44 +55,47 @@ describe("GET /api/status (own status page)", () => {
 
     expect(res.status).toBe(401);
     await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
-    expect(h.prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(h.db.select).not.toHaveBeenCalled();
   });
 
-  it("200 with session — user + ACTIVE-only monitors, exact select list, body shape", async () => {
+  it("200 with session — user + ACTIVE-only monitors, exact select projections, body shape", async () => {
     mockSession(sessionA);
     const user = { id: USER_A_ID, name: "User A" };
     const monitors = [{ id: 1, name: "a-mon", status: "UP" }];
-    h.prisma.user.findUnique.mockResolvedValue(user);
-    h.prisma.monitor.findMany.mockResolvedValue(monitors);
+    dbState.results = [[user], monitors];
 
     const res = await GET_STATUS();
 
     expect(res.status).toBe(200);
-    expect(h.prisma.user.findUnique).toHaveBeenCalledWith({
-      where: { id: USER_A_ID },
-      select: { id: true, name: true },
-    });
+    expect(h.db.select).toHaveBeenCalledTimes(2);
+    const userProjection = (h.db.select as ReturnType<typeof vi.fn>).mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(Object.keys(userProjection).sort()).toEqual(["id", "name"]);
     // isActive: true — inactive monitors are invisible on the status page.
-    expect(h.prisma.monitor.findMany).toHaveBeenCalledWith({
-      where: { userId: USER_A_ID, isActive: true },
-      select: {
-        id: true,
-        name: true,
-        url: true,
-        status: true,
-        uptimePercent: true,
-        responseTime: true,
-        lastChecked: true,
-        interval: true,
-      },
-      orderBy: { createdAt: "asc" },
-    });
+    const monitorProjection = (h.db.select as ReturnType<typeof vi.fn>).mock.calls[1][0] as Record<
+      string,
+      unknown
+    >;
+    expect(Object.keys(monitorProjection).sort()).toEqual([
+      "id",
+      "interval",
+      "lastChecked",
+      "name",
+      "responseTime",
+      "status",
+      "uptimePercent",
+      "url",
+    ]);
     await expect(res.json()).resolves.toEqual({ user, monitors });
   });
 
-  it("500 on prisma failure — body VERBATIM", async () => {
+  it("500 on db failure — body VERBATIM", async () => {
     mockSession(sessionA);
-    h.prisma.user.findUnique.mockRejectedValue(new Error("db exploded"));
+    (h.db.select as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      throw new Error("db exploded");
+    });
 
     const res = await GET_STATUS();
 
@@ -96,7 +106,7 @@ describe("GET /api/status (own status page)", () => {
 
 describe("GET /api/status/[userId] (public status page)", () => {
   it("unknown user → 404 'Page not found' — no session involved", async () => {
-    h.prisma.user.findUnique.mockResolvedValue(null);
+    dbState.results = [[]];
 
     const res = await GET_PUBLIC_STATUS(
       buildRequest({ path: `/api/status/${PUBLIC_USER_ID}` }),
@@ -113,9 +123,7 @@ describe("GET /api/status/[userId] (public status page)", () => {
     const user = { id: PUBLIC_USER_ID, name: "Public User" };
     const monitors = [{ id: 9, name: "pub-mon", status: "DOWN" }];
     const recentIncidents = [{ id: "inc-9", status: "ONGOING", monitor: { name: "pub-mon" } }];
-    h.prisma.user.findUnique.mockResolvedValue(user);
-    h.prisma.monitor.findMany.mockResolvedValue(monitors);
-    h.prisma.incident.findMany.mockResolvedValue(recentIncidents);
+    dbState.results = [[user], monitors, recentIncidents];
 
     const res = await GET_PUBLIC_STATUS(
       buildRequest({ path: `/api/status/${PUBLIC_USER_ID}` }),
@@ -123,32 +131,21 @@ describe("GET /api/status/[userId] (public status page)", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(h.prisma.monitor.findMany).toHaveBeenCalledWith({
-      where: { userId: PUBLIC_USER_ID, isActive: true },
-      select: {
-        id: true,
-        name: true,
-        url: true,
-        status: true,
-        uptimePercent: true,
-        responseTime: true,
-        lastChecked: true,
-        interval: true,
-      },
-      orderBy: { createdAt: "asc" },
-    });
-    // Only ONGOING incidents, newest 10, scoped through the relation.
-    expect(h.prisma.incident.findMany).toHaveBeenCalledWith({
-      where: { monitor: { userId: PUBLIC_USER_ID }, status: "ONGOING" },
-      include: { monitor: { select: { name: true } } },
-      orderBy: { startedAt: "desc" },
-      take: 10,
-    });
+    // Only ONGOING incidents, newest 10, scoped through the monitor relation.
+    const selectEntries = dbLog.filter((entry) => entry.op === "select");
+    expect(selectEntries).toHaveLength(3);
+    const incidentProjection = (h.db.select as ReturnType<typeof vi.fn>).mock.calls[2][0] as {
+      monitor: Record<string, unknown>;
+    };
+    expect(Object.keys(incidentProjection.monitor).sort()).toEqual(["name"]);
+    expect(selectEntries[2].calls.find((call) => call.method === "limit")!.args).toEqual([10]);
     await expect(res.json()).resolves.toEqual({ user, monitors, recentIncidents });
   });
 
-  it("500 on prisma failure — body VERBATIM (same message as /api/status)", async () => {
-    h.prisma.user.findUnique.mockRejectedValue(new Error("db exploded"));
+  it("500 on db failure — body VERBATIM (same message as /api/status)", async () => {
+    (h.db.select as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      throw new Error("db exploded");
+    });
 
     const res = await GET_PUBLIC_STATUS(
       buildRequest({ path: `/api/status/${PUBLIC_USER_ID}` }),
@@ -161,7 +158,7 @@ describe("GET /api/status/[userId] (public status page)", () => {
 });
 
 describe("POST /api/feedback", () => {
-  it("401 without session — body VERBATIM (from the next-auth/next import)", async () => {
+  it("401 without session — body VERBATIM", async () => {
     const res = await POST_FEEDBACK(
       buildRequest({
         path: "/api/feedback",
@@ -172,15 +169,18 @@ describe("POST /api/feedback", () => {
 
     expect(res.status).toBe(401);
     await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
-    expect(h.prisma.feedback.create).not.toHaveBeenCalled();
+    expect(h.db.insert).not.toHaveBeenCalled();
   });
 
-  it("weaker guard pinned: a session WITHOUT user.id passes — create runs with userId undefined", async () => {
+  it("weaker guard pinned: a session WITHOUT user.id passes — the insert runs with userId undefined", async () => {
     // Defect pin (documented, not fixed — D-17): feedback checks
     // `!session || !session.user` while every template route checks the id.
+    // The seam-level pin is the write ATTEMPT carrying the undefined userId —
+    // the guard never narrows it (a real DB would reject the NOT NULL column;
+    // the pin documents the guard shape, not the storage outcome).
     mockSession(sessionNoUserId);
     const created = { id: "fb-1", title: "t", type: "BUG" };
-    h.prisma.feedback.create.mockResolvedValue(created);
+    dbState.results = [[created]];
 
     const res = await POST_FEEDBACK(
       buildRequest({
@@ -191,9 +191,12 @@ describe("POST /api/feedback", () => {
     );
 
     expect(res.status).toBe(201);
-    expect(h.prisma.feedback.create).toHaveBeenCalledWith({
-      data: { userId: undefined, type: "BUG", title: "t", description: "d" },
-    });
+    const insertEntry = dbLog.find((entry) => entry.op === "insert");
+    expect(insertEntry).toBeDefined();
+    const [values] = insertEntry!.calls.find((call) => call.method === "values")!.args as [
+      Record<string, unknown>,
+    ];
+    expect(values).toMatchObject({ userId: undefined, type: "BUG", title: "t", description: "d" });
   });
 
   it("400 when any of title/description/type is missing — exact message", async () => {
@@ -211,13 +214,13 @@ describe("POST /api/feedback", () => {
     await expect(res.json()).resolves.toEqual({
       error: "Missing required fields: title, description, and type are required",
     });
-    expect(h.prisma.feedback.create).not.toHaveBeenCalled();
+    expect(h.db.insert).not.toHaveBeenCalled();
   });
 
-  it("201 on success — the created feedback object is returned BARE (no wrapper key)", async () => {
+  it("201 on success — the created feedback object is returned BARE (no wrapper key), id generated client-side (text PK has no DB default)", async () => {
     mockSession(sessionA);
     const created = { id: "fb-2", userId: USER_A_ID, type: "FEATURE", title: "t", description: "d" };
-    h.prisma.feedback.create.mockResolvedValue(created);
+    dbState.results = [[created]];
 
     const res = await POST_FEEDBACK(
       buildRequest({
@@ -228,9 +231,18 @@ describe("POST /api/feedback", () => {
     );
 
     expect(res.status).toBe(201);
-    expect(h.prisma.feedback.create).toHaveBeenCalledWith({
-      data: { userId: USER_A_ID, type: "FEATURE", title: "t", description: "d" },
+    const insertEntry = dbLog.find((entry) => entry.op === "insert");
+    const [values] = insertEntry!.calls.find((call) => call.method === "values")!.args as [
+      Record<string, unknown>,
+    ];
+    expect(values).toMatchObject({
+      userId: USER_A_ID,
+      type: "FEATURE",
+      title: "t",
+      description: "d",
     });
+    expect(typeof values.id).toBe("string");
+    expect((values.id as string).length).toBeGreaterThan(0);
     // Not { feedback: ... } — the row itself is the body.
     await expect(res.json()).resolves.toEqual(created);
   });

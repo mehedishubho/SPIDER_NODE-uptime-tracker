@@ -5,14 +5,11 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { logout } from "@/redux/features/auth/authSlice";
-import Cookies from "js-cookie";
 import { Logout01Icon as LogOut, Activity01Icon as Activity } from "hugeicons-react";
 import { authClient } from "@/lib/auth-client";
 import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
-import { useDispatch } from "react-redux";
 import { toast } from "sonner";
 import Swal from "sweetalert2";
 import logo from "@/assets/logo.png"
@@ -30,7 +27,6 @@ export function TeamSwitcher({
   };
 }) {
   const [activeTeam] = React.useState(teams[0]);
-  const dispatch = useDispatch();
   const displayName = user?.name ?? "Default User";
   const displayEmail = user?.email ?? "user@spidernode.com";
   const displayAvatar = user?.avatar ?? "https://github.com/shadcn.png";
@@ -43,8 +39,9 @@ export function TeamSwitcher({
       .join("") || "U";
 
   const handleLogout = async () => {
-    dispatch(logout());
-    Cookies.remove("token");
+    // 07-08 deletion release (AUTH-08): the Redux logout dispatch and the
+    // legacy token-cookie removal died with the token mirror — sign-out is
+    // the single authClient call (07-04 swap), then the redirect.
     toast.success("Logged out successfully!");
     await authClient.signOut();
     window.location.href = "/login";

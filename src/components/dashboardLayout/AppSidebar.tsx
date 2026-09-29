@@ -4,10 +4,8 @@ import { UserCircle02Icon as CircleUser, CodesandboxIcon as Codesandbox, GlobeIc
 type LucideIcon = React.ElementType;
 import type * as React from "react";
 
-import { selectCurrentUser } from "@/redux/features/auth/authSlice";
 import { Sidebar, SidebarContent, SidebarRail } from "@/components/ui/sidebar";
 import { usePathname } from "next/navigation";
-import { useSelector } from "react-redux";
 import { TeamSwitcher } from "./TeamSwitch";
 import { NavMain } from "./NavMain";
 
@@ -93,11 +91,10 @@ const adminUserData: NavigationData = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
-  const currentUser = useSelector(selectCurrentUser) as {
-    name?: string;
-    email?: string;
-    avatar?: string;
-  } | null;
+  // 07-08 deletion release (AUTH-08): the Redux auth slice is gone. Its user
+  // mirror was never populated after the Better Auth flip (07-04 removed the
+  // setters), so the sidebar's display fallbacks below were the effective
+  // values already — they are now unconditional.
   const isAdminPath = pathname.startsWith("/dashboard/admin");
   const basePath = isAdminPath ? "/dashboard/admin" : "/dashboard";
   const navigationData = isAdminPath ? adminUserData : defaultUserData;
@@ -115,11 +112,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             { name: isAdminPath ? "Admin" : "Default", logo: () => null },
           ]}
           user={{
-            name:
-              currentUser?.name ??
-              (isAdminPath ? "Admin User" : "Default User"),
-            email: currentUser?.email ?? (isAdminPath ? "admin@spidernode.com" : "user@spidernode.com"),
-            avatar: currentUser?.avatar,
+            name: isAdminPath ? "Admin User" : "Default User",
+            email: isAdminPath ? "admin@spidernode.com" : "user@spidernode.com",
             roleLabel: isAdminPath ? "Admin" : "User",
           }}
         />

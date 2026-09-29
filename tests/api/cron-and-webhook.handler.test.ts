@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Redis from "ioredis";
 import "./_harness";
-import { buildRequest, h, resetPrismaMocks } from "./_harness";
+import { buildRequest, dbLog, dbState, h, resetDbMocks } from "./_harness";
 
 // ---------------------------------------------------------------------------
 // Characterization suite: the Telegram webhook (D-17 DEFECT 3 half). The
@@ -62,7 +62,7 @@ afterAll(async () => {
 beforeEach(async () => {
   delete process.env.TELEGRAM_WEBHOOK_SECRET;
   await flushLimiterKeys(); // webhook limiter state lives in Redis — flush rl:* per case
-  resetPrismaMocks();
+  resetDbMocks();
   webhookMocks.sendTelegramAlert.mockReset();
   // Egress tripwire (02-03 pattern): any unstubbed fetch fails loudly.
   vi.stubGlobal("fetch", vi.fn(async () => {
@@ -100,7 +100,7 @@ describe("POST /api/telegram/webhook", () => {
 
     expect(res.status).toBe(401);
     await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
-    expect(h.prisma.user.update).not.toHaveBeenCalled();
+    expect(h.db.update).not.toHaveBeenCalled();
     expect(webhookMocks.sendTelegramAlert).not.toHaveBeenCalled();
   });
 
@@ -118,7 +118,7 @@ describe("POST /api/telegram/webhook", () => {
 
     expect(res.status).toBe(401);
     await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
-    expect(h.prisma.user.update).not.toHaveBeenCalled();
+    expect(h.db.update).not.toHaveBeenCalled();
     expect(webhookMocks.sendTelegramAlert).not.toHaveBeenCalled();
   });
 
@@ -138,13 +138,13 @@ describe("POST /api/telegram/webhook", () => {
     // length comparison MUST precede the constant-time call.
     expect(res.status).toBe(401);
     await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
-    expect(h.prisma.user.update).not.toHaveBeenCalled();
+    expect(h.db.update).not.toHaveBeenCalled();
   });
 
   it("CORRECT header → the deep-link binding runs end-to-end; the confirmation is byte-identical for a plain name (D-24)", async () => {
     process.env.TELEGRAM_WEBHOOK_SECRET = WEBHOOK_SECRET;
     const linkedUser = { id: "user-to-link", name: "Telegram User" };
-    h.prisma.user.update.mockResolvedValue(linkedUser);
+    dbState.results = [[linkedUser]];
     webhookMocks.sendTelegramAlert.mockResolvedValue({ ok: true });
 
     const res = await POST_WEBHOOK(
@@ -158,10 +158,12 @@ describe("POST /api/telegram/webhook", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ ok: true });
-    expect(h.prisma.user.update).toHaveBeenCalledWith({
-      where: { id: "user-to-link" },
-      data: { telegramChatId: "556677" },
-    });
+    const updateEntry = dbLog.find((entry) => entry.op === "update");
+    expect(updateEntry).toBeDefined();
+    const [set] = updateEntry!.calls.find((call) => call.method === "set")!.args as [
+      Record<string, unknown>,
+    ];
+    expect(set).toEqual({ telegramChatId: "556677" });
     // Byte-identical plain-name pin — characters outside the escape set
     // render unchanged (D-24 content escaping, not redesign).
     expect(webhookMocks.sendTelegramAlert).toHaveBeenCalledWith(
@@ -172,7 +174,7 @@ describe("POST /api/telegram/webhook", () => {
 
   it("D-24: a user.name containing & < > is HTML-escaped in the confirmation message", async () => {
     process.env.TELEGRAM_WEBHOOK_SECRET = WEBHOOK_SECRET;
-    h.prisma.user.update.mockResolvedValue({ id: "user-to-link", name: "Alfa & <Beta>" });
+    dbState.results = [[{ id: "user-to-link", name: "Alfa & <Beta>" }]];
     webhookMocks.sendTelegramAlert.mockResolvedValue({ ok: true });
 
     const res = await POST_WEBHOOK(
@@ -207,7 +209,7 @@ describe("POST /api/telegram/webhook", () => {
 
       expect(res.status).toBe(500);
       await expect(res.json()).resolves.toEqual({ error: "Webhook Handler Failed" });
-      expect(h.prisma.user.update).not.toHaveBeenCalled();
+      expect(h.db.update).not.toHaveBeenCalled();
       expect(webhookMocks.sendTelegramAlert).not.toHaveBeenCalled();
       // LOUD: the config error is named in the log, never swallowed.
       expect(errSpy).toHaveBeenCalled();
@@ -242,7 +244,7 @@ describe("POST /api/telegram/webhook", () => {
 
     expect(res.status).toBe(429);
     await expect(res.json()).resolves.toEqual({ error: "Too many requests. Please try again later." });
-    expect(h.prisma.user.update).not.toHaveBeenCalled();
+    expect(h.db.update).not.toHaveBeenCalled();
     expect(webhookMocks.sendTelegramAlert).not.toHaveBeenCalled();
   });
 
@@ -260,7 +262,7 @@ describe("POST /api/telegram/webhook", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ ok: true });
-    expect(h.prisma.user.update).not.toHaveBeenCalled();
+    expect(h.db.update).not.toHaveBeenCalled();
     expect(webhookMocks.sendTelegramAlert).not.toHaveBeenCalled();
   });
 
@@ -289,12 +291,14 @@ describe("POST /api/telegram/webhook", () => {
     expect(emptyDeepLink.status).toBe(200);
     await expect(emptyDeepLink.json()).resolves.toEqual({ ok: true });
 
-    expect(h.prisma.user.update).not.toHaveBeenCalled();
+    expect(h.db.update).not.toHaveBeenCalled();
   });
 
-  it("500 when the prisma update fails — body VERBATIM", async () => {
+  it("500 when the chat-binding write fails — body VERBATIM", async () => {
     process.env.TELEGRAM_WEBHOOK_SECRET = WEBHOOK_SECRET;
-    h.prisma.user.update.mockRejectedValue(new Error("record not found"));
+    (h.db.update as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      throw new Error("record not found");
+    });
 
     const res = await POST_WEBHOOK(
       buildRequest({

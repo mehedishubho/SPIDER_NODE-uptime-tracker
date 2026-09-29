@@ -23,6 +23,36 @@ const eslintConfig = defineConfig([
     // inside the project — stale branch checkouts, never this repo's source
     // of truth. Same posture as .next/dist: tool-owned, not lintable.
     ".kilo/**",
+    // Agent-runtime tooling installed under the repo root (07-08 Rule-3
+    // unblock): the GSD/agent harnesses' vendored .cjs/.mjs bundles and
+    // per-tool workspaces are tool-owned generated content left untracked by
+    // project convention — 15k+ no-require-imports errors over code this
+    // repo never ships. Same posture as .kilo above.
+    ".agents/**",
+    ".augment/**",
+    ".claude/**",
+    ".clinerules/**",
+    ".codebuddy/**",
+    ".codex/**",
+    ".cursor/**",
+    ".github/**",
+    ".hermes/**",
+    ".kilo/**",
+    ".opencode/**",
+    ".pi/**",
+    ".qwen/**",
+    ".trae/**",
+    ".windsurf/**",
+    ".zcode/**",
+    "agents/**",
+    "gsd-core/**",
+    "gsd-file-manifest.json",
+    "gsd-install-state.json",
+    "scripts/changeset/**",
+    "scripts/fix-slash-commands.cjs",
+    "scripts/gen-capability-registry.cjs",
+    "scripts/gen-loop-host-contract.cjs",
+    "scripts/lib/**",
   ]),
 ]);
 

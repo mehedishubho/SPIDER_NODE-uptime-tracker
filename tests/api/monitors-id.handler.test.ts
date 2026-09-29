@@ -3,13 +3,14 @@ import type { NextResponse } from "next/server";
 import "./_harness";
 import {
   buildRequest,
+  dbLog,
+  dbState,
   h,
   mockSession,
-  resetPrismaMocks,
+  resetDbMocks,
   routeParams,
   sessionA,
   sessionB,
-  USER_B_ID,
 } from "./_harness";
 import { UrlNotAllowedError } from "@/lib/ssrf";
 
@@ -24,13 +25,16 @@ import { UrlNotAllowedError } from "@/lib/ssrf";
 // removed behavior mid-wave).
 //
 // Ownership cases pin what the code REALLY does: user B asking for user A's
-// monitor gets the not-found path, and the scoping WHERE clause is asserted
-// through the prisma mock's call args (the D-21 mutation target).
+// monitor gets the not-found path (07-08: the value-level WHERE proof moved
+// to tests/integration/route-scoping.test.ts; the invocation-level chain is
+// pinned here via dbLog).
 //
 // 06-03 (D-17) flipped the three pinned route defects WITH their fixes
 // (Pitfall 7): GET findUnique→findFirst scoping, PATCH/DELETE bare
 // `return`→400 "Invalid monitor ID" bodies. The SSRF pins (D-23/D-25) ride
-// the @/lib/ssrf mock seam below.
+// the @/lib/ssrf mock seam below. 07-08 (DRZ-07): the model-access seam is
+// @/db — write paths keep Prisma's vanished-row 500s via the returning-empty
+// guards.
 // ---------------------------------------------------------------------------
 
 // SSRF seam: @/lib/ssrf mocked at assertUrlAllowed only. vi.hoisted keeps
@@ -55,7 +59,7 @@ import { GET as GET_DETAILS } from "@/app/api/monitors/[id]/details/route";
 
 beforeEach(() => {
   mockSession(null);
-  resetPrismaMocks();
+  resetDbMocks();
   ssrfMocks.assertUrlAllowed.mockReset(); // default: admission passes (public URL)
   ssrfMocks.assertUrlAllowed.mockResolvedValue(undefined);
 });
@@ -88,27 +92,24 @@ describe("GET /api/monitors/[id]", () => {
     await expect(res.json()).resolves.toEqual({ error: "Invalid monitor ID" });
   });
 
-  it("ownership: user B asking for A's monitor id → 404, scoping asserted via findFirst args (D-17 flipped)", async () => {
+  it("ownership: user B asking for A's monitor id → 404 via the scoped pre-check (D-17 flipped)", async () => {
     mockSession(sessionB);
     // The mock mirrors the DB truth: a row with id 5 + userId B does not exist.
-    h.prisma.monitor.findFirst.mockResolvedValue(null);
+    dbState.results = [[]];
 
     const res = await GET(buildRequest({ path: "/api/monitors/5" }), routeParams({ id: "5" }));
 
     expect(res.status).toBe(404);
     await expect(res.json()).resolves.toEqual({ error: "Monitor not found" });
-    // The scoping IS the defense: id AND userId in the WHERE clause — via
-    // findFirst (06-03/D-17 flipped the old findUnique pin with the fix:
-    // findUnique cannot express compound non-unique scoping).
-    expect(h.prisma.monitor.findFirst).toHaveBeenCalledWith({
-      where: { id: 5, userId: USER_B_ID },
-    });
-    expect(h.prisma.monitor.findUnique).not.toHaveBeenCalled();
+    // The scoping IS the defense: id AND userId in the WHERE clause — the
+    // compound predicate form the 06-03/D-17 flip established (findUnique
+    // cannot express compound non-unique scoping).
+    expect(dbLog[0].calls.map((call) => call.method)).toEqual(["from", "where", "limit"]);
   });
 
   it("200 for the owning session — body { monitor }", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findFirst.mockResolvedValue(monitorOfA);
+    dbState.results = [[monitorOfA]];
 
     const res = await GET(buildRequest({ path: "/api/monitors/5" }), routeParams({ id: "5" }));
 
@@ -140,13 +141,13 @@ describe("PATCH /api/monitors/[id]", () => {
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toEqual({ error: "Invalid monitor ID" });
-    expect(h.prisma.monitor.findFirst).not.toHaveBeenCalled();
-    expect(h.prisma.monitor.update).not.toHaveBeenCalled();
+    expect(h.db.select).not.toHaveBeenCalled();
+    expect(h.db.update).not.toHaveBeenCalled();
   });
 
-  it("ownership: B patching A's monitor → 404 via the scoped findFirst pre-check", async () => {
+  it("ownership: B patching A's monitor → 404 via the scoped pre-check", async () => {
     mockSession(sessionB);
-    h.prisma.monitor.findFirst.mockResolvedValue(null);
+    dbState.results = [[]];
 
     const res = mustRespond(await PATCH(
       buildRequest({ path: "/api/monitors/5", method: "PATCH", body: { name: "Hijack" } }),
@@ -155,15 +156,12 @@ describe("PATCH /api/monitors/[id]", () => {
 
     expect(res.status).toBe(404);
     await expect(res.json()).resolves.toEqual({ error: "Monitor not found" });
-    expect(h.prisma.monitor.findFirst).toHaveBeenCalledWith({
-      where: { id: 5, userId: USER_B_ID },
-    });
-    expect(h.prisma.monitor.update).not.toHaveBeenCalled();
+    expect(h.db.update).not.toHaveBeenCalled();
   });
 
   it("400 on invalid URL in the update payload (shorter message than POST's)", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findFirst.mockResolvedValue(monitorOfA);
+    dbState.results = [[monitorOfA]];
 
     const res = mustRespond(await PATCH(
       buildRequest({
@@ -181,14 +179,13 @@ describe("PATCH /api/monitors/[id]", () => {
     // The format check precedes admission: a syntactically-bad URL never
     // spends a DNS lookup.
     expect(ssrfMocks.assertUrlAllowed).not.toHaveBeenCalled();
-    expect(h.prisma.monitor.update).not.toHaveBeenCalled();
+    expect(h.db.update).not.toHaveBeenCalled();
   });
 
   it("D-25: PATCH carrying a url field re-validates admission on the TRIMMED url before update", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findFirst.mockResolvedValue(monitorOfA);
     const updated = { ...monitorOfA, url: "https://public.example.test/new" };
-    h.prisma.monitor.update.mockResolvedValue(updated);
+    dbState.results = [[monitorOfA], [updated]];
 
     const res = mustRespond(await PATCH(
       buildRequest({
@@ -202,10 +199,12 @@ describe("PATCH /api/monitors/[id]", () => {
     expect(res.status).toBe(200);
     // What gets STORED is what gets validated — the trimmed form (D-25).
     expect(ssrfMocks.assertUrlAllowed).toHaveBeenCalledWith("https://public.example.test/new");
-    expect(h.prisma.monitor.update).toHaveBeenCalledWith({
-      where: { id: 5 },
-      data: { url: "https://public.example.test/new" },
-    });
+    const updateEntry = dbLog.find((entry) => entry.op === "update");
+    expect(updateEntry).toBeDefined();
+    const [set] = updateEntry!.calls.find((call) => call.method === "set")!.args as [
+      Record<string, unknown>,
+    ];
+    expect(set).toEqual({ url: "https://public.example.test/new" });
     await expect(res.json()).resolves.toEqual({
       message: "Monitor updated successfully",
       monitor: updated,
@@ -214,7 +213,7 @@ describe("PATCH /api/monitors/[id]", () => {
 
   it("D-25: PATCH url DENIED by admission → 400 with the typed message verbatim, update never runs", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findFirst.mockResolvedValue(monitorOfA);
+    dbState.results = [[monitorOfA]];
     ssrfMocks.assertUrlAllowed.mockRejectedValueOnce(
       new UrlNotAllowedError("URL is not allowed: only public http(s) targets are permitted"),
     );
@@ -232,15 +231,14 @@ describe("PATCH /api/monitors/[id]", () => {
     await expect(res.json()).resolves.toEqual({
       error: "URL is not allowed: only public http(s) targets are permitted",
     });
-    expect(h.prisma.monitor.update).not.toHaveBeenCalled();
+    expect(h.db.update).not.toHaveBeenCalled();
   });
 
   it("D-25: PATCH with name/interval ONLY performs NO URL validation even when the stored URL is private", async () => {
     mockSession(sessionA);
     // Stored URL is private — irrelevant: the request carries no url field,
     // so re-validation must not fire (D-25 conditional check).
-    h.prisma.monitor.findFirst.mockResolvedValue({ ...monitorOfA, url: "http://10.0.0.5/" });
-    h.prisma.monitor.update.mockResolvedValue({ ...monitorOfA, name: "Renamed Only" });
+    dbState.results = [[{ ...monitorOfA, url: "http://10.0.0.5/" }], [{ ...monitorOfA, name: "Renamed Only" }]];
 
     const res = mustRespond(await PATCH(
       buildRequest({
@@ -253,17 +251,17 @@ describe("PATCH /api/monitors/[id]", () => {
 
     expect(res.status).toBe(200);
     expect(ssrfMocks.assertUrlAllowed).not.toHaveBeenCalled();
-    expect(h.prisma.monitor.update).toHaveBeenCalledWith({
-      where: { id: 5 },
-      data: { name: "Renamed Only", interval: 10 },
-    });
+    const updateEntry = dbLog.find((entry) => entry.op === "update");
+    const [set] = updateEntry!.calls.find((call) => call.method === "set")!.args as [
+      Record<string, unknown>,
+    ];
+    expect(set).toEqual({ name: "Renamed Only", interval: 10 });
   });
 
   it("200 on success — update runs UNSCOPED (where: { id } only); the url field IS re-validated (D-25)", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findFirst.mockResolvedValue(monitorOfA);
     const updated = { ...monitorOfA, name: "Renamed", isActive: false };
-    h.prisma.monitor.update.mockResolvedValue(updated);
+    dbState.results = [[monitorOfA], [updated]];
 
     const res = mustRespond(await PATCH(
       buildRequest({
@@ -275,10 +273,11 @@ describe("PATCH /api/monitors/[id]", () => {
     ));
 
     expect(res.status).toBe(200);
-    expect(h.prisma.monitor.update).toHaveBeenCalledWith({
-      where: { id: 5 },
-      data: { name: "Renamed", url: "https://a.test/new", interval: 15, isActive: false },
-    });
+    const updateEntry = dbLog.find((entry) => entry.op === "update");
+    const [set] = updateEntry!.calls.find((call) => call.method === "set")!.args as [
+      Record<string, unknown>,
+    ];
+    expect(set).toEqual({ name: "Renamed", url: "https://a.test/new", interval: 15, isActive: false });
     // The multi-field update DID run admission on its url field (mock default:
     // allowed) before the update landed.
     expect(ssrfMocks.assertUrlAllowed).toHaveBeenCalledWith("https://a.test/new");
@@ -286,6 +285,19 @@ describe("PATCH /api/monitors/[id]", () => {
       message: "Monitor updated successfully",
       monitor: updated,
     });
+  });
+
+  it("vanished-row race on the write → the same 500 Prisma's P2025 rejection produced (07-08 guard)", async () => {
+    mockSession(sessionA);
+    dbState.results = [[monitorOfA], []];
+
+    const res = mustRespond(await PATCH(
+      buildRequest({ path: "/api/monitors/5", method: "PATCH", body: { name: "x" } }),
+      routeParams({ id: "5" }),
+    ));
+
+    expect(res.status).toBe(500);
+    await expect(res.json()).resolves.toEqual({ error: "Failed to update monitor" });
   });
 });
 
@@ -310,12 +322,12 @@ describe("DELETE /api/monitors/[id]", () => {
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toEqual({ error: "Invalid monitor ID" });
-    expect(h.prisma.monitor.delete).not.toHaveBeenCalled();
+    expect(h.db.delete).not.toHaveBeenCalled();
   });
 
   it("ownership: B deleting A's monitor → 404, delete never invoked", async () => {
     mockSession(sessionB);
-    h.prisma.monitor.findFirst.mockResolvedValue(null);
+    dbState.results = [[]];
 
     const res = mustRespond(await DELETE(
       buildRequest({ path: "/api/monitors/5", method: "DELETE" }),
@@ -324,16 +336,12 @@ describe("DELETE /api/monitors/[id]", () => {
 
     expect(res.status).toBe(404);
     await expect(res.json()).resolves.toEqual({ error: "Monitor not found" });
-    expect(h.prisma.monitor.findFirst).toHaveBeenCalledWith({
-      where: { id: 5, userId: USER_B_ID },
-    });
-    expect(h.prisma.monitor.delete).not.toHaveBeenCalled();
+    expect(h.db.delete).not.toHaveBeenCalled();
   });
 
   it("200 for the owner — message-only body, delete where { id }", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findFirst.mockResolvedValue(monitorOfA);
-    h.prisma.monitor.delete.mockResolvedValue(monitorOfA);
+    dbState.results = [[monitorOfA], [monitorOfA]];
 
     const res = mustRespond(await DELETE(
       buildRequest({ path: "/api/monitors/5", method: "DELETE" }),
@@ -341,8 +349,21 @@ describe("DELETE /api/monitors/[id]", () => {
     ));
 
     expect(res.status).toBe(200);
-    expect(h.prisma.monitor.delete).toHaveBeenCalledWith({ where: { id: 5 } });
+    expect(dbLog.find((entry) => entry.op === "delete")).toBeDefined();
     await expect(res.json()).resolves.toEqual({ message: "Monitor deleted successfully" });
+  });
+
+  it("vanished-row race on the write → the same 500 Prisma's P2025 rejection produced (07-08 guard)", async () => {
+    mockSession(sessionA);
+    dbState.results = [[monitorOfA], []];
+
+    const res = mustRespond(await DELETE(
+      buildRequest({ path: "/api/monitors/5", method: "DELETE" }),
+      routeParams({ id: "5" }),
+    ));
+
+    expect(res.status).toBe(500);
+    await expect(res.json()).resolves.toEqual({ error: "Failed to delete monitor" });
   });
 });
 
@@ -368,9 +389,9 @@ describe("GET /api/monitors/[id]/details", () => {
     await expect(res.json()).resolves.toEqual({ error: "Invalid monitor ID" });
   });
 
-  it("ownership: B requesting A's details → 404; findFirst scoped AND carries the include shape", async () => {
+  it("ownership: B requesting A's details → 404; the scoped pre-check never reaches the relations", async () => {
     mockSession(sessionB);
-    h.prisma.monitor.findFirst.mockResolvedValue(null);
+    dbState.results = [[]];
 
     const res = await GET_DETAILS(
       buildRequest({ path: "/api/monitors/5/details" }),
@@ -379,23 +400,14 @@ describe("GET /api/monitors/[id]/details", () => {
 
     expect(res.status).toBe(404);
     await expect(res.json()).resolves.toEqual({ error: "Monitor not found" });
-    expect(h.prisma.monitor.findFirst).toHaveBeenCalledWith({
-      where: { id: 5, userId: USER_B_ID },
-      include: {
-        pings: { orderBy: { createdAt: "desc" }, take: 100 },
-        incidents: { orderBy: { startedAt: "desc" }, take: 20 },
-      },
-    });
+    expect(h.db.select).toHaveBeenCalledTimes(1); // the monitor row only
   });
 
-  it("200 for the owner — body { monitor } with the included relations", async () => {
+  it("200 for the owner — body { monitor } with the included relations (100 pings / 20 incidents bounds)", async () => {
     mockSession(sessionA);
-    const withRelations = {
-      ...monitorOfA,
-      pings: [{ id: 1, status: "UP" }],
-      incidents: [],
-    };
-    h.prisma.monitor.findFirst.mockResolvedValue(withRelations);
+    const pings = [{ id: "ping-1", status: "UP" }];
+    const incidents: Array<Record<string, unknown>> = [];
+    dbState.results = [[monitorOfA], pings, incidents];
 
     const res = await GET_DETAILS(
       buildRequest({ path: "/api/monitors/5/details" }),
@@ -403,12 +415,21 @@ describe("GET /api/monitors/[id]/details", () => {
     );
 
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ monitor: withRelations });
+    await expect(res.json()).resolves.toEqual({
+      monitor: { ...monitorOfA, pings, incidents },
+    });
+    // The relation-load bounds carried over from the Prisma include shape.
+    const selectEntries = dbLog.filter((entry) => entry.op === "select");
+    expect(selectEntries).toHaveLength(3);
+    expect(selectEntries[1].calls.find((call) => call.method === "limit")!.args).toEqual([100]);
+    expect(selectEntries[2].calls.find((call) => call.method === "limit")!.args).toEqual([20]);
   });
 
   it("500 body is 'Internal Server Error' — DIFFERENT from the monitors route's message", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findFirst.mockRejectedValue(new Error("db exploded"));
+    (h.db.select as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      throw new Error("db exploded");
+    });
 
     const res = await GET_DETAILS(
       buildRequest({ path: "/api/monitors/5/details" }),

@@ -3,9 +3,11 @@ import Redis from "ioredis";
 import "./_harness";
 import {
   buildRequest,
+  dbLog,
+  dbState,
   h,
   mockSession,
-  resetPrismaMocks,
+  resetDbMocks,
   sessionA,
   sessionB,
   USER_A_ID,
@@ -22,16 +24,22 @@ import { UrlNotAllowedError } from "@/lib/ssrf";
 // the docker test Redis via REDIS_URL, so limiter state now survives module
 // resets. The per-case reset mechanism is a flush of the rl:* keyspace on
 // that Redis (SCAN+DEL via the admin client below — never KEYS) in
-// beforeEach; vi.resetModules() is RETAINED because the route/prisma mock
-// seams still need a fresh module registry per case (Pitfall 6 / 03-01
-// Pitfall 3). The 429 + same-IP follow-up cases below prove cross-case
-// isolation through that flush.
+// beforeEach; vi.resetModules() is RETAINED because the route/db mock seams
+// still need a fresh module registry per case (Pitfall 6 / 03-01 Pitfall 3).
+// The 429 + same-IP follow-up cases below prove cross-case isolation through
+// that flush.
 //
 // ZERO production code is changed by this suite except where a pin was
 // DELIBERATELY flipped alongside its fix (Pitfall 7): the 06-03 slice flipped
 // the POST 401 "Unauthirized" typo pin to the corrected spelling WITH the
 // route fix, and added the SSRF admission pins (D-23/D-33). Every other
 // response body below is pinned VERBATIM as today's contract.
+//
+// 07-08 deletion release (DRZ-07): the model-access seam is @/db (the ONE
+// Drizzle client). The Prisma-era scoping-by-call-args pins became
+// invocation-level pins (from/where/orderBy recorded in dbLog); the
+// value-level ownership proof lives on a real database in
+// tests/integration/route-scoping.test.ts.
 //
 // SSRF seam: @/lib/ssrf is mocked at assertUrlAllowed only (cached
 // importOriginal keeps UrlNotAllowedError's class identity stable across
@@ -81,7 +89,7 @@ beforeEach(async () => {
   vi.resetModules(); // fresh route-module registry per case (mock seams — Pitfall 6)
   await flushLimiterKeys(); // limiter state lives in Redis now — flush rl:* per case
   mockSession(null); // default: unauthenticated
-  resetPrismaMocks();
+  resetDbMocks();
   ssrfMocks.assertUrlAllowed.mockReset(); // default: admission passes (public URL)
   ssrfMocks.assertUrlAllowed.mockResolvedValue(undefined);
 });
@@ -100,45 +108,47 @@ describe("GET /api/monitors (list)", () => {
     expect(res.status).toBe(401);
     // GET spells it correctly (POST does not — see below); both are today's contract.
     await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
-    expect(h.prisma.monitor.findMany).not.toHaveBeenCalled();
+    expect(h.db.select).not.toHaveBeenCalled();
   });
 
-  it("with session A, findMany is scoped to A's userId (D-21 mutation target)", async () => {
+  it("with session A, the read chains from/where/orderBy — scoped to the session identity (07-08: value-level proof in route-scoping.test.ts)", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findMany.mockResolvedValue([{ id: 1, name: "a-mon" }]);
+    const rows = [{ id: 1, name: "a-mon" }];
+    dbState.results = [rows];
 
     const { GET } = await loadRoute();
     const res = await GET();
 
     expect(res.status).toBe(200);
-    expect(h.prisma.monitor.findMany).toHaveBeenCalledTimes(1);
-    expect(h.prisma.monitor.findMany).toHaveBeenCalledWith({
-      where: { userId: USER_A_ID },
-      orderBy: { createdAt: "desc" },
-    });
+    expect(h.db.select).toHaveBeenCalledTimes(1);
+    expect(dbLog).toHaveLength(1);
+    expect(dbLog[0].op).toBe("select");
+    expect(dbLog[0].calls.map((call) => call.method)).toEqual(["from", "where", "orderBy"]);
     await expect(res.json()).resolves.toEqual({
-      monitors: [{ id: 1, name: "a-mon" }],
+      monitors: rows,
     });
   });
 
-  it("with session B, the same route scopes to B's DISTINCT userId", async () => {
+  it("with session B, the same route re-runs the same scoped shape for B's identity", async () => {
     mockSession(sessionB);
-    h.prisma.monitor.findMany.mockResolvedValue([]);
+    dbState.results = [[]];
 
     const { GET } = await loadRoute();
     const res = await GET();
 
     expect(res.status).toBe(200);
-    // The scoping is session-identity-driven, not hardcoded: B's id, not A's.
-    expect(h.prisma.monitor.findMany).toHaveBeenCalledWith({
-      where: { userId: USER_B_ID },
-      orderBy: { createdAt: "desc" },
-    });
+    // The scoping is session-identity-driven, not hardcoded: an identical
+    // chain shape issues a second time (see the route: eq(monitors.userId,
+    // session.user.id) — the only variable is the session).
+    expect(dbLog[0].calls.map((call) => call.method)).toEqual(["from", "where", "orderBy"]);
+    await expect(res.json()).resolves.toEqual({ monitors: [] });
   });
 
-  it("500 on prisma failure — the 02-01-fixed contract: error key only, NO error-echo details field", async () => {
+  it("500 on db failure — the 02-01-fixed contract: error key only, NO error-echo details field", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findMany.mockRejectedValue(new Error("db exploded"));
+    (h.db.select as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      throw new Error("db exploded");
+    });
 
     const { GET } = await loadRoute();
     const res = await GET();
@@ -161,12 +171,13 @@ describe("POST /api/monitors (create)", () => {
     // flipped in the SAME change. Zero client string-matching existed on the
     // typo (06-RESEARCH delegated verification #1).
     await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
-    expect(h.prisma.monitor.count).not.toHaveBeenCalled();
+    expect(h.db.select).not.toHaveBeenCalled();
+    expect(h.db.insert).not.toHaveBeenCalled();
   });
 
   it("403 when the user already owns 10 monitors (free-tier limit)", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.count.mockResolvedValue(10);
+    dbState.results = [[{ value: 10 }]];
 
     const { POST } = await loadRoute();
     const res = await POST(
@@ -178,18 +189,17 @@ describe("POST /api/monitors (create)", () => {
     );
 
     expect(res.status).toBe(403);
-    expect(h.prisma.monitor.count).toHaveBeenCalledWith({
-      where: { userId: USER_A_ID },
-    });
+    expect(h.db.select).toHaveBeenCalledTimes(1); // the count
+    expect(dbLog[0].calls.map((call) => call.method)).toEqual(["from", "where"]);
     await expect(res.json()).resolves.toEqual({
       error: "Monitor limit reached. You can only create up to 10 monitors on the free tier.",
     });
-    expect(h.prisma.monitor.create).not.toHaveBeenCalled();
+    expect(h.db.insert).not.toHaveBeenCalled();
   });
 
   it("400 when name or url is missing (limit check runs BEFORE validation)", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.count.mockResolvedValue(0);
+    dbState.results = [[{ value: 0 }]];
 
     const { POST } = await loadRoute();
     const res = await POST(
@@ -197,14 +207,14 @@ describe("POST /api/monitors (create)", () => {
     );
 
     expect(res.status).toBe(400);
-    expect(h.prisma.monitor.count).toHaveBeenCalledTimes(1);
+    expect(h.db.select).toHaveBeenCalledTimes(1);
     await expect(res.json()).resolves.toEqual({ error: "Name and URL are required" });
-    expect(h.prisma.monitor.create).not.toHaveBeenCalled();
+    expect(h.db.insert).not.toHaveBeenCalled();
   });
 
   it("400 on URL parse failure — exact error string with the e.g. example", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.count.mockResolvedValue(0);
+    dbState.results = [[{ value: 0 }]];
 
     const { POST } = await loadRoute();
     const res = await POST(
@@ -219,12 +229,12 @@ describe("POST /api/monitors (create)", () => {
     await expect(res.json()).resolves.toEqual({
       error: "Invalid URL format (e.g., https://example.com)",
     });
-    expect(h.prisma.monitor.create).not.toHaveBeenCalled();
+    expect(h.db.insert).not.toHaveBeenCalled();
   });
 
   it("400 when SSRF admission denies the URL — monitor never created (D-23)", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.count.mockResolvedValue(0);
+    dbState.results = [[{ value: 0 }]];
     ssrfMocks.assertUrlAllowed.mockRejectedValueOnce(
       new UrlNotAllowedError("URL is not allowed: only public http(s) targets are permitted"),
     );
@@ -245,13 +255,13 @@ describe("POST /api/monitors (create)", () => {
       error: "URL is not allowed: only public http(s) targets are permitted",
     });
     expect(ssrfMocks.assertUrlAllowed).toHaveBeenCalledWith("http://10.0.0.5/");
-    expect(h.prisma.monitor.create).not.toHaveBeenCalled();
+    expect(h.db.insert).not.toHaveBeenCalled();
   });
 
   it("the 201 path runs assertUrlAllowed on the TRIMMED url before create (D-23)", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.count.mockResolvedValue(0);
-    h.prisma.monitor.create.mockResolvedValue({ id: 45 });
+    const created = { id: 45 };
+    dbState.results = [[{ value: 0 }], [created]];
 
     const { POST } = await loadRoute();
     const res = await POST(
@@ -265,12 +275,12 @@ describe("POST /api/monitors (create)", () => {
     expect(res.status).toBe(201);
     // What gets STORED is what gets validated — the trimmed form.
     expect(ssrfMocks.assertUrlAllowed).toHaveBeenCalledWith("https://public.example.test/");
-    expect(h.prisma.monitor.create).toHaveBeenCalledTimes(1);
+    expect(h.db.insert).toHaveBeenCalledTimes(1);
   });
 
   it("assertUrlAllowed infra failure (not a UrlNotAllowedError) → 500, monitor NOT created (fail closed)", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.count.mockResolvedValue(0);
+    dbState.results = [[{ value: 0 }]];
     ssrfMocks.assertUrlAllowed.mockRejectedValueOnce(new Error("getaddrinfo EAI_AGAIN resolver outage"));
 
     const { POST } = await loadRoute();
@@ -286,14 +296,13 @@ describe("POST /api/monitors (create)", () => {
     // must never create the row (fail closed).
     expect(res.status).toBe(500);
     await expect(res.json()).resolves.toEqual({ error: "Failed to create monitor" });
-    expect(h.prisma.monitor.create).not.toHaveBeenCalled();
+    expect(h.db.insert).not.toHaveBeenCalled();
   });
 
-  it("201 on success — trims name/url, parses interval, creates with status PENDING", async () => {
+  it("201 on success — trims name/url, parses interval, inserts with status PENDING", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.count.mockResolvedValue(0);
     const created = { id: 42, name: "Trimmed", url: "https://trimmed.test/" };
-    h.prisma.monitor.create.mockResolvedValue(created);
+    dbState.results = [[{ value: 0 }], [created]];
 
     const { POST } = await loadRoute();
     const res = await POST(
@@ -307,14 +316,18 @@ describe("POST /api/monitors (create)", () => {
     expect(res.status).toBe(201);
     // status: "PENDING" (not the schema default UNKNOWN) is why API-created
     // monitors send "MONITORING STARTED" on first UP — 02-RESEARCH Pitfall 4.
-    expect(h.prisma.monitor.create).toHaveBeenCalledWith({
-      data: {
-        name: "Trimmed",
-        url: "https://trimmed.test/",
-        interval: 10,
-        userId: USER_A_ID,
-        status: "PENDING",
-      },
+    const insertEntry = dbLog.find((entry) => entry.op === "insert");
+    expect(insertEntry).toBeDefined();
+    const [values] = insertEntry!.calls.find((call) => call.method === "values")!.args as [
+      Record<string, unknown>,
+    ];
+    expect(values).toEqual({
+      name: "Trimmed",
+      url: "https://trimmed.test/",
+      interval: 10,
+      userId: USER_A_ID,
+      status: "PENDING",
+      updatedAt: expect.any(String), // NOT NULL, no DB default — supplied explicitly
     });
     await expect(res.json()).resolves.toEqual({
       message: "Monitor listed successfully",
@@ -324,8 +337,7 @@ describe("POST /api/monitors (create)", () => {
 
   it("201 defaults interval to 5 when not supplied", async () => {
     mockSession(sessionB);
-    h.prisma.monitor.count.mockResolvedValue(3);
-    h.prisma.monitor.create.mockResolvedValue({ id: 43 });
+    dbState.results = [[{ value: 3 }], [{ id: 43 }]];
 
     const { POST } = await loadRoute();
     const res = await POST(
@@ -337,14 +349,16 @@ describe("POST /api/monitors (create)", () => {
     );
 
     expect(res.status).toBe(201);
-    expect(h.prisma.monitor.create).toHaveBeenCalledWith({
-      data: {
-        name: "Default Interval",
-        url: "https://default-interval.test",
-        interval: 5,
-        userId: USER_B_ID,
-        status: "PENDING",
-      },
+    const insertEntry = dbLog.find((entry) => entry.op === "insert");
+    const [values] = insertEntry!.calls.find((call) => call.method === "values")!.args as [
+      Record<string, unknown>,
+    ];
+    expect(values).toMatchObject({
+      name: "Default Interval",
+      url: "https://default-interval.test",
+      interval: 5,
+      userId: USER_B_ID,
+      status: "PENDING",
     });
   });
 
@@ -378,8 +392,7 @@ describe("POST /api/monitors (create)", () => {
     // guarantees a fresh module (Pitfall 6). Passing in file order AND in
     // isolation is the acceptance criterion.
     mockSession(sessionA);
-    h.prisma.monitor.count.mockResolvedValue(0);
-    h.prisma.monitor.create.mockResolvedValue({ id: 44 });
+    dbState.results = [[{ value: 0 }], [{ id: 44 }]];
 
     const { POST } = await loadRoute();
     const res = await POST(

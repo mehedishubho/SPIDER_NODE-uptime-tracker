@@ -1,5 +1,7 @@
-import { prisma } from "@/lib/prisma";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { db } from "@/db";
+import { incidents, monitors, users } from "@/db/schema";
 
 interface RouteParams {
   params: Promise<{ userId: string }>;
@@ -8,49 +10,59 @@ interface RouteParams {
 // ----------------------------------------------------
 // PUBLIC STATUS PAGE DATA (no auth required)
 // GET /api/status/[userId]
+//
+// 07-08 deletion release (DRZ-07): the Prisma-era reads are ported to the
+// ONE Drizzle client with identical projections — the { id, name } user row
+// (404 when missing), the ACTIVE-only monitor list (createdAt-asc), and the
+// 10 newest ONGOING incidents scoped through the monitor relation with the
+// monitor { name } projection.
 // ----------------------------------------------------
 export async function GET(req: Request, { params }: RouteParams) {
   try {
     const { userId } = await params;
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, name: true },
-    });
+    const [user] = await db
+      .select({ id: users.id, name: users.name })
+      .from(users)
+      .where(eq(users.id, userId));
 
     if (!user) {
       return NextResponse.json({ error: "Page not found" }, { status: 404 });
     }
 
-    const monitors = await prisma.monitor.findMany({
-      where: { userId, isActive: true },
-      select: {
-        id: true,
-        name: true,
-        url: true,
-        status: true,
-        uptimePercent: true,
-        responseTime: true,
-        lastChecked: true,
-        interval: true,
-      },
-      orderBy: { createdAt: "asc" },
-    });
+    const monitorRows = await db
+      .select({
+        id: monitors.id,
+        name: monitors.name,
+        url: monitors.url,
+        status: monitors.status,
+        uptimePercent: monitors.uptimePercent,
+        responseTime: monitors.responseTime,
+        lastChecked: monitors.lastChecked,
+        interval: monitors.interval,
+      })
+      .from(monitors)
+      .where(and(eq(monitors.userId, userId), eq(monitors.isActive, true)))
+      .orderBy(asc(monitors.createdAt));
 
-    // Fetch the most recent incidents for each monitor
-    const recentIncidents = await prisma.incident.findMany({
-      where: {
-        monitor: { userId },
-        status: "ONGOING",
-      },
-      include: {
-        monitor: { select: { name: true } },
-      },
-      orderBy: { startedAt: "desc" },
-      take: 10,
-    });
+    // The most recent ONGOING incidents across the user's monitors.
+    const recentIncidents = await db
+      .select({
+        id: incidents.id,
+        monitorId: incidents.monitorId,
+        status: incidents.status,
+        description: incidents.description,
+        startedAt: incidents.startedAt,
+        resolvedAt: incidents.resolvedAt,
+        monitor: { name: monitors.name },
+      })
+      .from(incidents)
+      .innerJoin(monitors, eq(incidents.monitorId, monitors.id))
+      .where(and(eq(monitors.userId, userId), eq(incidents.status, "ONGOING")))
+      .orderBy(desc(incidents.startedAt))
+      .limit(10);
 
-    return NextResponse.json({ user, monitors, recentIncidents }, { status: 200 });
+    return NextResponse.json({ user, monitors: monitorRows, recentIncidents }, { status: 200 });
   } catch (error) {
     console.error("Public Status API Error:", error);
     return NextResponse.json(

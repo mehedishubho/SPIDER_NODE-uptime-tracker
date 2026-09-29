@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { getAuthSession } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
 import { db } from "@/db";
 import { feedbacks, users } from "@/db/schema";
 import { apiError } from "@/lib/api-error";
@@ -15,10 +14,11 @@ import { getIP } from "@/lib/rate-limit";
 // allowed OR refused — logs ONE structured line (userId, route, IP, timestamp)
 // per D-16 (web-side console JSON per the route-file logging convention).
 //
-// GET's Prisma-era read becomes the equivalent Drizzle join (07-03), keeping
-// the user: { name, email, image } projection shape and the status filter +
-// createdAt-desc ordering. POST's create stays Prisma until the Prisma
-// deletion release (07-08) — only the session guard swaps here.
+// GET's read is the equivalent Drizzle join (07-03), keeping the
+// user: { name, email, image } projection shape and the status filter +
+// createdAt-desc ordering. 07-08 (deletion release, DRZ-07): POST's create
+// leaves Prisma for the ONE Drizzle client — the text PK has no DB default
+// (Prisma supplied a client-side cuid), so the insert generates a UUID.
 
 /** D-16: one structured audit line per admin-surface hit (allowed or refused). */
 function logAdminSurfaceAccess(userId: string, route: string, ip: string): void {
@@ -50,14 +50,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const feedback = await prisma.feedback.create({
-      data: {
+    const [feedback] = await db
+      .insert(feedbacks)
+      .values({
+        id: crypto.randomUUID(),
         userId: session.user.id,
         type,
         title,
         description,
-      },
-    });
+        updatedAt: new Date().toISOString(),
+      })
+      .returning();
 
     return NextResponse.json(feedback, { status: 201 });
   } catch (error) {

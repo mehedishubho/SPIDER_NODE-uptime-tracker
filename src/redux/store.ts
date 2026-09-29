@@ -16,7 +16,10 @@ import rootReducer from "./features/rootReducer";
 const persistConfig = {
   key: "root",
   storage,
-  whitelist: ["auth"],
+  // 07-08 deletion release (AUTH-08): the auth slice (the only whitelisted
+  // key — the token mirror) is deleted; nothing is persisted until a UI /
+  // domain slice earns it.
+  whitelist: [] as string[],
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

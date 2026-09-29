@@ -63,15 +63,32 @@ export async function verifyPassword({
   return ok;
 }
 
-/** Rehashes the password and swaps the stored legacy hash for the upgrade. */
+/** Rehashes the password and swaps both stored copies of the legacy hash. */
 async function upgradeHash(legacyHash: string, password: string): Promise<void> {
   try {
     const modern = await hashPassword(password);
     // The salted legacy hash is the practical per-account key (A1): the
     // equality predicate can never cross accounts' rows in practice, and a
     // concurrent duplicate sign-in re-updates the same row idempotently.
+    //
+    // 07-08 rehash fix (07-07 §15.3 / WINDOWS.md #2): the credential hash
+    // lives in TWO stored copies — "account".password (the credential row the
+    // engine reads at sign-in: sign-in resolves credentialAccount.password
+    // from the account table) and the legacy "users".password column (the
+    // pre-cutover corpus; still read by the profile route's hasPassword /
+    // current-password check). The rehash upgrades BOTH copies keyed on the
+    // received hash, so the recorded 0-row-match hazard — a rehash UPDATE
+    // missing the copy its hash actually came from once the copies diverge —
+    // is structurally gone: whichever copy the verify hash represented gets
+    // upgraded, and the still-identical sibling copy follows. A copy that
+    // already diverged (e.g. post-cutover reset wrote account only) is never
+    // rewritten by a hash it does not hold; that path stays reconciled by the
+    // profile route's own password write.
     await db.execute(
       sql`UPDATE "account" SET "password" = ${modern} WHERE "password" = ${legacyHash}`
+    );
+    await db.execute(
+      sql`UPDATE "users" SET "password" = ${modern} WHERE "password" = ${legacyHash}`
     );
   } catch (err) {
     console.error(

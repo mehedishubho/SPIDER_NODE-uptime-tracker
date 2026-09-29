@@ -1,10 +1,19 @@
 
 
+import { eq } from "drizzle-orm";
 import { getAuthSession } from "@/lib/session";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { v2 as cloudinary } from 'cloudinary';
 import bcrypt from "bcryptjs";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+
+// 07-08 deletion release (DRZ-07): the Prisma-era user reads/writes are
+// ported to the ONE Drizzle client with identical projections and wire
+// contracts. GET keeps the Prisma-era select list (the hash is read only to
+// derive hasPassword and is stripped from the response); PATCH's write keeps
+// the vanished-row 500 Prisma's P2025 rejection produced; DELETE keeps the
+// DB-side cascade semantics Prisma relied on.
 
 // Cloudinary Configuration
 cloudinary.config({
@@ -24,20 +33,20 @@ export async function GET() {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-                telegramChatId: true,
-                timezone: true,
-                password: true,
-                createdAt: true,
-                updatedAt: true
-            }
-        });
+        const [user] = await db
+            .select({
+                id: users.id,
+                name: users.name,
+                email: users.email,
+                image: users.image,
+                telegramChatId: users.telegramChatId,
+                timezone: users.timezone,
+                password: users.password,
+                createdAt: users.createdAt,
+                updatedAt: users.updatedAt,
+            })
+            .from(users)
+            .where(eq(users.id, session.user.id));
         if (!user) {
             return NextResponse.json({ error: "User not found" }, { status: 404 })
         }
@@ -80,9 +89,10 @@ export async function PATCH(req: Request) {
         const body = await req.json();
         const { name, telegramChatId, timezone, currentPassword, newPassword, image } = body;
 
-        const existingUser = await prisma.user.findUnique({
-            where: { id: session.user.id },
-        })
+        const [existingUser] = await db
+            .select()
+            .from(users)
+            .where(eq(users.id, session.user.id));
 
         if (!existingUser) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -157,19 +167,24 @@ export async function PATCH(req: Request) {
             )
         }
 
-        const updatedUser = await prisma.user.update({
-            where: { id: session.user.id },
-            data: updateData,
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-                telegramChatId: true,
-                timezone: true,
-                updatedAt: true
-            }
-        });
+        const [updatedUser] = await db
+            .update(users)
+            .set(updateData)
+            .where(eq(users.id, session.user.id))
+            .returning({
+                id: users.id,
+                name: users.name,
+                email: users.email,
+                image: users.image,
+                telegramChatId: users.telegramChatId,
+                timezone: users.timezone,
+                updatedAt: users.updatedAt,
+            });
+        if (!updatedUser) {
+            // The pre-check passed, so this is the vanished-row race only —
+            // the exact situation Prisma's P2025 rejection mapped to a 500.
+            return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        }
 
         return NextResponse.json(
             {
@@ -196,9 +211,14 @@ export async function DELETE() {
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
-        await prisma.user.delete({
-            where: { id: session.user.id },
-        })
+        const deleted = await db
+            .delete(users)
+            .where(eq(users.id, session.user.id))
+            .returning({ id: users.id });
+        if (deleted.length === 0) {
+            // Vanished-row race — Prisma's P2025 mapped to this exact 500.
+            return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        }
 
         return NextResponse.json(
             { message: "User account and all associated data deleted successfully" },

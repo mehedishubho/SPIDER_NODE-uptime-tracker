@@ -1,7 +1,9 @@
-import { prisma } from "@/lib/prisma";
+import { eq } from "drizzle-orm";
 import { sendTelegramAlert } from "@/lib/telegram";
 import { getAuthSession } from "@/lib/session";
 import { NextResponse } from "next/server";
+import { db } from "@/db";
+import { users } from "@/db/schema";
 
 export async function POST() {
     try {
@@ -14,12 +16,13 @@ export async function POST() {
             )
         }
 
-        // check user telegram id
-
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: { telegramChatId: true, name: true },
-        });
+        // check user telegram id (07-08 DRZ-07: the Prisma select became the
+        // equivalent one-row Drizzle projection — undefined when absent,
+        // falsy like Prisma's null)
+        const [user] = await db
+            .select({ telegramChatId: users.telegramChatId, name: users.name })
+            .from(users)
+            .where(eq(users.id, session.user.id));
 
 
         if (!user?.telegramChatId) {

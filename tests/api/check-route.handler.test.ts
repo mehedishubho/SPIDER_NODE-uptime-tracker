@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import "./_harness";
 import {
   buildRequest,
+  dbState,
   h,
   mockSession,
-  resetPrismaMocks,
+  resetDbMocks,
   routeParams,
   sessionA,
   sessionB,
@@ -17,14 +18,16 @@ import {
 // stateless-producer rewrite (API-01/02, SEC-05, D-01..D-06, D-28).
 //
 // Handler-import pattern (02-05 / monitors-id.handler.test.ts precedent): the
-// harness mocks next-auth + @/lib/prisma; the file-local seams below mock the
-// whole ENQUEUE path the route touches —
+// harness mocks the session door + @/db (the ONE Drizzle client — 07-08
+// deletion release, DRZ-07); the file-local seams below mock the whole
+// ENQUEUE path the route touches —
 //   - @/lib/queue-producer -> webQueueProducer() returning a fake checks queue
 //   - @/worker/queues      -> enqueueManualCheck (resolves { jobId } / rejects)
-//   - @/db                 -> the drizzle client's execute (next_check_at advance)
 //   - @/lib/rate-limit     -> rateLimit (the REAL limiter semantics — TTL
 //                             return, manual buckets, getIP spoof trio — live
 //                             in tests/integration/rate-limit.test.ts)
+// The next_check_at advance rides the harness's h.db.execute seam (the same
+// @/db mock that serves the ownership read).
 // No test dials a network target: the route module imports only these seams.
 // Mocks are plain hoisted consts with lazy vi.mock factories (Pitfall 6 —
 // never EXPORT vi.hoisted values).
@@ -36,7 +39,6 @@ const seams = vi.hoisted(() => {
     checksQueue,
     enqueueManualCheck: vi.fn(),
     rateLimit: vi.fn(),
-    dbExecute: vi.fn(),
   };
 });
 
@@ -44,7 +46,6 @@ vi.mock("@/lib/queue-producer", () => ({
   webQueueProducer: () => ({ checks: seams.checksQueue }),
 }));
 vi.mock("@/worker/queues", () => ({ enqueueManualCheck: seams.enqueueManualCheck }));
-vi.mock("@/db", () => ({ db: { execute: seams.dbExecute } }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: seams.rateLimit, getIP: vi.fn() }));
 
 // Imported AFTER the harness + seam mocks are registered (vitest hoists the
@@ -61,15 +62,14 @@ const activeMonitor = {
 
 beforeEach(() => {
   mockSession(null);
-  resetPrismaMocks();
+  resetDbMocks();
   seams.checksQueue.add.mockReset();
   seams.enqueueManualCheck.mockReset();
   seams.rateLimit.mockReset();
-  seams.dbExecute.mockReset();
   // Admit-by-default limiter; the 429 cases override per call.
   seams.rateLimit.mockResolvedValue({ success: true, remaining: 5, resetSeconds: 30 });
   // Advance-by-default drizzle UPDATE (one row claimed).
-  seams.dbExecute.mockResolvedValue({ rows: [{ id: 5 }] });
+  h.db.execute.mockResolvedValue({ rows: [{ id: 5 }] });
   seams.enqueueManualCheck.mockResolvedValue({
     jobId: "check-manual:5:1699999999999",
     priority: 1,
@@ -89,7 +89,7 @@ describe("POST /api/monitors/[id]/check — 202 enqueue contract (API-01, D-05)"
 
     expect(res.status).toBe(401);
     await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
-    expect(h.prisma.monitor.findFirst).not.toHaveBeenCalled();
+    expect(h.db.select).not.toHaveBeenCalled();
     expect(seams.rateLimit).not.toHaveBeenCalled();
     expect(seams.enqueueManualCheck).not.toHaveBeenCalled();
   });
@@ -102,24 +102,22 @@ describe("POST /api/monitors/[id]/check — 202 enqueue contract (API-01, D-05)"
     await expect(res.json()).resolves.toEqual({ error: "Invalid monitor ID" });
   });
 
-  it("ownership via findFirst scoped by userId (D-17 form): B checking A's monitor → 404 with this route's distinct message", async () => {
+  it("ownership via the compound id+userId scope (D-17 form): B checking A's monitor → 404 with this route's distinct message", async () => {
     mockSession(sessionB);
-    h.prisma.monitor.findFirst.mockResolvedValue(null);
+    dbState.results = [[]];
 
     const res = await postCheck();
 
     expect(res.status).toBe(404);
     await expect(res.json()).resolves.toEqual({ error: "Monitor not found or unauthorized" });
-    expect(h.prisma.monitor.findFirst).toHaveBeenCalledWith({
-      where: { id: 5, userId: USER_B_ID },
-    });
+    expect(h.db.select).toHaveBeenCalledTimes(1);
     expect(seams.rateLimit).not.toHaveBeenCalled();
     expect(seams.enqueueManualCheck).not.toHaveBeenCalled();
   });
 
   it("active owned monitor → 202 { jobId, queuedAt }; enqueue rides the web producer's checks queue through enqueueManualCheck", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findFirst.mockResolvedValue(activeMonitor);
+    dbState.results = [[activeMonitor]];
     let enqueueSeenAt = 0;
     seams.enqueueManualCheck.mockImplementation(async () => {
       enqueueSeenAt = Date.now();
@@ -156,7 +154,7 @@ describe("POST /api/monitors/[id]/check — 202 enqueue contract (API-01, D-05)"
 
   it("D-28 mirror: inactive monitor → legacy success-shaped 200 with an empty result, zero enqueue, zero limiter consumption", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findFirst.mockResolvedValue({ ...activeMonitor, isActive: false });
+    dbState.results = [[{ ...activeMonitor, isActive: false }]];
 
     const res = await postCheck();
 
@@ -166,7 +164,7 @@ describe("POST /api/monitors/[id]/check — 202 enqueue contract (API-01, D-05)"
       result: [],
     });
     expect(seams.rateLimit).not.toHaveBeenCalled();
-    expect(seams.dbExecute).not.toHaveBeenCalled();
+    expect(h.db.execute).not.toHaveBeenCalled();
     expect(seams.enqueueManualCheck).not.toHaveBeenCalled();
   });
 });
@@ -174,7 +172,7 @@ describe("POST /api/monitors/[id]/check — 202 enqueue contract (API-01, D-05)"
 describe("POST /api/monitors/[id]/check — limiter admission (SEC-05, D-06)", () => {
   it("per-(user,monitor) bucket exhausted (2nd within 30s) → 429 with a NUMERIC Retry-After from resetSeconds", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findFirst.mockResolvedValue(activeMonitor);
+    dbState.results = [[activeMonitor]];
     seams.rateLimit.mockResolvedValue({ success: false, remaining: 0, resetSeconds: 17 });
 
     const res = await postCheck();
@@ -184,13 +182,13 @@ describe("POST /api/monitors/[id]/check — limiter admission (SEC-05, D-06)", (
     await expect(res.json()).resolves.toEqual({
       error: "You're checking too often — try again shortly.",
     });
-    expect(seams.dbExecute).not.toHaveBeenCalled();
+    expect(h.db.execute).not.toHaveBeenCalled();
     expect(seams.enqueueManualCheck).not.toHaveBeenCalled();
   });
 
   it("per-user bucket exhausted (7th check within a minute) → 429 with THAT bucket's Retry-After", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findFirst.mockResolvedValue(activeMonitor);
+    dbState.results = [[activeMonitor]];
     seams.rateLimit
       .mockResolvedValueOnce({ success: true, remaining: 0, resetSeconds: 30 }) // per-monitor passes
       .mockResolvedValueOnce({ success: false, remaining: 0, resetSeconds: 23 }); // per-user exhausted
@@ -206,22 +204,22 @@ describe("POST /api/monitors/[id]/check — limiter admission (SEC-05, D-06)", (
 describe("POST /api/monitors/[id]/check — enqueue-time advance (Pitfall 8) + degradation (API-02)", () => {
   it("the drizzle next_check_at advance claims the row BEFORE the enqueue (Pitfall 8 ordering)", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findFirst.mockResolvedValue(activeMonitor);
+    dbState.results = [[activeMonitor]];
 
     await postCheck();
 
-    expect(seams.dbExecute).toHaveBeenCalledTimes(1);
+    expect(h.db.execute).toHaveBeenCalledTimes(1);
     // Invocation order: advance precedes enqueue — a scheduler tick can never
     // double-claim a manual check in flight.
-    expect(seams.dbExecute.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(h.db.execute.mock.invocationCallOrder[0]).toBeLessThan(
       seams.enqueueManualCheck.mock.invocationCallOrder[0],
     );
   });
 
   it("advance returns zero rows (monitor vanished/paused mid-flight) → 404, no enqueue", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findFirst.mockResolvedValue(activeMonitor);
-    seams.dbExecute.mockResolvedValue({ rows: [] });
+    dbState.results = [[activeMonitor]];
+    h.db.execute.mockResolvedValue({ rows: [] });
 
     const res = await postCheck();
 
@@ -232,7 +230,7 @@ describe("POST /api/monitors/[id]/check — enqueue-time advance (Pitfall 8) + d
 
   it("enqueue rejection (Redis down — the bounded producer rejects fast) → 503 with the service-unavailable body (API-02)", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findFirst.mockResolvedValue(activeMonitor);
+    dbState.results = [[activeMonitor]];
     seams.enqueueManualCheck.mockRejectedValue(
       new Error("Reached the max retries per request limit (current value: 1)."),
     );
@@ -245,9 +243,11 @@ describe("POST /api/monitors/[id]/check — enqueue-time advance (Pitfall 8) + d
     });
   });
 
-  it("a prisma read failure keeps the legacy 500 catch-all shape", async () => {
+  it("a monitor-read failure keeps the legacy 500 catch-all shape", async () => {
     mockSession(sessionA);
-    h.prisma.monitor.findFirst.mockRejectedValue(new Error("db exploded"));
+    (h.db.select as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      throw new Error("db exploded");
+    });
 
     const res = await postCheck();
 

@@ -1,11 +1,11 @@
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getAuthSession } from "@/lib/session";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { apiError } from "@/lib/api-error";
 import { rateLimit } from "@/lib/rate-limit";
 import { webQueueProducer } from "@/lib/queue-producer";
 import { db } from "@/db";
+import { monitors } from "@/db/schema";
 import { enqueueManualCheck } from "@/worker/queues";
 
 // ---------------------------------------------------------------------------
@@ -34,8 +34,13 @@ export async function POST(req: Request, { params }: RouteParams) {
         }
 
         // Ownership scoping IS the defense (D-17 form): a foreign id resolves
-        // to not-found, never to a readable distinction.
-        const monitor = await prisma.monitor.findFirst({ where: { id: monitorId, userId: session.user.id } });
+        // to not-found, never to a readable distinction. (07-08: the Prisma
+        // findFirst became the equivalent compound-predicate Drizzle select.)
+        const [monitor] = await db
+            .select()
+            .from(monitors)
+            .where(and(eq(monitors.id, monitorId), eq(monitors.userId, session.user.id)))
+            .limit(1);
 
         if (!monitor) {
             return apiError(404, "Monitor not found or unauthorized");

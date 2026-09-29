@@ -1,9 +1,11 @@
 import { timingSafeEqual } from "node:crypto";
-import { prisma } from "@/lib/prisma";
+import { eq } from "drizzle-orm";
 import { sendTelegramAlert } from "@/lib/telegram";
 import { NextResponse } from "next/server";
 import { rateLimit, getIP } from "@/lib/rate-limit";
 import { apiError } from "@/lib/api-error";
+import { db } from "@/db";
+import { users } from "@/db/schema";
 
 // ---------------------------------------------------------------------------
 // Telegram webhook (SEC-03 / S-2 closure, 06-03).
@@ -74,10 +76,19 @@ export async function POST(req: Request) {
 
 
                 if (userId) {
-                    const user = await prisma.user.update({
-                        where: { id: userId },
-                        data: { telegramChatId: chatId }
-                    })
+                    // 07-08 (DRZ-07): the Prisma update became the equivalent
+                    // Drizzle update-returning. An unknown deep-link id (row
+                    // vanished / bad payload) leaves the returning empty — the
+                    // exact situation Prisma's P2025 rejection mapped to the
+                    // catch's 500 'Webhook Handler Failed'.
+                    const [user] = await db
+                        .update(users)
+                        .set({ telegramChatId: chatId })
+                        .where(eq(users.id, userId))
+                        .returning({ id: users.id, name: users.name });
+                    if (!user) {
+                        throw new Error("Deep-link user not found");
+                    }
 
                     // Send the Telegram confirmation message — user.name is
                     // HTML-escaped before entering the parse_mode HTML body

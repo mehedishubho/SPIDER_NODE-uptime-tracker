@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vite
 import "./_harness";
 import {
   buildRequest,
+  dbLog,
+  dbState,
   h,
   mockSession,
-  resetPrismaMocks,
+  resetDbMocks,
   sessionA,
   sessionB,
   USER_A_ID,
@@ -21,41 +23,15 @@ import { GET, POST } from "@/app/api/feedback/route";
 // h.getServerSession instance backing @/lib/session's getAuthSession — the
 // fixtures below add the admin-plugin `role` (D-13 primitive, seeded on
 // users.role by 07-01 migration 0002) to the two distinct-id fixtures.
-// The read seam is @/db (07-03 converted GET's Prisma-era read to the
-// equivalent Drizzle join): a chainable thenable builder resolving fixture
-// rows, with the SELECT projection captured so the user: { name, email,
-// image } shape stays pinned.
+// The read/write seam is @/db — the ONE Drizzle client (the 07-03 converted
+// GET join; 07-08 moved POST's create off Prisma, DRZ-07). The SELECT
+// projection is captured so the user: { name, email, image } shape stays
+// pinned.
 //
 // Matrix (D-14): GET admin 200 / non-admin 403 / anon 401; POST stays
 // authenticated-for-all. D-16: ONE structured audit line per GET hit —
 // allowed AND refused — never on POST (GET is the admin surface).
 // ---------------------------------------------------------------------------
-
-const dbState = { result: [] as Array<Record<string, unknown>> };
-
-vi.mock("@/db", () => {
-  const makeBuilder = () => {
-    const builder = {
-      from: () => builder,
-      innerJoin: () => builder,
-      leftJoin: () => builder,
-      where: () => builder,
-      orderBy: () => builder,
-      limit: () => builder,
-      offset: () => builder,
-      then: (
-        resolve: (rows: Array<Record<string, unknown>>) => void,
-        reject: (error: unknown) => void,
-      ) => Promise.resolve(dbState.result).then(resolve, reject),
-    };
-    return builder;
-  };
-  return { db: { select: vi.fn(() => makeBuilder()) } };
-});
-
-// Imported AFTER the harness + the @/db registration (vi.mock hoists above
-// module imports regardless — the order documents the seam contract).
-import { db } from "@/db";
 
 const FIXTURE_ROWS = [
   {
@@ -86,9 +62,7 @@ let logSpy: Mock;
 
 beforeEach(() => {
   mockSession(null);
-  resetPrismaMocks();
-  dbState.result = [];
-  (db.select as unknown as Mock).mockClear();
+  resetDbMocks();
   logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 });
 
@@ -111,7 +85,7 @@ describe("GET /api/feedback — admin-gate matrix (D-14/R17)", () => {
 
     expect(res.status).toBe(401);
     await expect(res.json()).resolves.toEqual({ error: "Unauthorized" });
-    expect(db.select).not.toHaveBeenCalled();
+    expect(h.db.select).not.toHaveBeenCalled();
     // No session, no admin-surface line (the audit line needs a userId).
     expect(adminAccessLines()).toHaveLength(0);
   });
@@ -124,7 +98,7 @@ describe("GET /api/feedback — admin-gate matrix (D-14/R17)", () => {
     expect(res.status).toBe(403);
     await expect(res.json()).resolves.toEqual({ error: "Forbidden" });
     // Refused = no read.
-    expect(db.select).not.toHaveBeenCalled();
+    expect(h.db.select).not.toHaveBeenCalled();
 
     // D-16: exactly one structured line for the refused hit.
     const lines = adminAccessLines();
@@ -147,7 +121,7 @@ describe("GET /api/feedback — admin-gate matrix (D-14/R17)", () => {
     expect(res.status).toBe(200);
     // The projection captured at select() — the joined user shape is
     // preserved from the Prisma-era read.
-    const projection = (db.select as unknown as Mock).mock.calls[0][0] as {
+    const projection = (h.db.select as unknown as Mock).mock.calls[0][0] as {
       user: { name: unknown; email: unknown; image: unknown };
     };
     expect(Object.keys(projection.user).sort()).toEqual(["email", "image", "name"]);
@@ -179,7 +153,7 @@ describe("POST /api/feedback — stays authenticated-for-all (D-14)", () => {
   it("201 for a plain authenticated user — NO admin gate, NO D-16 line (POST is not the admin surface)", async () => {
     mockSession(sessionNonAdmin);
     const created = { id: "fb-2", userId: USER_B_ID, type: "FEATURE", title: "t", description: "d" };
-    h.prisma.feedback.create.mockResolvedValue(created);
+    dbState.results = [[created]];
 
     const res = await POST(
       buildRequest({
@@ -190,8 +164,16 @@ describe("POST /api/feedback — stays authenticated-for-all (D-14)", () => {
     );
 
     expect(res.status).toBe(201);
-    expect(h.prisma.feedback.create).toHaveBeenCalledWith({
-      data: { userId: USER_B_ID, type: "FEATURE", title: "t", description: "d" },
+    const insertEntry = dbLog.find((entry) => entry.op === "insert");
+    expect(insertEntry).toBeDefined();
+    const [values] = insertEntry!.calls.find((call) => call.method === "values")!.args as [
+      Record<string, unknown>,
+    ];
+    expect(values).toMatchObject({
+      userId: USER_B_ID,
+      type: "FEATURE",
+      title: "t",
+      description: "d",
     });
     expect(adminAccessLines()).toHaveLength(0);
   });
@@ -199,7 +181,7 @@ describe("POST /api/feedback — stays authenticated-for-all (D-14)", () => {
   it("201 for an admin too — the gate never narrows POST", async () => {
     mockSession(sessionAdmin);
     const created = { id: "fb-3", userId: USER_A_ID, type: "BUG", title: "t", description: "d" };
-    h.prisma.feedback.create.mockResolvedValue(created);
+    dbState.results = [[created]];
 
     const res = await POST(
       buildRequest({
@@ -223,6 +205,6 @@ describe("POST /api/feedback — stays authenticated-for-all (D-14)", () => {
     );
 
     expect(res.status).toBe(401);
-    expect(h.prisma.feedback.create).not.toHaveBeenCalled();
+    expect(h.db.insert).not.toHaveBeenCalled();
   });
 });

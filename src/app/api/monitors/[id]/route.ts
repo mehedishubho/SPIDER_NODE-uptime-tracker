@@ -1,9 +1,18 @@
-import { prisma } from "@/lib/prisma";
+import { and, eq } from "drizzle-orm";
 import { getAuthSession } from "@/lib/session";
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api-error";
 import { assertUrlAllowed, UrlNotAllowedError } from "@/lib/ssrf";
+import { db } from "@/db";
+import { monitors } from "@/db/schema";
 
+// 07-08 deletion release (DRZ-07): the Prisma-era queries are ported to the
+// ONE Drizzle client. The 06-03/D-17 ownership scoping (id AND userId in the
+// WHERE — findFirst semantics, not a unique lookup) carries over verbatim as
+// the compound `and(eq(id), eq(userId))` predicate; the PATCH/DELETE
+// pre-checks keep their not-found paths, and the write paths keep Prisma's
+// vanished-row behavior (an empty RETURNING maps to the same 500 the Prisma
+// P2025 rejection produced).
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -27,12 +36,13 @@ export async function GET(req: Request, { params }: RouteParams) {
             return NextResponse.json({ error: "Invalid monitor ID" }, { status: 400 });
         }
 
-        // 06-03/D-17: findFirst — the compound { id, userId } scope is not a
-        // unique lookup, and findUnique cannot express it; the ownership
-        // WHERE clause IS the defense.
-        const monitor = await prisma.monitor.findFirst({
-            where: { id: monitorId, userId: session.user.id }
-        });
+        // 06-03/D-17: the compound { id, userId } scope is not a unique
+        // lookup; the ownership WHERE clause IS the defense.
+        const [monitor] = await db
+            .select()
+            .from(monitors)
+            .where(and(eq(monitors.id, monitorId), eq(monitors.userId, session.user.id)))
+            .limit(1);
 
         if (!monitor) {
             return NextResponse.json({ error: "Monitor not found" }, { status: 404 })
@@ -74,13 +84,15 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         } catch (e) {
             // Ignore JSON parse error if body is empty (manual ping)
         }
-        
+
         const { name, url, interval, isActive } = body;
 
         //check if the monitor exists and belong to the user
-        const existingMonitor = await prisma.monitor.findFirst({
-            where: { id: monitorId, userId: session.user.id },
-        })
+        const [existingMonitor] = await db
+            .select()
+            .from(monitors)
+            .where(and(eq(monitors.id, monitorId), eq(monitors.userId, session.user.id)))
+            .limit(1);
 
         if (!existingMonitor) {
             return NextResponse.json({ error: "Monitor not found" }, { status: 404 })
@@ -115,10 +127,17 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         if (interval) updateData.interval = parseInt(interval);
         if (isActive !== undefined) updateData.isActive = Boolean(isActive);
 
-        const updatedMonitor = await prisma.monitor.update({
-            where: { id: monitorId },
-            data: updateData,
-        });
+        const [updatedMonitor] = await db
+            .update(monitors)
+            .set(updateData)
+            .where(eq(monitors.id, monitorId))
+            .returning();
+        if (!updatedMonitor) {
+            // The ownership pre-check passed, so this is the vanished-row race
+            // only — the exact situation Prisma's P2025 rejection mapped to a
+            // 500. Keep the wire contract identical.
+            return NextResponse.json({ error: "Failed to update monitor" }, { status: 500 });
+        }
 
         return NextResponse.json(
             { message: "Monitor updated successfully", monitor: updatedMonitor },
@@ -154,17 +173,24 @@ export async function DELETE(req: Request, { params }: RouteParams) {
             return apiError(400, "Invalid monitor ID");
         }
 
-        const existingMonitor = await prisma.monitor.findFirst({
-            where: { id: monitorId, userId: session.user.id },
-        });
+        const [existingMonitor] = await db
+            .select()
+            .from(monitors)
+            .where(and(eq(monitors.id, monitorId), eq(monitors.userId, session.user.id)))
+            .limit(1);
 
         if (!existingMonitor) {
             return NextResponse.json({ error: 'Monitor not found' }, { status: 404 });
         }
 
-        await prisma.monitor.delete({
-            where: { id: monitorId },
-        });
+        const deleted = await db
+            .delete(monitors)
+            .where(eq(monitors.id, monitorId))
+            .returning();
+        if (deleted.length === 0) {
+            // Vanished-row race — Prisma's P2025 mapped to this exact 500.
+            return NextResponse.json({ error: 'Failed to delete monitor' }, { status: 500 });
+        }
 
         return NextResponse.json(
             { message: 'Monitor deleted successfully' },

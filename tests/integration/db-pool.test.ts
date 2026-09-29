@@ -7,17 +7,17 @@ import { describe, expect, it, vi } from "vitest";
 // process is allowed to own (web budget: max 10, nonzero connect timeout so
 // pool exhaustion fails fast instead of hanging, statement/idle-in-transaction
 // caps sized above the §13.7 retention-delete pass). The pool lives in a
-// neutral module so neither ORM owns it — Prisma wraps it via PrismaPg
-// today, the Drizzle client attaches to the SAME instance in 03-04
-// (drizzle({ client: pgPool })), and Phase 4's worker creates its OWN pool
-// (max 20) against its own budget. Pools are per-process, never shared
-// across processes (D-06) — the budget counts pools, not ORMs (§25.3).
+// neutral module so no ORM owns it — the Drizzle client attaches to the
+// instance in 03-04 (drizzle({ client: pgPool })); the Prisma wrapper that
+// used to share it was deleted with the 07-08 deletion release (DRZ-07), and
+// Phase 4's worker creates its OWN pool (max 20) against its own budget.
+// Pools are per-process, never shared across processes (D-06) — the budget
+// counts pools, not ORMs (§25.3).
 //
 // The database is the real docker test Postgres (vitest.config.ts wires
 // DATABASE_URL to :5453); nothing here is mocked. The singleton-identity
 // case relies on the globalThis cache being ACTIVE — vitest runs with
-// NODE_ENV=test (non-production), the same condition the module caches
-// under (HMR-survival shape shared with src/lib/prisma.ts).
+// NODE_ENV=test (non-production), the same condition the module caches under.
 // ---------------------------------------------------------------------------
 
 import type { Pool } from "pg";
@@ -55,20 +55,5 @@ describe("db-pool — §25.2 pinned options + per-process singleton (DAT-09, D-0
 
     const result = await pgPool.query<{ ok: number }>("select 1 as ok");
     expect(result.rows[0]?.ok).toBe(1);
-  });
-
-  it("4. Prisma still queries through the shared pool (prisma.$queryRaw select 1, no own Pool)", async () => {
-    const { pgPool } = await freshPoolModule();
-    // The @/lib/prisma singleton wraps PrismaPg(pgPool) — never a new Pool —
-    // so a resolving $queryRaw is proof Prisma rides the shared pool (03-02
-    // Task 2: zero-Prisma-behavior-change extraction).
-    const { prisma } = await import("@/lib/prisma");
-
-    const rows = await prisma.$queryRaw<{ ok: number }[]>`select 1 as ok`;
-    expect(rows[0]?.ok).toBe(1);
-
-    // Same instance the pool module hands out — one pool, two consumers.
-    const globalForPool = globalThis as unknown as { pgPool?: Pool };
-    expect(globalForPool.pgPool).toBe(pgPool);
   });
 });

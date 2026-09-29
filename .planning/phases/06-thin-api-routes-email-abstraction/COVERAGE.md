@@ -34,6 +34,6 @@ of every integrated external API is INTEGRATE unless a one-line OPT-OUT reason i
 
 ## Gap-closure plans (06-06)
 
-No external API integration: 06-06 modifies failure-path semantics of the EXISTING Redis/BullMQ
+06-06 integrates no external API: it modifies failure-path semantics of the EXISTING Redis/BullMQ
 enqueue (compensating next_check_at restore + producer-side deadline) and adds no new external
 API, SDK, or capability. All rows above belong to the executed plans 06-01..06-05.

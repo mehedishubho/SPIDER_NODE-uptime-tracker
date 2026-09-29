@@ -3,17 +3,18 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 07
 current_phase_name: Better Auth Cutover, Admin Gating & Prisma Removal
+current_plan: 11
 status: executing
-stopped_at: "Completed 07-10-PLAN.md - gap G-07-63 closed (CR-01 wire timestamps + WR-01/WR-02), wire suite RED->GREEN, verify green modulo documented :9090 exception"
-last_updated: "2026-09-29T20:38:52.422Z"
+stopped_at: "Completed 07-11-PLAN.md - gap-closure wave COMPLETE (11/11): WR-04 closed, armed remnant gate covers scripts/ with pinned teeth + narrow exemptions; phase returns to /gsd-verify-work 07"
+last_updated: "2026-09-29T21:00:20.470Z"
 last_activity: 2026-09-29
 last_activity_desc: Phase 07 execution started
-state_head: 7c102563ec0249d3a392057ae109eb35da53c337
+state_head: e52dada62c500e6b796af66477413669cf52afe0
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 61
-  completed_plans: 60
+  completed_plans: 61
 milestone_name: milestone
 ---
 
@@ -28,12 +29,15 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 
 ## Current Position
 
-Phase: 07 (Better Auth Cutover, Admin Gating & Prisma Removal) — gap-closure wave in progress (10 of 11 plan docs; 07-10 closed COMPLETE)
-Plan: 07-10 of 07-11 (07-10 closed COMPLETE — gap G-07-63 closed: CR-01 ISO-8601 UTC wire contract restored via the serialize seam, WR-01/WR-02 fixed, wire suite RED→GREEN; next: 07-11 WR-04)
-Status: executing — phase returns to `/gsd-verify-work 07` after the gap-closure wave; DRZ-07 shared requirement intentionally NOT re-marked (sibling 07-11 also declares it, shared-ID gate)
-Last activity: 2026-09-29 — 07-10 gap closure executed (wire timestamps ISO-8601 UTC on all 8 ported routes, poll timezone-proof, verify green modulo the documented :9090 exception)
+Current Plan: 11
+Total Plans in Phase: 11
 
-Progress: [███████████████████████] 60/61 plans (98%)
+Phase: 07 (Better Auth Cutover, Admin Gating & Prisma Removal) — gap-closure wave COMPLETE (11 of 11 plan docs; 07-11 closed COMPLETE)
+Plan: 07-11 of 07-11 (07-11 closed COMPLETE — WR-04 closed: armed remnant gate default perimeter extended to scripts/, deleted-module FILE-NAME check + three exact-filename token-only exemptions pinned RED→GREEN; real-repo scripts/ scan green at 466 files)
+Status: executing — phase returns to `/gsd-verify-work 07`; AUTH-07/DRZ-07 verified already [x] complete in REQUIREMENTS.md (07-08/07-10 shared-ID close) — ready-ids re-check returned them ready, no re-mark needed
+Last activity: 2026-09-29 — 07-11 gap closure executed (blast-script recreation trips by file name with zero imports; in-tree historical tools exactly exempted, rename-trip scope pinned; verify green modulo the documented :9090 exception)
+
+Progress: [████████████████████████] 61/61 plans (100%)
 
 ## Performance Metrics
 
@@ -123,6 +127,7 @@ Progress: [███████████████████████
 | Phase 07 P07-08 | ~2h (halted on deploy) | 2 tasks | 56 files |
 | Phase 07 P09 | ~17min (close-out session; Task 1 resumed prior-session work) | 3 tasks | 11 files |
 | Phase 07 P07-10 | 30 min | 3 tasks | 17 files |
+| Phase 07 P07-11 | 14 min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -323,6 +328,8 @@ Recent decisions affecting current work:
 - [Phase 07]: Rollback form change authored into 4e: no un-drop migration exists - the pre-drop pg_dump is the ONLY revert; the redeploy lever dies with the legacy tables by design (D-32)
 - [Phase 07]: Rehearsal pipeline extended by carve-out inventory only (03-05 rule): sanctioned drops render BEFORE-count-as-rows-dropped, the DDL delta stays FATAL on any non-sanctioned removal (T-07-32), D-19 N/A for a drop-only set; AUTH-07 closed at closeout - phase 13/13 Complete
 - [Phase 07]: 07-10: naive Postgres timestamp text normalized at ONE API seam (src/lib/serialize.ts iso/isoRow) instead of schema mode changes - schema:gate-protected file untouched; iso() canonicalizes before parsing (space-T, bare +HH) because the review draft failed ISO-Z passthrough
+- [Phase 07]: 07-11: the WR-04 token exemption covers BOTH token-count checks (CRON_MODE count + RETIRED_ENV_TOKENS loop) keyed by exact basename-with-extension — the plan's still-applies list (imports/file names/deps/route paths) omits CRON_MODE, the self-scan paradox names it, and the default run + real-repo scripts pin cannot green otherwise; renamed copies trip (pin 5h)
+- [Phase 07]: 07-11: deleted-module file-NAME findings use distinct wording from specifier findings so pins assert which check fired; DEFAULT_ROOTS gains scripts/ as an unconditional push (executable root, fail-loud from a cwd without it)
 
 ### Pending Todos
 
@@ -347,6 +354,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-29T20:38:42.807Z
-Stopped at: Completed 07-10-PLAN.md - gap G-07-63 closed (CR-01 wire timestamps + WR-01/WR-02), wire suite RED->GREEN, verify green modulo documented :9090 exception
+Last session: 2026-09-29T21:00:19.714Z
+Stopped at: Completed 07-11-PLAN.md - gap-closure wave COMPLETE (11/11): WR-04 closed, armed remnant gate covers scripts/ with pinned teeth + narrow exemptions; phase returns to /gsd-verify-work 07
 Resume file: None

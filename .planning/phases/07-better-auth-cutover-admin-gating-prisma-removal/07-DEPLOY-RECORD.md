@@ -993,3 +993,76 @@ this plan. The standing stack (drop web :3007 + worker :9090, Redis :6391, DB :5
 pre-drop backup stay in gitignored `.snapshots/`.
 
 ---
+
+## 18. Phase closeout â DRZ-07 final proof + requirement dispositions (07-09 Task 3, 2026-09-29T16:1xZ)
+
+### 18.1 DRZ-07 final proof â the ORM exit is complete
+
+| Proof | Command / check | Result |
+| --- | --- | --- |
+| Banned dependencies | the 07-08 Task-2 node assertion over `package.json` dependencies+devDependencies against the armed gate's canonical 9-name list (`node-cron`, `@types/node-cron`, `next-auth`, `@auth/prisma-adapter`, `@prisma/client`, `@prisma/adapter-pg`, `prisma`, `js-cookie`, `@types/js-cookie`) | **CLEAN â 0 of 9 present** (output pasted verbatim: `banned-dependency assertion: CLEAN (0 of 9 present in dependencies/devDependencies)`) |
+| Prisma directories | filesystem check | `prisma/` **absent** Â· `src/generated/prisma` **absent** Â· `src/lib/prisma.ts` **absent** |
+| Armed remnant gate | `pnpm cron:remnants` (PHASE7_ENFORCED) | **GREEN â 426 code file(s) scanned** across src, dist\worker.js, .next\server, playwright.config.ts, next.config.ts, ecosystem.config.js (+ package.json), no cron remnants (D-41/D-27) and no Phase-7 auth/Prisma remnants (`.snapshots/0709-final-gate.log`) |
+| Schema agreement | `pnpm schema:gate` | **green â empty diff, no forbidden tokens** (migrate 0.83s Â· pull 1.70s Â· diff 0.00s Â· scan 0.03s) against the migrated test DB carrying 0003 |
+
+### 18.2 Per-requirement disposition table (13 IDs â evidence citations)
+
+| Requirement | Disposition | Evidence (this record unless noted) |
+| --- | --- | --- |
+| AUTH-01 â bcrypt-compatible hash/verify, A-1 prefix routing | **Complete** | Â§6 (snapshot leg 4: rehearse-time `$2b$10$` hash through the A-1 router); Â§13.3 leg a (production canary, credential hash re-salted on login, A-1 bcrypt-10 parity); 07-03 integration suite |
+| AUTH-02 â canary login through the preserved hash path (snapshot â production) | **Complete** | Â§6 (snapshot); Â§13.3 leg a (flip, proven twice); Â§16.4 smoke (b) (post-deletion); **Â§17.3 step 7b (post-DROP â the final form)** |
+| AUTH-03 â adapter bound to `users`; `account`/`session`/`verification`; boolean backfill | **Complete** | 0002 migration (07-06); Â§10 D-40 snapshot pass; Â§16.6 A.1 restore replay (5 credential rows with preserved hashes, `email_verified=true` on 2 users); 07-08 cutover-migration suite (cases 1/4/5/6 green; 2-3 self-skipped post-0003 per Â§17.2 â their proof recorded at Â§10/Â§13.3) |
+| AUTH-04 â session strategy: cookieCache, no per-request DB hit (A-2) | **Complete** | 07-03 config (secondaryStorage + DB-backed rows, cookieCache unchanged â 07-03 SUMMARY decision); Â§16.4 smoke (b): the flip-era session cookie **survived the deletion web/worker restart** (DB-backed per 07-03) |
+| AUTH-05 â OAuth reshaped to `account`, providerId casing dry-run-confirmed, refresh tokens preserved | **Complete** | Â§10 D-40 snapshot pass B (google 2/1/2 incl. NULL-refresh propagation, github 1/1/1 â non-vacuous synthetic fixtures); Â§13.3 legs b/c + D-40 live assertion **dispositioned not-exercisable** (zero OAuth accounts ever existed; verbatim assertion RESERVED for the server deploy) |
+| AUTH-06 â forced re-login announced in-app/email | **Complete** | Â§12.3 blast (5/5 enqueued, drained 0-failed, D-06-approved bytes); Â§13.3 legs g (strip live in window) + h; window served 2026-09-24..2026-10-08 until the D-05 deletion |
+| **AUTH-07 â NextAuth deps/routes removed; legacy tables read-only one release, THEN dropped** | **Complete (closed by 07-09)** | deps + custom routes deleted (`b20b599`/`9dfabd8`; armed gate GREEN ever since); read-only retention flip 2026-09-24T19:00Z â deletion deploy 2026-09-29T14:53Z (Â§16.4 legacy-substrate assertion: all four present, read-only); **DROPPED 2026-09-29T15:5xZ** per Â§17.3 (`legacy_left=0`, journal 4) â rehearsed first (Â§17.2), backup as sole rollback artifact (Â§17.3 step 2), post-drop canary green (Â§17.3 step 7b). D-27 honored: the tables' data (0/4/0/0 rows) dropped WITH them, no export/archive |
+| AUTH-08 â duplicated client auth state removed | **Complete** | `b20b599` (baseApi token mirror, authSlice + consumers, js-cookie); 07-08 SUMMARY D4 (handler 401 sweeps + unauthenticated e2e) |
+| AUTH-09 â lazy rehash-on-login upgrades the stored hash | **Complete** | 07-03 implementation; 07-08 both-copies fix (`b20b599`; WINDOWS #2 closed â account + users copies keyed on the received hash, divergence case pinned, tests/lib/auth-password.test.ts 7/7) |
+| DRZ-07 â Prisma fully removed | **Complete** | **Â§18.1 final proof** (this section): 0/9 banned deps, prisma dirs absent, armed gate 426 files, schema:gate green; 11-route Drizzle port with wire contracts preserved (`b20b599`); no Prisma generate in any build since (Â§16.4/Â§17.3) |
+| EML-04 â Better Auth hooks delegate to the queue | **Complete** | 07-03 hook wiring; Â§9 round-trips (verification + reset console-delivered on the snapshot); Â§13.3 leg d (production reset round-trip, D-06-approved bytes, 0 failed) |
+| SEC-04 â admin role via plugin; feedback admin-gated; queue UI gated + allowlisted | **Complete** | Â§7 + Â§13.3 leg e (feedback matrix 401/200/403 â R17 fixed); Â§16.4 smoke (c) (post-deletion matrix); D-14/D-16 audit lines |
+| OBS-04 â Bull Board behind admin auth + IP allowlist | **Complete** | Â§8 gate matrix (200 admin / 403 non-admin / 403 no-session / 403 ip_not_allowlisted); Â§13.3 leg f; Â§16.4 smoke (d); Â§17.3 step 5 (403 unauth post-drop) |
+
+### 18.3 D-05 delete-after-use â final status
+
+The blast script and notice-window envs are **gate-blocked remnants with their env entries
+REMOVED** (not merely annotated):
+
+- `scripts/send-relogin-blast.mjs` â **deleted** at `b20b599` (07-08); its basename is in the
+  armed gate's deleted-basename class.
+- `AUTH_NOTICE_START` / `AUTH_NOTICE_END` â **removed from `.env.example`** at `9dfabd8`
+  (07-08); both names are in the armed gate's retired-token class. The deployed env contracts
+  carry neither (Â§16.4 step 5, Â§17.3 step 6).
+- The strip surface: component + test + e2e spec + login-page mount deleted (`9dfabd8`);
+  copy-marker count **0** on production post-deletion (Â§16.4) and **0** post-drop (Â§17.3 step 6).
+- The armed gate (`PHASE7_ENFORCED`) keeps every class out permanently â GREEN on the deployed
+  drop-release tree (Â§17.3 step 7c / Â§18.1).
+
+### 18.4 Reconciliation notes â the sanctioned deltas, explicit for review
+
+1. **D-30 interrupted-window rows (machine event):** the flipâsoak window rows (post-dump
+   pings, soak sessions, the Â§15.4 recovery hash) were lost with the destroyed volume and
+   accepted under operator decision A (Â§16.6 â the D-30 reconciliation note for that window).
+   THIS plan's drop released no additional rows: the four tables held 0/4/0/0 read-only rows
+   (Â§17.3 pre-drop census); the 4 `verification_tokens` rows dropped WITH the table per D-27.
+2. **A4 duplicate-signup toast delta (07-RESEARCH A4):** registration with an existing email
+   returns the engine's enumeration-protection synthetic 200, so the UI shows the success
+   toast instead of the legacy 409 error â surfaced verbatim for UAT in 07-04; accepted delta.
+3. **D-24 sign-in-limit addition:** the Better Auth engine rate limiter now caps sign-in
+   attempts (3 per 10 s per the 07-08 finding) â a deliberate addition on the parity side
+   (strictly tighter than the legacy coverage); e2e retries outlive the window rather than
+   disabling the guard.
+4. **D-28 revoke-on-reset delta:** password reset now revokes other sessions (Better Auth
+   native) where legacy JWTs were never re-checked â the phase's ONE deliberate
+   session-behavior change, strictly safer; the Â§16.6 A.2 recovery round-trip exercised the
+   reset path live.
+5. **WINDOWS ledger at close:** #1 (07-07 e2e unrun-verify) closed 07-08; #2 (rehash field
+   mismatch) closed 07-08 (`b20b599`); #3 (deploy blocker) closed with the 07-08 deploy
+   (2026-09-29T14:58Z); #4 (profile-route password-flow surface, engine-copy gap) remains
+   **open â Phase-8 scope**, not an auth-path defect.
+
+**Phase 7 close:** every requirement's evidence is cited above; the expand/contract arc
+(flip Â§13 â deletion Â§16 â drop Â§17) is complete; the database no longer carries any dead
+auth surface.
+
+---

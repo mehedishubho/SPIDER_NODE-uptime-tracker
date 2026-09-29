@@ -399,3 +399,13 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | 6. Thin API Routes & Email Abstraction | 5/5 | In Progress|  |
 | 7. Better Auth Cutover, Admin Gating & Prisma Removal | 11/11 | In Progress|  |
 | 8. Flagged Capabilities & UI Modernization | 0/TBD | Not started | - |
+
+## Backlog
+### Phase 999.1: Follow-up — Phase 07 deferred UAT follow-up: Test 61 (BACKLOG)
+
+**Goal:** Exercise the live Google/GitHub OAuth no-re-consent proof (D-40) when the stack first deploys with real OAuth credentials
+**Source phase:** 07
+**Deferred at:** 2026-09-30 during /gsd-verify-work 07 session completion
+**Follow-ups:**
+- [ ] Test 61: Live Google/GitHub OAuth no-re-consent proof (D-40) at the live server deploy (deferred 2026-09-30)
+

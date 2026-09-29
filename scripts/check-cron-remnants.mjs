@@ -34,7 +34,14 @@
 //      repo-root config file;
 //  11. (Phase-7) a package.json still declaring next-auth, @auth/prisma-
 //      adapter, @prisma/client, @prisma/adapter-pg, prisma, js-cookie or
-//      @types/js-cookie.
+//      @types/js-cookie;
+//  12. (07-11, WR-04/G-07-63) any walked CODE file whose basename-minus-
+//      extension matches a deleted module basename (the four Phase-5 legacy
+//      modules or the five Phase-7 basenames) — a remnant by FILE NAME,
+//      import specifiers regardless: the D-05 blast script was invoked by
+//      name and carried zero importers, so a clean-content recreation of it
+//      must still trip. Phase-5-set hits land plain (always enforced);
+//      Phase-7-set hits are phase7-marked, mirroring the specifier checks.
 //
 // The Phase-7 extension (checks 8-11) ships in ADVISORY posture first — the
 // 06-05 pre-arm lifecycle: findings are REPORTED (exit 0) while the Phase-7
@@ -50,15 +57,32 @@
 // remnant signal worth failing on; historical prose in the excluded prose
 // homes (docs/, .planning/) is never scanned.
 //
-// Scan scope: src/ recursively, dist/worker.js and .next/server when
-// present, plus the repo-root config files playwright.config.ts,
-// next.config.ts and ecosystem.config.js (each when present — D-27 "src or
-// config"; the playwright file is watched so the stale CRON_MODE writer
-// deleted at 06-05 stays out per Pitfall 9) — or explicit dir/file
-// arguments (fixture-testable, check-worker-boundary pattern). NEVER
-// scanned, even when nested inside a scanned root: docs/, .planning/,
-// node_modules/, .git/, .snapshots/ (and the .env.example file) —
-// historical prose legitimately names the tokens.
+// Scan scope: src/ recursively, scripts/ (07-11 WR-04 — the executable-
+// tooling root where the deleted D-05 blast script lived; leaving it
+// unscanned holed the armed gate exactly where one of its named remnants
+// resided), dist/worker.js and .next/server when present, plus the repo-root
+// config files playwright.config.ts, next.config.ts and ecosystem.config.js
+// (each when present — D-27 "src or config"; the playwright file is watched
+// so the stale CRON_MODE writer deleted at 06-05 stays out per Pitfall 9) —
+// or explicit dir/file arguments (fixture-testable, check-worker-boundary
+// pattern). NEVER scanned, even when nested inside a scanned root: docs/,
+// .planning/, node_modules/, .git/, .snapshots/ (and the .env.example file)
+// — historical prose legitimately names the tokens.
+//
+// 07-11 retired-token exemptions (WR-04 companion — exact file names, ONE
+// check class only): the token-count checks (CRON_MODE + the retired env
+// tokens) skip exactly three in-tree historical tools whose bodies
+// legitimately quote or read the retired tokens:
+//   check-cron-remnants.mjs — this gate itself: its body quotes every
+//     retired token as its own literal definitions (the self-scan paradox);
+//   rehearse-cutover.mjs — the Phase-5 rehearsal tool: THROWAWAY_CRON_SECRET
+//     and the CRON_MODE sweep pin ARE the retired pre-06-05 interface the
+//     rehearsal exists to exercise;
+//   auth-soak-gate.mjs — the recorded §14 soak window leg reads the retired
+//     AUTH_NOTICE_* notice-window envs (cited by 07-DEPLOY-RECORD).
+// The exemption applies ONLY to token counting. Imports, file names, route
+// paths, and dependency checks still apply to all three, and a RENAMED copy
+// of any exempt file's content trips (suite pin 5h).
 //
 // Usage: node scripts/check-cron-remnants.mjs [dir|file ...] [--advisory]
 //   Enforcement (default): any Phase-5/6 finding, or any Phase-7 finding
@@ -126,6 +150,17 @@ const BANNED_DEPENDENCIES = ["node-cron", "@types/node-cron"];
 // read-form occurrences in .next/** build artifacts are exempted — see the
 // scanCodeFile comment at the token loop.
 const BUNDLED_READFORM_TOKENS = new Set(["NEXTAUTH_URL"]);
+// 07-11 (WR-04 gap closure): exact-FILENAME retired-token exemptions — the
+// token-count checks in scanCodeFile skip these three in-tree historical
+// tools (rationale per entry, mirrored in the header). Keyed by basename
+// WITH extension so a renamed copy of exempt content still trips (suite pin
+// 5h); every non-token check (imports, file names, route paths, dependency
+// declarations) still applies to the exempt files.
+const RETIRED_TOKEN_EXEMPT_FILE_NAMES = new Set([
+  "check-cron-remnants.mjs", // self-scan paradox: this gate's body quotes every retired token as its own definitions
+  "rehearse-cutover.mjs", // Phase-5 rehearsal tool: the throwaway CRON_SECRET/CRON_MODE lever IS the retired pre-06-05 interface it exercises
+  "auth-soak-gate.mjs", // the recorded §14 soak window leg reads the retired AUTH_NOTICE_* envs (07-DEPLOY-RECORD)
+]);
 const PHASE7_BANNED_DEPENDENCIES = [
   "next-auth",
   "@auth/prisma-adapter",
@@ -146,6 +181,13 @@ const PHASE7_ENFORCED = true;
 
 const DEFAULT_ROOTS = () => {
   const roots = [path.join("src")];
+  // 07-11 (WR-04/G-07-63): the executable-tooling root rides the default scan
+  // unconditionally (an executable root, always present in this repo — NOT a
+  // prose home; the docs/.planning exclusions stay). The D-05 delete-after-use
+  // blast script this phase deleted lived at scripts/send-relogin-blast.mjs:
+  // re-creating it (or any scripts/*.mjs remnant) previously produced ZERO
+  // findings.
+  roots.push(path.join("scripts"));
   if (existsSync(path.join("dist", "worker.js"))) roots.push(path.join("dist", "worker.js"));
   if (existsSync(path.join(".next", "server"))) roots.push(path.join(".next", "server"));
   // D-27: repo-root config files ride the default scan so the retired
@@ -171,11 +213,17 @@ function usage() {
     "@prisma/* / js-cookie specifiers, the deleted Phase-7 module basenames",
     "(tokens, auth-legacy, authSlice, send-relogin-blast, prisma), the",
     "retired NEXTAUTH_SECRET/NEXTAUTH_URL + AUTH_NOTICE_* env tokens, and",
-    "the Phase-7 banned dependencies. Default targets: src/, dist/worker.js,",
-    ".next/server, and the repo-root config files playwright.config.ts /",
-    "next.config.ts / ecosystem.config.js (each when present) plus",
-    "./package.json. docs/, .planning/, node_modules/, .git/, .snapshots/",
-    "and .env.example are NEVER scanned.",
+    "the Phase-7 banned dependencies. The 07-11 WR-04 extension flags any",
+    "code file NAMED like a deleted module from either basename set (a",
+    "remnant by file name, import specifiers regardless). Default targets:",
+    "src/, scripts/ (07-11), dist/worker.js, .next/server, and the repo-root",
+    "config files playwright.config.ts / next.config.ts / ecosystem.config.js",
+    "(each when present) plus ./package.json. docs/, .planning/,",
+    "node_modules/, .git/, .snapshots/ and .env.example are NEVER scanned.",
+    "Retired-token counting (CRON_MODE + the retired env tokens) is exempt",
+    "for exactly three in-tree historical tools by exact file name",
+    "(check-cron-remnants.mjs, rehearse-cutover.mjs, auth-soak-gate.mjs —",
+    "see the header); every other check still applies to them.",
     "",
     "  --advisory  list ALL findings but exit 0 (whole-script override for",
     "              fixture probes; the Phase-7 extension itself reports",
@@ -295,7 +343,12 @@ function scanCodeFile(file) {
       }
     }
   });
-  const cronModeHits = content.split("CRON_MODE").length - 1;
+  // 07-11 (WR-04 gap closure): the three exact-file-name historical tools are
+  // exempt from TOKEN COUNTING only (header + RETIRED_TOKEN_EXEMPT_FILE_NAMES
+  // for the per-entry rationale). Imports, file names, route paths, and
+  // dependency checks above/below still run on them.
+  const isRetiredTokenExempt = RETIRED_TOKEN_EXEMPT_FILE_NAMES.has(path.basename(file));
+  const cronModeHits = isRetiredTokenExempt ? 0 : content.split("CRON_MODE").length - 1;
   if (cronModeHits > 0) {
     reasons.push(`references the CRON_MODE env token (${tokenHitText(cronModeHits)})`);
   }
@@ -310,7 +363,7 @@ function scanCodeFile(file) {
   // trips. Source scans (src/) stay fully comments-inclusive and never exempt.
   const isWebBuildArtifact = file.split(/[\\/]/).includes(".next");
   for (const token of RETIRED_ENV_TOKENS) {
-    let hits = content.split(token).length - 1;
+    let hits = isRetiredTokenExempt ? 0 : content.split(token).length - 1;
     if (isWebBuildArtifact && BUNDLED_READFORM_TOKENS.has(token)) {
       hits -= content.split(`process.env.${token}`).length - 1;
     }
@@ -398,6 +451,30 @@ function main(argv) {
   }
   for (const file of entrypointFiles) {
     findings.push({ file, reason: "legacy scheduler entrypoint file (instrumentation.ts/js) still present" });
+  }
+  // 07-11 (WR-04/G-07-63) deleted-module FILE-NAME check: a clean-content
+  // code file whose basename-minus-extension matches a deleted module
+  // basename is a remnant by NAME — import specifiers regardless (the D-05
+  // blast script was invoked by name and carried zero importers). Phase-5-set
+  // hits land plain (always enforced); Phase-7-set hits are phase7-marked —
+  // exactly mirroring the specifier checks' severity discipline. The wording
+  // is distinct from the import-specifier messages so the pins can assert
+  // which check fired.
+  for (const file of codeFiles) {
+    const base = path.basename(file, path.extname(file));
+    if (DELETED_MODULE_BASENAMES.has(base)) {
+      findings.push({
+        file,
+        reason: `file NAME matches a deleted legacy module ("${base}") — the D-27 remnant class recreated by file name`,
+      });
+    }
+    if (PHASE7_DELETED_MODULE_BASENAMES.has(base)) {
+      findings.push({
+        file,
+        reason: `file NAME matches a deleted Phase-7 module ("${base}") — the AUTH-07/08, DRZ-07, D-05 remnant class recreated by file name`,
+        phase7: true,
+      });
+    }
   }
   for (const file of codeFiles) {
     for (const reason of scanCodeFile(file)) {

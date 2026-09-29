@@ -39,7 +39,25 @@ covered_files:
   - tests/lib/auth-password.test.ts
   - tests/integration/better-auth-cutover.test.ts
   - tests/worker/bull-board-gate.test.ts
-covered_digest: "unavailable — gsd_run query verification.fingerprint not present in this environment; covered_files hand-listed above"
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-01-PLAN.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-02-PLAN.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-03-PLAN.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-04-PLAN.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-05-PLAN.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-06-PLAN.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-07-PLAN.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-08-PLAN.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-09-PLAN.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-01-SUMMARY.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-02-SUMMARY.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-03-SUMMARY.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-04-SUMMARY.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-05-SUMMARY.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-06-SUMMARY.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-07-SUMMARY.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-08-SUMMARY.md
+  - .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-09-SUMMARY.md
+covered_digest: "v2:sha256:33408e5b7a2beb3813e533f6a0b7f214bf20e55256354ee5bcd9669f48fd9605"
 re_verification:
   previous_status: none
   previous_score: n/a

@@ -345,7 +345,14 @@ blocked: 2
   reason: "CR-01 (07-REVIEW.md): Drizzle mode:string timestamps return naive Postgres text; new Date(naive) parses as local time, breaking the poll comparison in UTC+ (never completes) and UTC- (false-completes) - src/lib/check-now-poll.ts:63"
   severity: major
   test: 63
-  root_cause: "" 
-  artifacts: []
-  missing: []
+  root_cause: "Drizzle node-postgres mode:string timestamps return raw Postgres text (naive, no TZ); new Date(naive) parses as LOCAL time - the comparison at src/lib/check-now-poll.ts:63 never resolves in UTC+ and false-resolves on stale values in UTC- (07-REVIEW.md CR-01, verified against installed drizzle-orm 0.45.2)"
+  artifacts:
+    - path: src/lib/check-now-poll.ts
+      issue: naive-text vs ISO Date comparison
+    - path: src/app/api (11 ported routes)
+      issue: timestamp serialization drift (also WR-01 updatedAt on UPDATE, WR-02 empty-set PATCH 500)
+  missing:
+    - normalize timestamp serialization at the Drizzle boundary (ISO-8601 UTC) or compare instants consistently
+    - restore updatedAt on UPDATE paths; guard empty PATCH sets
+    - extend remnant gate scan roots to scripts/
   debug_session: ""

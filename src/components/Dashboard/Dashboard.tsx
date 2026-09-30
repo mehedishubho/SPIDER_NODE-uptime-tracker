@@ -22,8 +22,32 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Activity01Icon as Activity, PlusSignIcon as Plus, RefreshIcon as RefreshCw, Delete02Icon as Trash2, LinkSquare01Icon as ExternalLink, Logout01Icon as LogOut, Shield01Icon as ShieldCheck, GlobeIcon as Globe, Clock01Icon as Clock, ArrowUpRight01Icon as TrendingUp, Loading01Icon as Loader2, Edit02Icon as Edit2, EcoPowerIcon as Power } from "hugeicons-react";
+import { PlusSignIcon as Plus, RefreshIcon as RefreshCw, Delete02Icon as Trash2, LinkSquare01Icon as ExternalLink, Logout01Icon as LogOut, GlobeIcon as Globe, Clock01Icon as Clock, Loading01Icon as Loader2, Edit02Icon as Edit2, EcoPowerIcon as Power, MoreVerticalIcon as MoreVertical } from "hugeicons-react";
+import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { StatsSummaryHeader } from "./StatsSummaryHeader";
 
 interface Monitor {
   id: number;
@@ -42,6 +66,9 @@ export function Dashboard() {
   const { data: session, isPending } = useAuthSession();
   const status = isPending ? "loading" : session ? "authenticated" : "unauthenticated";
   const router = useRouter();
+  // D-28: prefers-reduced-motion gates every entrance animation on this
+  // surface — reduced-motion users mount directly in the final state.
+  const reduceMotion = useReducedMotion();
 
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [loadingMonitors, setLoadingMonitors] = useState(true);
@@ -378,24 +405,6 @@ export function Dashboard() {
     );
   }
 
-  // Calculate Metrics
-  const activeMonitors = monitors.filter((m) => m.isActive);
-  const totalMonitors = activeMonitors.length;
-  const upMonitors = activeMonitors.filter((m) => m.status === "UP").length;
-  const downMonitors = activeMonitors.filter((m) => m.status === "DOWN").length;
-  const healthPercentage =
-    totalMonitors > 0 ? Math.round((upMonitors / totalMonitors) * 100) : 100;
-  const operationalStatus =
-    downMonitors === 0 ? "ALL OPERATIONAL" : `${downMonitors} DEGRADED`;
-
-  const avgLatency =
-    activeMonitors.length > 0
-      ? Math.round(
-          activeMonitors.reduce((acc, m) => acc + (m.responseTime || 0), 0) /
-            activeMonitors.length,
-        )
-      : 0;
-
   // Get User Initials fallback
   const userName = session?.user?.name || "Developer";
   const userEmail = session?.user?.email || "";
@@ -409,7 +418,7 @@ export function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+      <div className="mx-auto flex max-w-7xl flex-col gap-8">
         {/* Header Bar */}
         <div className="glass-panel p-4 sm:p-6 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-slate-800">
           <div className="flex items-center gap-4">
@@ -467,312 +476,281 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Metrics Overview Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="glass-panel p-5 rounded-2xl border border-slate-800 animate-fade-in-up delay-75 card-hover">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-mono">ACTIVE MONITORS</span>
-              <Globe className="w-4 h-4 text-primary" />
-            </div>
-            <div className="text-3xl font-extrabold font-mono text-white transition-number">
-              {totalMonitors}
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Total {monitors.length} listed
-            </p>
-          </div>
+        {/* Stats Summary Header (D-25) — aggregates of the loaded monitors */}
+        <StatsSummaryHeader monitors={monitors} />
 
-          <div className="glass-panel p-5 rounded-2xl border border-slate-800 animate-fade-in-up delay-150 card-hover">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-mono">SYSTEM HEALTH</span>
-              <ShieldCheck className="w-4 h-4 text-status-up" />
-            </div>
-            <div className="text-3xl font-extrabold font-mono text-status-up transition-number">
-              {healthPercentage}%
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Operational target 99.9%
-            </p>
-          </div>
-
-          <div className="glass-panel p-5 rounded-2xl border border-slate-800 animate-fade-in-up delay-225 card-hover">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-mono">STATUS OVERVIEW</span>
-              <Activity className="w-4 h-4 text-primary" />
-            </div>
-            <div
-              className={`text-xl font-extrabold font-mono transition-number ${
-                downMonitors === 0 ? "text-status-up" : "text-rose-500"
-              }`}
-            >
-              {operationalStatus}
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1 transition-number">
-              {upMonitors} UP • {downMonitors} DOWN
-            </p>
-          </div>
-
-          <div className="glass-panel p-5 rounded-2xl border border-slate-800 animate-fade-in-up delay-300 card-hover">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-mono">AVG LATENCY</span>
-              <TrendingUp className="w-4 h-4 text-red-400" />
-            </div>
-            <div className="text-3xl font-extrabold font-mono text-primary transition-number">
-              {avgLatency}ms
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Average global ping
-            </p>
-          </div>
-        </div>
-
-        {/* Monitor Table Section */}
-        <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden animate-fade-in-up" style={{ animationDelay: '400ms' }}>
-          <div className="p-4 sm:p-6 border-b border-slate-800/80 flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-white">
+        {/* Monitor List Card (shadcn Card shell — denser 12px row rhythm,
+            sticky column headers within the card, staggered row entrances) */}
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+        >
+          <Card className="gap-0 py-0">
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="text-lg font-semibold text-foreground">
                 Monitored Services
-              </h2>
-              <p className="text-xs text-slate-400">
+              </CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
                 Real-time HTTP health check monitors linked to your account
-              </p>
-            </div>
-            <button
-              onClick={fetchMonitors}
-              disabled={loadingMonitors}
-              className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
-              title="Refresh List"
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${loadingMonitors ? "animate-spin text-primary" : ""}`}
-              />
-            </button>
-          </div>
-
-          {loadingMonitors && monitors.length === 0 ? (
-            <div className="p-12 text-center text-slate-500 font-mono text-xs flex flex-col items-center gap-2">
-              <Loader2 className="w-6 h-6 animate-spin text-primary" />
-              <span>Fetching status records...</span>
-            </div>
-          ) : monitors.length === 0 ? (
-            <div className="p-12 text-center space-y-3">
-              <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-800 text-slate-500 flex items-center justify-center mx-auto">
-                <Globe className="w-6 h-6" />
-              </div>
-              <h3 className="text-sm font-semibold text-slate-300">
-                No Monitors Found
-              </h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                You haven&apos;t added any endpoints yet. Click &quot;Add
-                Monitor&quot; above to start tracking your website or API.
-              </p>
-              <button
-                onClick={() => setIsAddModalOpen(true)}
-                className="mt-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-md shadow-red-500/20 hover:scale-105 transition-transform cursor-pointer"
-              >
-                + Add Your First Monitor
-              </button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left font-mono text-xs">
-                <thead className="bg-slate-900/80 border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
-                  <tr>
-                    <th className="py-3.5 px-4 sm:px-6">Status & Latency</th>
-                    <th className="py-3.5 px-4 sm:px-6">Site Name & URL</th>
-                    <th className="py-3.5 px-4 sm:px-6">Uptime</th>
-                    <th className="py-3.5 px-4 sm:px-6">Last Checked</th>
-                    <th className="py-3.5 px-4 sm:px-6 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {monitors.map((monitor, index) => {
-                    let statusColor =
-                      "bg-slate-500/10 text-slate-400 border-slate-500/30";
-                    let dotColor = "bg-slate-500";
-                    let label = "PAUSED";
-                    let isDown = false;
-
-                    if (monitor.isActive) {
-                      if (monitor.status === "UP") {
-                        statusColor =
-                          "bg-emerald-500/10 text-status-up border-emerald-500/30";
-                        dotColor = "bg-status-up animate-status-pulse";
-                        label = "ONLINE";
-                      } else if (monitor.status === "DOWN") {
-                        statusColor =
-                          "bg-rose-500/10 text-rose-400 border-rose-500/30";
-                        dotColor = "bg-rose-500 animate-alert-pulse";
-                        label = "OFFLINE";
-                        isDown = true;
-                      } else {
-                        statusColor =
-                          "bg-slate-500/10 text-slate-400 border-slate-500/30";
-                        dotColor = "bg-slate-400";
-                        label = "PENDING";
-                      }
-                    }
-
-                    return (
-                      <tr
-                        key={monitor.id}
-                        className={`transition-all duration-200 animate-fade-in-up hover:bg-slate-800/40 hover:-translate-y-[1px] ${!monitor.isActive ? "opacity-60" : ""} ${isDown ? "border-l-4 border-l-status-down bg-status-down/5 shadow-[inset_4px_0_10px_rgba(239,68,68,0.1)]" : ""}`}
-                        style={{ animationDelay: `${index * 50 + 400}ms` }}
-                      >
-                        {/* Status & Latency Badge */}
-                        <td className="py-4 px-4 sm:px-6 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${statusColor}`}
-                            >
-                              <span
-                                className={`w-2 h-2 rounded-full ${dotColor}`}
-                              />
-                              {label}
-                            </span>
-                            {monitor.isActive && (
-                              <span className={`text-[10px] ml-1 font-mono transition-number ${isDown ? "text-rose-400" : "text-slate-400"}`}>
-                                {monitor.responseTime || 0} ms
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Site Name */}
-                        <td className="py-4 px-4 sm:px-6">
-                          <Link href={`/dashboard/monitor/${monitor.id}`}>
-                            <div className="font-semibold text-slate-200 font-sans text-sm mb-1 hover:text-primary transition-colors cursor-pointer">
-                              {monitor.name}
-                            </div>
-                          </Link>
-                          <a
-                            href={monitor.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-slate-400 hover:text-primary transition-colors text-[10px]"
-                          >
-                            <span>{monitor.url}</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </td>
-
-                        {/* Uptime */}
-                        <td className="py-4 px-4 sm:px-6">
-                          <div
-                            className={`font-semibold transition-number ${monitor.uptimePercent < 95 ? "text-rose-400" : "text-status-up"}`}
-                          >
-                            {monitor.uptimePercent
-                              ? monitor.uptimePercent.toFixed(2)
-                              : 100}
-                            %
-                          </div>
-                          <div className="text-[10px] text-slate-500">
-                            {monitor.interval || 5}m interval
-                          </div>
-                        </td>
-
-                        {/* Last Checked */}
-                        <td className="py-4 px-4 sm:px-6 text-slate-400">
-                          <span className="flex items-center gap-1.5 text-slate-400">
-                            <Clock className="w-3.5 h-3.5 text-slate-500" />
-                            {monitor.lastChecked
-                              ? new Date(
-                                  monitor.lastChecked,
-                                ).toLocaleTimeString()
-                              : "Never"}
-                          </span>
-                        </td>
-
-                        {/* Actions */}
-                        <td className="py-4 px-4 sm:px-6 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-2">
-                            {/* Toggle Pause/Resume */}
-                            <button
-                              onClick={() => handleToggleActive(monitor)}
-                              disabled={togglingId === monitor.id}
-                              className={`p-2 rounded-lg border transition-colors cursor-pointer disabled:opacity-50 ${
-                                monitor.isActive
-                                  ? "bg-slate-900 border-slate-800 text-slate-400 hover:text-amber-400"
-                                  : "bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20"
-                              }`}
-                              title={
-                                monitor.isActive
-                                  ? "Pause Monitor"
-                                  : "Resume Monitor"
-                              }
-                            >
-                              {togglingId === monitor.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <Power className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-
-                            {/* Manual Check */}
-                            <button
-                              onClick={() => handleCheckMonitor(monitor.id)}
-                              disabled={
-                                checkingId === monitor.id || !monitor.isActive
-                              }
-                              className="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-primary transition-colors cursor-pointer disabled:opacity-50"
-                              title={
-                                checkingId === monitor.id
-                                  ? "Checking…"
-                                  : "Re-check endpoint status"
-                              }
-                              aria-label={
-                                checkingId === monitor.id
-                                  ? "Checking…"
-                                  : "Re-check endpoint status"
-                              }
-                            >
-                              <RefreshCw
-                                className={`w-3.5 h-3.5 ${
-                                  checkingId === monitor.id
-                                    ? "animate-spin text-primary"
-                                    : ""
-                                }`}
-                              />
-                            </button>
-
-                            {/* Edit */}
-                            <button
-                              onClick={() => openEditModal(monitor)}
-                              className="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                              title="Edit Monitor"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-
-                            {/* Delete — opens the confirm alert-dialog; the
-                                DELETE fetch fires only on its confirm action */}
-                            <button
-                              onClick={() =>
-                                setDeleteTarget({
-                                  id: monitor.id,
-                                  name: monitor.name,
-                                })
-                              }
-                              disabled={deletingId === monitor.id}
-                              className="p-2 rounded-lg bg-slate-900 hover:bg-rose-950/60 border border-slate-800 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer disabled:opacity-50"
-                              title="Delete Monitor"
-                            >
-                              {deletingId === monitor.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <Trash2 className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          </div>
-                        </td>
+              </CardDescription>
+              <CardAction>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={fetchMonitors}
+                  disabled={loadingMonitors}
+                  title="Refresh List"
+                  aria-label="Refresh List"
+                >
+                  <RefreshCw
+                    className={`size-4 ${loadingMonitors ? "animate-spin text-primary" : ""}`}
+                  />
+                </Button>
+              </CardAction>
+            </CardHeader>
+            <Separator />
+            <CardContent className="p-0">
+              {loadingMonitors && monitors.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 p-12 font-mono text-xs text-muted-foreground">
+                  <Loader2 className="size-6 animate-spin text-primary" />
+                  <span>Fetching status records...</span>
+                </div>
+              ) : monitors.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 p-12 text-center">
+                  <div className="flex size-12 items-center justify-center rounded-full border border-border bg-secondary text-muted-foreground">
+                    <Globe className="size-6" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-foreground">
+                    No Monitors Found
+                  </h3>
+                  <p className="max-w-sm text-xs text-muted-foreground">
+                    You haven&apos;t added any endpoints yet. Click &quot;Add
+                    Monitor&quot; above to start tracking your website or API.
+                  </p>
+                  <Button
+                    className="mt-2"
+                    onClick={() => setIsAddModalOpen(true)}
+                  >
+                    + Add Your First Monitor
+                  </Button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto sm:overflow-x-visible">
+                  <table className="w-full text-left font-mono text-xs">
+                    {/* Sticky column headers: top-16 clears the h-16 AppHeader;
+                        overflow stays visible above sm so page scroll drives
+                        the stickiness (overflow-x-auto is retained on small
+                        viewports per the UI-SPEC). */}
+                    <thead className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
+                      <tr>
+                        <th className="sticky top-16 z-10 rounded-tl-xl border-b border-border bg-secondary px-4 py-3 sm:px-6">
+                          Status &amp; Latency
+                        </th>
+                        <th className="sticky top-16 z-10 border-b border-border bg-secondary px-4 py-3 sm:px-6">
+                          Site Name &amp; URL
+                        </th>
+                        <th className="sticky top-16 z-10 border-b border-border bg-secondary px-4 py-3 sm:px-6">
+                          Uptime
+                        </th>
+                        <th className="sticky top-16 z-10 border-b border-border bg-secondary px-4 py-3 sm:px-6">
+                          Last Checked
+                        </th>
+                        <th className="sticky top-16 z-10 rounded-tr-xl border-b border-border bg-secondary px-4 py-3 text-right sm:px-6">
+                          Actions
+                        </th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                    </thead>
+                    <tbody>
+                      {monitors.map((monitor, index) => {
+                        const isActive = monitor.isActive;
+                        const isUp = isActive && monitor.status === "UP";
+                        const isDown = isActive && monitor.status === "DOWN";
+
+                        const statusColor = isUp
+                          ? "border-status-up/30 bg-status-up/10 text-status-up"
+                          : isDown
+                            ? "border-status-down/30 bg-status-down/10 text-status-down"
+                            : "border-border bg-muted text-muted-foreground";
+                        const dotColor = isUp
+                          ? "bg-status-up animate-status-pulse"
+                          : isDown
+                            ? "bg-status-down animate-alert-pulse"
+                            : "bg-muted-foreground/50";
+                        const label = !isActive
+                          ? "PAUSED"
+                          : isUp
+                            ? "ONLINE"
+                            : isDown
+                              ? "OFFLINE"
+                              : "PENDING";
+
+                        return (
+                          <motion.tr
+                            key={monitor.id}
+                            data-testid="monitor-row"
+                            className={`transition-colors hover:bg-accent/40 ${!isActive ? "opacity-60" : ""} ${isDown ? "border-l-4 border-l-status-down bg-status-down/5 shadow-[inset_4px_0_10px_rgba(239,68,68,0.1)]" : ""}`}
+                            initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{
+                              duration: 0.25,
+                              ease: "easeOut",
+                              // 50ms stagger per item, capped at 8 — items past
+                              // the cap share one delay and appear together.
+                              delay: reduceMotion
+                                ? 0
+                                : Math.min(index, 8) * 0.05,
+                            }}
+                          >
+                            {/* Status & Latency Badge */}
+                            <td className="whitespace-nowrap px-4 py-3 sm:px-6">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-semibold ${statusColor}`}
+                                >
+                                  <span
+                                    className={`size-2 rounded-full ${dotColor}`}
+                                  />
+                                  {label}
+                                </span>
+                                {isActive && (
+                                  <span
+                                    className={`ml-1 font-mono text-xs transition-number ${isDown ? "text-status-down" : "text-muted-foreground"}`}
+                                  >
+                                    {monitor.responseTime || 0} ms
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Site Name */}
+                            <td className="px-4 py-3 sm:px-6">
+                              <Link href={`/dashboard/monitor/${monitor.id}`}>
+                                <span
+                                  title={monitor.name}
+                                  className="mb-1 block max-w-[240px] cursor-pointer truncate font-sans text-sm font-semibold text-foreground transition-colors hover:text-accent-cyan"
+                                >
+                                  {monitor.name}
+                                </span>
+                              </Link>
+                              <a
+                                href={monitor.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={monitor.url}
+                                className="inline-flex max-w-[240px] items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                              >
+                                <span className="truncate">{monitor.url}</span>
+                                <ExternalLink className="size-3 shrink-0" />
+                              </a>
+                            </td>
+
+                            {/* Uptime */}
+                            <td className="px-4 py-3 sm:px-6">
+                              <div
+                                className={`font-semibold transition-number ${monitor.uptimePercent < 95 ? "text-status-down" : "text-status-up"}`}
+                              >
+                                {monitor.uptimePercent
+                                  ? monitor.uptimePercent.toFixed(2)
+                                  : 100}
+                                %
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {monitor.interval || 5}m interval
+                              </div>
+                            </td>
+
+                            {/* Last Checked */}
+                            <td className="px-4 py-3 text-muted-foreground sm:px-6">
+                              <span className="flex items-center gap-1.5">
+                                <Clock className="size-3.5" />
+                                {monitor.lastChecked
+                                  ? new Date(
+                                      monitor.lastChecked,
+                                    ).toLocaleTimeString()
+                                  : "Never"}
+                              </span>
+                            </td>
+
+                            {/* Actions — dropdown-menu overflow (denser rows) */}
+                            <td className="whitespace-nowrap px-4 py-3 text-right sm:px-6">
+                              <DropdownMenu>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        className="text-muted-foreground hover:text-foreground"
+                                        aria-label="Row actions"
+                                        title="More actions"
+                                        data-testid="row-actions"
+                                      >
+                                        <MoreVertical className="size-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                  </TooltipTrigger>
+                                  <TooltipContent>More actions</TooltipContent>
+                                </Tooltip>
+                                <DropdownMenuContent align="end" className="w-48">
+                                  <DropdownMenuItem
+                                    onClick={() => handleToggleActive(monitor)}
+                                    disabled={togglingId === monitor.id}
+                                  >
+                                    <Power className="size-4" />
+                                    {monitor.isActive
+                                      ? "Pause Monitor"
+                                      : "Resume Monitor"}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      handleCheckMonitor(monitor.id)
+                                    }
+                                    disabled={
+                                      checkingId === monitor.id || !monitor.isActive
+                                    }
+                                  >
+                                    <RefreshCw
+                                      className={`size-4 ${checkingId === monitor.id ? "animate-spin text-primary" : ""}`}
+                                    />
+                                    Re-check endpoint status
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => openEditModal(monitor)}
+                                  >
+                                    <Edit2 className="size-4" />
+                                    Edit Monitor
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  {/* Delete — opens the confirm alert-dialog;
+                                      the DELETE fetch fires only on its confirm
+                                      action */}
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={() =>
+                                      setDeleteTarget({
+                                        id: monitor.id,
+                                        name: monitor.name,
+                                      })
+                                    }
+                                    disabled={deletingId === monitor.id}
+                                  >
+                                    <Trash2 className="size-4" />
+                                    Delete Monitor
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </td>
+                          </motion.tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
       {/* Delete Monitor confirm (UI-SPEC destructive-confirmation copy) */}

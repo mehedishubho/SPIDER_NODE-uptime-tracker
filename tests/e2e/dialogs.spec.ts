@@ -59,7 +59,10 @@ test("delete monitor dialog: copy matches the UI-SPEC destructive contract", asy
 }) => {
   await loginViaUi(page);
 
-  await page.getByTitle("Delete Monitor").click();
+  // 08-04 redesign: row actions live in the dropdown-menu overflow — open the
+  // row menu, then the destructive item opens the confirm alert-dialog.
+  await page.getByRole("button", { name: "Row actions" }).click();
+  await page.getByRole("menuitem", { name: "Delete Monitor" }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
   await expect(
@@ -88,7 +91,8 @@ test("delete monitor dialog: cancel aborts — no DELETE request, monitor stays 
     }
   });
 
-  await page.getByTitle("Delete Monitor").click();
+  await page.getByRole("button", { name: "Row actions" }).click();
+  await page.getByRole("menuitem", { name: "Delete Monitor" }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel" }).click();
@@ -116,7 +120,8 @@ test("delete monitor dialog: confirm executes — DELETE fires, monitor removed,
     });
   });
 
-  await page.getByTitle("Delete Monitor").click();
+  await page.getByRole("button", { name: "Row actions" }).click();
+  await page.getByRole("menuitem", { name: "Delete Monitor" }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Delete Monitor" }).click();

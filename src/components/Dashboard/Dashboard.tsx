@@ -78,11 +78,27 @@ export function Dashboard() {
     }
   }, [status, router]);
 
+  // UI-04 abort seams: every fetch this component starts is abortable and
+  // aborted on unmount, so no in-flight request — and no post-abort error
+  // toast or console noise — outlives navigation. The monitors-poll ref
+  // holds the controller of the latest fetchMonitors pass; the action ref
+  // covers the mutation/check handlers. Catches treat an aborted rejection
+  // as a silent no-op (the robustness spec pins zero console errors on
+  // navigate-away).
+  const monitorsPollAbortRef = useRef<AbortController | null>(null);
+  const actionAbortRef = useRef<AbortController | null>(null);
+
   // Fetch monitors — returns the list so the check-now poll can reuse the
   // same read (D-01: poll monitor data, never job state).
   const fetchMonitors = useCallback(async (): Promise<Monitor[]> => {
+    // New controller per pass (06-01 check-now abort pattern): signal on the
+    // fetch, aborted re-check after each await before setState, unmount
+    // aborts the latest pass via the ref.
+    const abort = new AbortController();
+    monitorsPollAbortRef.current = abort;
     try {
-      const res = await fetch("/api/monitors");
+      const res = await fetch("/api/monitors", { signal: abort.signal });
+      if (abort.signal.aborted) return [];
       if (!res.ok) {
         if (res.status === 401) {
           router.push("/login");
@@ -92,19 +108,23 @@ export function Dashboard() {
         try {
           const errData = await res.json();
           if (errData.details) errorMsg += `: ${errData.details}`;
-        } catch (e) {}
+        } catch {
+          // Non-JSON error body — the generic message stands.
+        }
         throw new Error(errorMsg);
       }
       const data = await res.json();
+      if (abort.signal.aborted) return [];
       const list: Monitor[] = data.monitors || [];
       setMonitors(list);
       return list;
     } catch (err) {
+      if (abort.signal.aborted) return [];
       console.error(err);
       toast.error("Failed to load monitors.");
       return [];
     } finally {
-      setLoadingMonitors(false);
+      if (!abort.signal.aborted) setLoadingMonitors(false);
     }
   }, [router]);
 
@@ -117,7 +137,12 @@ export function Dashboard() {
         fetchMonitors();
       }, 30000);
 
-      return () => clearInterval(interval);
+      // UI-04: unmount aborts any in-flight poll pass — no fetch, no late
+      // setState, and no aborted-rejection noise outlives the component.
+      return () => {
+        clearInterval(interval);
+        monitorsPollAbortRef.current?.abort();
+      };
     }
   }, [status, fetchMonitors]);
 
@@ -130,6 +155,8 @@ export function Dashboard() {
     }
 
     setIsSubmitting(true);
+    const abort = new AbortController();
+    actionAbortRef.current = abort;
     try {
       const res = await fetch("/api/monitors", {
         method: "POST",
@@ -139,6 +166,7 @@ export function Dashboard() {
           url: newMonitorUrl,
           interval: newMonitorInterval,
         }),
+        signal: abort.signal,
       });
 
       const data = await res.json();
@@ -154,6 +182,7 @@ export function Dashboard() {
       setIsAddModalOpen(false);
       fetchMonitors();
     } catch (err) {
+      if (abort.signal.aborted) return;
       console.error(err);
       toast.error("An error occurred while creating monitor.");
     } finally {
@@ -181,6 +210,8 @@ export function Dashboard() {
     }
 
     setIsUpdating(true);
+    const abort = new AbortController();
+    actionAbortRef.current = abort;
     try {
       const res = await fetch(`/api/monitors/${editingMonitor.id}`, {
         method: "PATCH",
@@ -190,6 +221,7 @@ export function Dashboard() {
           url: editMonitorUrl,
           interval: editMonitorInterval,
         }),
+        signal: abort.signal,
       });
 
       const data = await res.json();
@@ -203,6 +235,7 @@ export function Dashboard() {
       setEditingMonitor(null);
       fetchMonitors();
     } catch (err) {
+      if (abort.signal.aborted) return;
       console.error(err);
       toast.error("An error occurred while updating monitor.");
     } finally {
@@ -210,12 +243,14 @@ export function Dashboard() {
     }
   };
 
-  // Abort any in-flight check poll on unmount — the poll loop may never
-  // outlive the component (UI-SPEC timer discipline).
+  // Abort any in-flight check poll or action fetch on unmount — neither the
+  // poll loop nor a request may ever outlive the component (UI-SPEC timer
+  // discipline, UI-04 abort seams).
   const checkPollAbortRef = useRef<AbortController | null>(null);
   useEffect(() => {
     return () => {
       checkPollAbortRef.current?.abort();
+      actionAbortRef.current?.abort();
     };
   }, []);
 
@@ -229,6 +264,7 @@ export function Dashboard() {
     try {
       const res = await fetch(`/api/monitors/${id}/check`, {
         method: "POST",
+        signal: abort.signal,
       });
       if (res.status === 429) {
         const retryAfter = Number(res.headers.get("Retry-After")) || 30;
@@ -260,6 +296,7 @@ export function Dashboard() {
         toast.success(`${monitor.name}: UP (${monitor.responseTime}ms)`);
       }
     } catch (err) {
+      if (abort.signal.aborted) return;
       console.error(err);
       toast.error("Error pinging monitor.");
     } finally {
@@ -270,6 +307,8 @@ export function Dashboard() {
   // Toggle Active Status
   const handleToggleActive = async (monitor: Monitor) => {
     setTogglingId(monitor.id);
+    const abort = new AbortController();
+    actionAbortRef.current = abort;
     try {
       const res = await fetch(`/api/monitors/${monitor.id}`, {
         method: "PATCH",
@@ -277,6 +316,7 @@ export function Dashboard() {
         body: JSON.stringify({
           isActive: !monitor.isActive,
         }),
+        signal: abort.signal,
       });
 
       if (res.ok) {
@@ -287,6 +327,7 @@ export function Dashboard() {
         toast.error(data.error || "Failed to toggle monitor.");
       }
     } catch (err) {
+      if (abort.signal.aborted) return;
       console.error(err);
       toast.error("Error toggling monitor.");
     } finally {
@@ -298,9 +339,12 @@ export function Dashboard() {
   // alert-dialog (the native confirm call retired with UI-02/D-34).
   const handleDeleteMonitor = async (id: number, name: string) => {
     setDeletingId(id);
+    const abort = new AbortController();
+    actionAbortRef.current = abort;
     try {
       const res = await fetch(`/api/monitors/${id}`, {
         method: "DELETE",
+        signal: abort.signal,
       });
       if (res.ok) {
         toast.success(`Monitor "${name}" deleted.`);
@@ -310,6 +354,7 @@ export function Dashboard() {
         toast.error(data.error || "Failed to delete monitor.");
       }
     } catch (err) {
+      if (abort.signal.aborted) return;
       console.error(err);
       toast.error("Error deleting monitor.");
     } finally {

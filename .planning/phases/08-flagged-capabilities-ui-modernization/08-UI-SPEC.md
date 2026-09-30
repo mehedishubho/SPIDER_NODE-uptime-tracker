@@ -1,7 +1,8 @@
 ---
 phase: "8"
 slug: flagged-capabilities-ui-modernization
-status: draft
+status: approved
+reviewed_at: "2026-09-30"
 shadcn_initialized: true
 preset: none
 created: "2026-09-30"
@@ -140,19 +141,27 @@ Existing strings are the current production copy — kept verbatim unless a row 
 
 ## UI Considerations
 
-Applicable state considerations resolved: 9 covered, 1 backstop, 0 unresolved.
+Element-level probe: 11 surfaces classified by `ui-consideration-probe.cjs` (2026-09-30; 57 applicable items, 2 unclassified → manually reviewed below). Resolutions: 13 covered, 1 backstop, 0 unresolved; reasoned dismissals recorded for N/A categories.
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
 | empty | monitor list (list-collection), incident list, Add Monitor form | ✅ covered | Zero monitors render the documented "No Monitors Found" copy + CTA row; zero incidents render "Clean History"; assistant-hidden-when-flag-off leaves the plain form as the base state |
 | loading | monitor list, monitor detail, public status | ✅ covered | `skeleton.tsx` primitives replace the spinner+text loaders ("Fetching status records..." retires); skeleton shape mirrors final layout (D-28) |
+| loading | incidents page `/dashboard/incidents` | ✅ covered | Same `skeleton.tsx` treatment as the other tier-2 list surfaces (shared loading pattern, D-28) |
+| loading | assistant prefill (Add Monitor) | ✅ covered | While the suggestion streams into the fields, the assistant input shows its streaming state (accent caret); fields remain editable — D-07/D-19 |
 | loading | post-mortem card | ✅ covered | Markdown streams in as it arrives (D-12) — no skeleton text; "Stop" affordance mid-stream (D-16) |
 | error | polling fetches, AI endpoints | ✅ covered | Fetch failure → sonner toast + retained Refresh; AI failure → inline card error + Retry (D-09); 429 → Retry-After toast (D-08) |
 | populated | dashboard at 10–50 monitors | ✅ covered | Denser rows (12px rhythm), staggered entrance, column headers sticky within the list card |
+| populated / empty | public status page (E4 — unclassified by probe, manually reviewed) | ✅ covered | Populated = per-monitor uptime/latency values with cyan emphasis (Color contract); empty = the 404 "Status Page Not Found" row in the Copywriting Contract |
 | partial | Add Monitor assistant prefill | 🧪 backstop | Valid fields prefill; invalid fields stay empty with the "{field} needs manual entry" hint, never all-or-nothing (D-19) — a functional e2e asserts partial fill end-to-end |
 | overflow | monitor URL column, table on mobile | ✅ covered | URL truncates with the external-link affordance; `overflow-x-auto` retained on small viewports |
 | zero-one-many | monitor list, incident list | ✅ covered | 0 → empty state + CTA; 1 and many share one layout; count caption "Total {n} listed" avoids singular/plural branching |
 | long-text | monitor names, incident descriptions, streamed markdown | ✅ covered | Names truncate with `title` attr; descriptions clamp to 2 lines; markdown wraps, card scrolls internally past ~40 lines |
+| partial | monitor/incident lists, sidebar data | ⊘ dismissed (reason) | List fetches are atomic whole-list API responses — no partial-row state exists to design |
+| loading / overflow / long-text | confirm dialogs (delete / disconnect / logout) | ⊘ dismissed (reason) | Static alert-dialogs with fixed short copy — no data load, no variable-length content |
+| all data states | sidebar navigation | ⊘ dismissed (reason) | Static nav; the skeleton shimmer is decorative (Color contract), no data-driven states |
+| overflow / long-text | toasts | ⊘ dismissed (reason) | Toast copy is short by contract (single line, sonner default wrap) |
+| new states | marketing/auth surfaces (E10 — unclassified by probe, manually reviewed) | ⊘ dismissed (reason) | Palette/motion pass only (D-27): no new UI states introduced; existing production states unchanged |
 
 ---
 
@@ -228,12 +237,12 @@ Applicable state considerations resolved: 9 covered, 1 backstop, 0 unresolved.
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
-- [ ] Dimension 7 Inventory Provenance: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
+- [x] Dimension 7 Inventory Provenance: PASS
 
-**Approval:** pending
+**Approval:** approved — gsd-ui-checker 2026-09-30 (7/7 PASS); UI-consideration probe resolved post-verification (13 covered, 1 backstop, 5 reasoned dismissals, 2 unclassified manually reviewed)

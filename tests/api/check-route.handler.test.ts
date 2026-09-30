@@ -70,11 +70,17 @@ const activeMonitor = {
   isActive: true,
 };
 
-// 06-06 (gap 1): module-level fixture Dates shared by the advance mock and
+// 06-06 (gap 1) + CR-01: module-level fixtures shared by the advance mock and
 // the compensation pin — the route must pass the advance RETURNING values
-// straight back as the restore's parameters, so identity is assertable.
-const PRIOR_NEXT_CHECK_AT = new Date("2026-09-30T10:00:00.000Z");
-const ADVANCED_NEXT_CHECK_AT = new Date("2026-09-30T10:05:00.000Z");
+// straight back as the restore's parameters, so identity is assertable. The
+// advance RETURNING casts both timestamps to ::text (CR-01) and the route
+// round-trips the STRINGS into the restore's ::timestamptz parameters, so the
+// fixtures are µs-bearing timestamptz text exactly as real Postgres renders
+// it — the mocked suite stays faithful to the real wire format (a Date
+// fixture would misrepresent it: the driver's default Date parsing is
+// ms-truncating, and the whole CR-01 point is that precision must survive).
+const PRIOR_NEXT_CHECK_AT = "2026-09-30 10:00:00.123456+00";
+const ADVANCED_NEXT_CHECK_AT = "2026-09-30 10:05:00.123456+00";
 
 /**
  * Extracts the parameter VALUES from a drizzle sql`...` statement captured by

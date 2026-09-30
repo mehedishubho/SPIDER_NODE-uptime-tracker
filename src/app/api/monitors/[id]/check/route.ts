@@ -92,9 +92,21 @@ export async function POST(req: Request, { params }: RouteParams) {
         // 06-06 gap 1 (VERIFICATION truth 12): the advance CAPTURES the
         // pre-advance value via a prior CTE — RETURNING cannot see pre-update
         // values on this Postgres, so the CTE reference is the capture
-        // mechanism. On success the capture is simply unused; on an enqueue
-        // failure the catch below restores it so a failed request never
-        // silently postpones the monitor's next scheduled check.
+        // mechanism. The capture rides `::text` (CR-01): a bare timestamptz
+        // column's wire type is parsed by whatever the driver stack feels
+        // like — node-postgres's default renders it through postgres-date at
+        // MILLISECOND precision, so a Date round-trip would drop the µs
+        // component `now()` anchors in and the restore's equality guard
+        // could never match the stored value (the inert-restore failure).
+        // (Today drizzle-orm's node-postgres session happens to override
+        // those parsers with raw-text identity — the fix removes the
+        // dependency on that internal behavior.) Text is lossless both ways:
+        // Postgres renders timestamptz at full µs + offset and re-parses the
+        // identical string exactly, which the restore's explicit
+        // `::timestamptz` casts pin below. On success the capture is simply
+        // unused; on an enqueue failure the catch below restores it so a
+        // failed request never silently postpones the monitor's next
+        // scheduled check.
         const advanced = await db.execute(sql`
             WITH prior AS (
                 SELECT m.id, m.next_check_at
@@ -111,12 +123,14 @@ export async function POST(req: Request, { params }: RouteParams) {
                    )
               FROM prior
              WHERE m.id = prior.id
-            RETURNING m.id, prior.next_check_at AS prior_next_check_at, m.next_check_at AS advanced_next_check_at
+            RETURNING m.id,
+                      prior.next_check_at::text AS prior_next_check_at,
+                      m.next_check_at::text AS advanced_next_check_at
         `);
         const claimedRows = advanced.rows as Array<{
             id: number;
-            prior_next_check_at: Date | string;
-            advanced_next_check_at: Date | string;
+            prior_next_check_at: string;
+            advanced_next_check_at: string;
         }>;
         if (claimedRows.length === 0) {
             return apiError(404, "Monitor not found or unauthorized");
@@ -179,23 +193,25 @@ export async function POST(req: Request, { params }: RouteParams) {
             //      window, inverted) and holds a web-pool transaction across
             //      Redis I/O. Compensation keeps the pinned ordering intact.
             try {
+                // CR-01: the two timestamps ride their full-precision ::text
+                // forms captured above; the explicit ::timestamptz casts make
+                // the guard's comparison exact at microsecond precision —
+                // no driver Date serialization (ms truncation) can intervene.
                 const restored = await db.execute(sql`
                     UPDATE monitors
-                       SET next_check_at = ${priorNextCheckAt}
+                       SET next_check_at = ${priorNextCheckAt}::timestamptz
                      WHERE id = ${monitorId}
                        AND "userId" = ${session.user.id}
-                       AND next_check_at = ${advancedNextCheckAt}
+                       AND next_check_at = ${advancedNextCheckAt}::timestamptz
                     RETURNING id
                 `);
                 const restoredCount = (restored.rows as Array<{ id: number }>).length;
-                const priorLabel =
-                    priorNextCheckAt instanceof Date
-                        ? priorNextCheckAt.toISOString()
-                        : String(priorNextCheckAt);
+                // priorNextCheckAt IS the Postgres ::text rendering (µs +
+                // offset) — log it verbatim.
                 console.error(
                     `[check-route-compensate] monitorId=${monitorId} ` +
                         (restoredCount > 0
-                            ? `restored next_check_at to its pre-advance value (prior=${priorLabel})`
+                            ? `restored next_check_at to its pre-advance value (prior=${priorNextCheckAt})`
                             : "guard miss — a concurrent writer moved the row; their value stands"),
                 );
             } catch (restoreError) {

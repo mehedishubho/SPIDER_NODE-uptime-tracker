@@ -47,6 +47,11 @@ import { disposeStagingRedis, stagingKey } from "@/worker/persist/tier2";
 //   7. missing/inactive monitor: successful no-ops
 //   8. infra failure: job rejects (BullMQ retry path) + breaker counts it
 //   9. dbWrites dispatch: flush-sweep benign on empty, unknown/malformed loud
+//  10. G-06-2: repeat MANUAL check on an UP monitor persists in-job — the
+//      §16.2 additive follow-up advances lastChecked past the enqueue epoch
+//      (D-01 poll predicate) and counters by one, never staged
+//  11. G-06-2: repeat MANUAL check on a DOWN monitor persists the same way
+//      (failedChecks +1) with zero fabricated incidents/outbox rows
 // ---------------------------------------------------------------------------
 
 const TEST_DENYLIST = DENYLIST.filter((token) => token !== "::1");
@@ -430,9 +435,15 @@ describe("check processor — WRK-01/WRK-05/RES-01 (§15.1 + §16 routing)", () 
         const manualPings = await fetchPings(manualId);
         expect(manualPings).toHaveLength(1); // ...but the evidence ping COMMITS
         expect(manualPings[0].status).toBe("UP");
-        // Counters ride the CONDITIONAL UPDATE only — a non-transition
-        // delivery records evidence without double-counting (DAT-04).
-        expect((await fetchMonitor(manualId))!.totalChecks).toBe(3);
+        // 06-07 (G-06-2): the manual non-transition lands its fresh result via
+        // the in-job §16.2 additive follow-up — counters advance by exactly 1
+        // (3 -> 4), the stamp moves, and nothing is ever staged (DAT-04
+        // count-once for TRANSITIONS stays intact: real transitions still
+        // count exclusively in applyTransition's conditional UPDATE).
+        expect((await fetchMonitor(manualId))!.totalChecks).toBe(4);
+        expect((await fetchMonitor(manualId))!.lastChecked).not.toBeNull();
+        expect(manualResult.manualFlushed).toBe(true);
+        expect(await admin.exists(stagingKey(manualId))).toBe(0);
       } finally {
         await capture.lane.close();
       }
@@ -550,5 +561,97 @@ describe("check processor — WRK-01/WRK-05/RES-01 (§15.1 + §16 routing)", () 
       expect(breakerState().state).toBe("CLOSED");
     },
     15_000
+  );
+
+  it(
+    "10. G-06-2 manual repeat on an UP monitor persists in-job: lastChecked advances past the enqueue epoch, counters +1, one ping per enqueue, never staged",
+    async () => {
+      const monitorId = await seedMonitor({ url: target.url("/ok"), status: "PENDING" });
+      const capture = captureLane({ dbWritesQueue: queues.dbWrites });
+
+      try {
+        // Manual check #1: PENDING -> UP — the full §16.1 transition contract.
+        const first = await enqueueManualCheck(monitorId, { checksQueue: queues.checks });
+        const firstJob = await queues.checks.getJob(first.jobId);
+        await waitFor(async () => (await firstJob?.getState()) === "completed");
+        const firstResult = await capture.nextResult();
+        expect(firstResult.outcome).toBe("tier1");
+        if (firstResult.outcome !== "tier1") return;
+        expect(firstResult.applied).toBe(true);
+        expect(firstResult.eventType).toBe("monitor.first_check");
+        expect((await fetchMonitor(monitorId))!.status).toBe("UP");
+        expect((await fetchMonitor(monitorId))!.totalChecks).toBe(1);
+
+        // Manual check #2 on the now-UP monitor — the UAT test-2 scenario
+        // verbatim (engine side): the repeat MUST persist inside the job.
+        const second = await enqueueManualCheck(monitorId, { checksQueue: queues.checks });
+        expect(second.jobId).not.toBe(first.jobId); // per-enqueue-unique ids
+        const secondJob = await queues.checks.getJob(second.jobId);
+        await waitFor(async () => (await secondJob?.getState()) === "completed");
+        const secondResult = await capture.nextResult();
+        expect(secondResult.outcome).toBe("tier1");
+        if (secondResult.outcome !== "tier1") return;
+        expect(secondResult.applied).toBe(false); // UP -> UP: no transition...
+        expect(secondResult.manualFlushed).toBe(true); // ...but the in-job additive flush ran
+
+        const monitor = (await fetchMonitor(monitorId))!;
+        expect(monitor.totalChecks).toBe(2);
+        expect(monitor.responseTime).not.toBeNull();
+        expect(await fetchPings(monitorId)).toHaveLength(2); // one evidence ping per enqueue
+        // The mechanism is a direct UPDATE — never Tier-2 staged.
+        expect(await admin.exists(stagingKey(monitorId))).toBe(0);
+
+        // The D-01 poll completion predicate: lastChecked is strictly newer
+        // than the second enqueue's queuedAt epoch. The column is a naive UTC
+        // timestamp and this host runs +06, so normalize space->T + append Z
+        // before parsing (a bare Date(string) parse is 6 h wrong).
+        const queuedAtMs = Number.parseInt(second.jobId.split(":")[2], 10);
+        const lastCheckedMs = Date.parse(monitor.lastChecked!.replace(" ", "T") + "Z");
+        expect(lastCheckedMs).toBeGreaterThan(queuedAtMs);
+      } finally {
+        await capture.lane.close();
+      }
+    },
+    30_000
+  );
+
+  it(
+    "11. G-06-2 manual repeat on a DOWN monitor persists in-job (failedChecks +1) with zero fabricated incidents/outbox",
+    async () => {
+      const monitorId = await seedMonitor({ url: target.url("/error500"), status: "DOWN" });
+      const capture = captureLane({ dbWritesQueue: queues.dbWrites });
+
+      try {
+        const enqueued = await enqueueManualCheck(monitorId, { checksQueue: queues.checks });
+        const job = await queues.checks.getJob(enqueued.jobId);
+        await waitFor(async () => (await job?.getState()) === "completed");
+        const result = await capture.nextResult();
+        expect(result.outcome).toBe("tier1");
+        if (result.outcome !== "tier1") return;
+        expect(result.applied).toBe(false); // DOWN -> DOWN: the guard skips
+        expect(result.manualFlushed).toBe(true);
+        expect(result.eventType).toBeNull();
+
+        const monitor = (await fetchMonitor(monitorId))!;
+        expect(monitor.status).toBe("DOWN");
+        expect(monitor.totalChecks).toBe(1);
+        expect(monitor.failedChecks).toBe(1);
+        expect(monitor.lastChecked).not.toBeNull();
+
+        // No fabricated alerting: applyTransition's statement-1 evidence ping
+        // is the sole evidence row — incidents and outbox stay untouched.
+        expect(await fetchOngoingIncident(monitorId)).toBeUndefined();
+        expect(await fetchOutbox(monitorId)).toHaveLength(0);
+        const pings = await fetchPings(monitorId);
+        expect(pings).toHaveLength(1);
+        expect(pings[0].status).toBe("DOWN");
+        expect(pings[0].error_class).toBe("http_5xx");
+        expect(pings[0].status_code).toBe(500);
+        expect(await admin.exists(stagingKey(monitorId))).toBe(0);
+      } finally {
+        await capture.lane.close();
+      }
+    },
+    30_000
   );
 });

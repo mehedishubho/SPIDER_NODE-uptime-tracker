@@ -94,6 +94,21 @@ queue-producer deadline semantics is a design change, not a bug fix). Candidate
 follow-up: wrap the producer enqueue/ping in a short deadline (e.g. 2–3s) → 503;
 candidate plan: next hardening phase or 06-05 follow-up.
 
+**RESOLVED (06-06 gap closure, 2026-09-30):** fixed by the 06-06 gap 2 closure —
+`PRODUCER_DEADLINE_MS = 3000` backstop in `src/lib/queue-producer.ts`
+(`withProducerDeadline` races every web-side producer await; the recorded 2–3s
+candidate realized at 3s, above the 1s connect + 1s command budget so the
+fast-rejection path stays primary). Wraps at the three web-side await sites:
+the producer set's `ping()`, the check-route `enqueueManualCheck` call, and the
+email door's `queue.add` in `src/lib/email/enqueue.ts` (Better Auth
+verification/reset hooks bounded through the door). Pins:
+`tests/lib/queue-producer-deadline.test.ts` (pass-through, fake-timer hang
+modes, custom-ms, email-door hang) + the check-route hang pin in
+`tests/api/check-route.handler.test.ts` (never-settling enqueue → the fixed 503
+by the deadline, with the gap-1 compensating restore also firing on the
+deadline path). Deferred-items item 3 closed; the forks-pool flake, IN-01 9090
+collision, and the other items below remain as recorded.
+
 ## Machine-local `.env` NEXT_PUBLIC drift (operator action)
 
 **Found during:** 06-04 pre-flight (`pnpm verify` build leg failed at prerender)

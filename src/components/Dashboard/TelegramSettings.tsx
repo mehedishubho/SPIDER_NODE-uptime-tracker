@@ -2,6 +2,16 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { SentIcon as Send, CheckmarkCircle02Icon as CheckCircle2, CancelCircleIcon as XCircle, LinkSquare01Icon as ExternalLink, Loading01Icon as Loader2, Notification01Icon as Bell, Delete02Icon as Trash2 } from "hugeicons-react";
 
 export default function TelegramSettings() {
@@ -11,6 +21,9 @@ export default function TelegramSettings() {
   const [testing, setTesting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [polling, setPolling] = useState(false);
+  // Disconnect-confirm dialog (UI-SPEC destructive-confirmation contract):
+  // the PATCH fires only from the dialog's confirm action.
+  const [confirmDisconnectOpen, setConfirmDisconnectOpen] = useState(false);
 
   const fetchProfile = useCallback(async (isPolling = false) => {
     try {
@@ -97,9 +110,9 @@ export default function TelegramSettings() {
     }
   };
 
+  // Invoked ONLY by the confirm action of the disconnect alert-dialog (the
+  // native confirm call retired with UI-02/D-34).
   const handleDisconnect = async () => {
-    if (!confirm("Are you sure you want to disconnect Telegram alerts?")) return;
-    
     try {
       setDisconnecting(true);
       const res = await fetch("/api/user/profile", {
@@ -205,7 +218,7 @@ export default function TelegramSettings() {
                     Send Test Alert
                   </button>
                   <button
-                    onClick={handleDisconnect}
+                    onClick={() => setConfirmDisconnectOpen(true)}
                     disabled={disconnecting}
                     className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 hover:text-rose-300 text-sm font-medium transition-all"
                   >
@@ -218,6 +231,33 @@ export default function TelegramSettings() {
           )}
         </div>
       </div>
+
+      {/* Disconnect Telegram confirm (UI-SPEC destructive-confirmation copy) */}
+      <AlertDialog
+        open={confirmDisconnectOpen}
+        onOpenChange={setConfirmDisconnectOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disconnect Telegram alerts</AlertDialogTitle>
+            <AlertDialogDescription>
+              {`You'll stop receiving DOWN and recovery alerts on Telegram. You can reconnect anytime.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                setConfirmDisconnectOpen(false);
+                handleDisconnect();
+              }}
+            >
+              Disconnect
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

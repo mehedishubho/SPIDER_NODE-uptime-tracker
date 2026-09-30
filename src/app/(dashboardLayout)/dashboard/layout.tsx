@@ -3,7 +3,6 @@ import { AppSidebar } from "@/components/dashboardLayout/AppSidebar";
 import FeedbackButton from "@/components/Dashboard/FeedbackButton";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import React, { ReactNode } from "react";
-import { Toaster } from "sonner";
 
 const DashboardLayout = ({ children }: { children: ReactNode }) => {
   return (

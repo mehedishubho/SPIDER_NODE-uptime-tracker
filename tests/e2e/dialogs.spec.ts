@@ -7,6 +7,7 @@ import {
   resetE2EData,
   seedE2EUser,
   seedMonitor,
+  seedTelegramChatId,
 } from "../setup/seed";
 
 // UI-02 / D-34: the dialog consolidation suite. Every destructive confirm on
@@ -24,6 +25,8 @@ test.beforeAll(async () => {
   await resetE2EData();
   const userId = await seedE2EUser();
   monitorId = await seedMonitor(userId, E2E_MONITOR_NAME);
+  // The disconnect-confirm leg needs the connected profile surface.
+  await seedTelegramChatId(userId, "123456789");
 });
 
 test.afterAll(async () => {
@@ -126,4 +129,105 @@ test("delete monitor dialog: confirm executes — DELETE fires, monitor removed,
   // toast text also carries the monitor name, so the empty-state heading is
   // the unambiguous gone-signal).
   await expect(page.getByText("No Monitors Found")).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
+// Log out confirm (TeamSwitch sidebar — the ex-Swal site). Same T-08-04
+// shape: cancel aborts (session survives), confirm executes sign-out.
+// ---------------------------------------------------------------------------
+
+test("logout dialog: cancel aborts — session survives, still on the dashboard", async ({
+  page,
+}) => {
+  await loginViaUi(page);
+
+  await page.getByRole("button", { name: "Log out" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByText("Do you want to log out?"),
+  ).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).not.toBeVisible();
+  // Still authenticated: the dashboard shell is still rendered.
+  await expect(page.getByText("Monitored Services")).toBeVisible();
+});
+
+test("logout dialog: confirm executes — sign-out completes and redirects to login", async ({
+  page,
+}) => {
+  await loginViaUi(page);
+
+  await page.getByRole("button", { name: "Log out" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Log Out" }).click();
+
+  await page.waitForURL(/\/login/, { timeout: 15_000 });
+  await expect(page).toHaveURL(/\/login/);
+});
+
+// ---------------------------------------------------------------------------
+// Disconnect Telegram confirm (profile page). Same T-08-04 shape.
+// ---------------------------------------------------------------------------
+
+test("telegram disconnect dialog: cancel aborts — no PATCH, chat stays connected", async ({
+  page,
+}) => {
+  await loginViaUi(page);
+  await page.goto("/dashboard/profile");
+
+  // The connected state renders the Disconnect button.
+  const disconnectButton = page.getByRole("button", { name: "Disconnect" });
+  await expect(disconnectButton).toBeVisible();
+
+  const patchRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "PATCH" && request.url().includes("/api/user/profile")) {
+      patchRequests.push(request.url());
+    }
+  });
+
+  await disconnectButton.click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByText(
+      "You'll stop receiving DOWN and recovery alerts on Telegram. You can reconnect anytime.",
+    ),
+  ).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).not.toBeVisible();
+  // Still connected: the connected-state surface (and its Disconnect
+  // affordance) remains rendered.
+  await expect(disconnectButton).toBeVisible();
+  expect(patchRequests).toEqual([]);
+});
+
+test("telegram disconnect dialog: confirm executes — PATCH fires and the badge flips", async ({
+  page,
+}) => {
+  await loginViaUi(page);
+  await page.goto("/dashboard/profile");
+
+  const patchFired = new Promise<string>((resolve) => {
+    page.on("request", (request) => {
+      if (request.method() === "PATCH" && request.url().includes("/api/user/profile")) {
+        resolve(request.url());
+      }
+    });
+  });
+
+  await page.getByRole("button", { name: "Disconnect" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Disconnect" }).click();
+
+  expect(await patchFired).toContain("/api/user/profile");
+  await expect(
+    page.getByText("Telegram disconnected successfully"),
+  ).toBeVisible();
+  await expect(page.getByText("Not Connected")).toBeVisible();
 });

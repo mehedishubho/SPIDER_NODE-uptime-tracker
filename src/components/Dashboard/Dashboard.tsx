@@ -15,7 +15,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Activity01Icon as Activity, PlusSignIcon as Plus, RefreshIcon as RefreshCw, Delete02Icon as Trash2, LinkSquare01Icon as ExternalLink, Logout01Icon as LogOut, Shield01Icon as ShieldCheck, GlobeIcon as Globe, Clock01Icon as Clock, ArrowUpRight01Icon as TrendingUp, Loading01Icon as Loader2, Cancel01Icon as X, Edit02Icon as Edit2, EcoPowerIcon as Power } from "hugeicons-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Activity01Icon as Activity, PlusSignIcon as Plus, RefreshIcon as RefreshCw, Delete02Icon as Trash2, LinkSquare01Icon as ExternalLink, Logout01Icon as LogOut, Shield01Icon as ShieldCheck, GlobeIcon as Globe, Clock01Icon as Clock, ArrowUpRight01Icon as TrendingUp, Loading01Icon as Loader2, Edit02Icon as Edit2, EcoPowerIcon as Power } from "hugeicons-react";
 import Link from "next/link";
 
 interface Monitor {
@@ -753,197 +760,186 @@ export function Dashboard() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Add Monitor Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="glass-panel w-full max-w-md p-6 rounded-2xl border border-slate-800 shadow-2xl relative">
-            <button
-              onClick={() => setIsAddModalOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h3 className="text-lg font-bold text-white mb-1">
-              Add New Monitor
-            </h3>
-            <p className="text-xs text-slate-400 mb-6">
+      {/* Add Monitor dialog (shadcn Dialog — one dialog system, UI-02) */}
+      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Monitor</DialogTitle>
+            <DialogDescription>
               Configure a target URL for automated 24/7 uptime monitoring.
-            </p>
+            </DialogDescription>
+          </DialogHeader>
 
-            <form onSubmit={handleCreateMonitor} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Monitor Name
-                </label>
-                <input
-                  type="text"
-                  value={newMonitorName}
-                  onChange={(e) => setNewMonitorName(e.target.value)}
-                  placeholder="e.g. Primary API Gateway"
-                  required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
-                />
-              </div>
+          <form onSubmit={handleCreateMonitor} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Monitor Name
+              </label>
+              <input
+                type="text"
+                value={newMonitorName}
+                onChange={(e) => setNewMonitorName(e.target.value)}
+                placeholder="e.g. Primary API Gateway"
+                required
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
+              />
+            </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Target URL
-                </label>
-                <input
-                  type="url"
-                  value={newMonitorUrl}
-                  onChange={(e) => setNewMonitorUrl(e.target.value)}
-                  placeholder="https://api.example.com/health"
-                  required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Target URL
+              </label>
+              <input
+                type="url"
+                value={newMonitorUrl}
+                onChange={(e) => setNewMonitorUrl(e.target.value)}
+                placeholder="https://api.example.com/health"
+                required
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
+              />
+            </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Check Interval
-                </label>
-                <select
-                  value={newMonitorInterval}
-                  onChange={(e) =>
-                    setNewMonitorInterval(Number(e.target.value))
-                  }
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
-                >
-                  <option value={1}>Every 1 minute</option>
-                  <option value={5}>Every 5 minutes</option>
-                  <option value={10}>Every 10 minutes</option>
-                  <option value={30}>Every 30 minutes</option>
-                  <option value={60}>Every 60 minutes</option>
-                </select>
-              </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Check Interval
+              </label>
+              <select
+                value={newMonitorInterval}
+                onChange={(e) =>
+                  setNewMonitorInterval(Number(e.target.value))
+                }
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
+              >
+                <option value={1}>Every 1 minute</option>
+                <option value={5}>Every 5 minutes</option>
+                <option value={10}>Every 10 minutes</option>
+                <option value={30}>Every 30 minutes</option>
+                <option value={60}>Every 60 minutes</option>
+              </select>
+            </div>
 
-              <div className="pt-2 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 text-xs font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-5 py-2 rounded-xl bg-primary hover:bg-red-400 text-primary-foreground text-xs font-bold transition-all shadow-md shadow-red-500/20 cursor-pointer flex items-center gap-2 disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Saving...</span>
-                    </>
-                  ) : (
-                    <span>Create Monitor</span>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div className="pt-2 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-5 py-2 rounded-xl bg-primary hover:bg-red-400 text-primary-foreground text-xs font-bold transition-all shadow-md shadow-red-500/20 cursor-pointer flex items-center gap-2 disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <span>Create Monitor</span>
+                )}
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-      {/* Edit Monitor Modal */}
-      {isEditModalOpen && editingMonitor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="glass-panel w-full max-w-md p-6 rounded-2xl border border-slate-800 shadow-2xl relative">
-            <button
-              onClick={() => {
-                setIsEditModalOpen(false);
-                setEditingMonitor(null);
-              }}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
-            >
-              <X className="w-5 h-5" />
-            </button>
+      {/* Edit Monitor dialog (shadcn Dialog — one dialog system, UI-02) */}
+      <Dialog
+        open={isEditModalOpen && editingMonitor !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsEditModalOpen(false);
+            setEditingMonitor(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Monitor</DialogTitle>
+            <DialogDescription>
+              Update configuration for {editingMonitor?.name}.
+            </DialogDescription>
+          </DialogHeader>
 
-            <h3 className="text-lg font-bold text-white mb-1">Edit Monitor</h3>
-            <p className="text-xs text-slate-400 mb-6">
-              Update configuration for {editingMonitor.name}.
-            </p>
+          <form onSubmit={handleEditMonitor} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Monitor Name
+              </label>
+              <input
+                type="text"
+                value={editMonitorName}
+                onChange={(e) => setEditMonitorName(e.target.value)}
+                placeholder="e.g. Primary API Gateway"
+                required
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
+              />
+            </div>
 
-            <form onSubmit={handleEditMonitor} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Monitor Name
-                </label>
-                <input
-                  type="text"
-                  value={editMonitorName}
-                  onChange={(e) => setEditMonitorName(e.target.value)}
-                  placeholder="e.g. Primary API Gateway"
-                  required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Target URL
+              </label>
+              <input
+                type="url"
+                value={editMonitorUrl}
+                onChange={(e) => setEditMonitorUrl(e.target.value)}
+                placeholder="https://api.example.com/health"
+                required
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
+              />
+            </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Target URL
-                </label>
-                <input
-                  type="url"
-                  value={editMonitorUrl}
-                  onChange={(e) => setEditMonitorUrl(e.target.value)}
-                  placeholder="https://api.example.com/health"
-                  required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Check Interval
+              </label>
+              <select
+                value={editMonitorInterval}
+                onChange={(e) =>
+                  setEditMonitorInterval(Number(e.target.value))
+                }
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
+              >
+                <option value={1}>Every 1 minute</option>
+                <option value={5}>Every 5 minutes</option>
+                <option value={10}>Every 10 minutes</option>
+                <option value={30}>Every 30 minutes</option>
+                <option value={60}>Every 60 minutes</option>
+              </select>
+            </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Check Interval
-                </label>
-                <select
-                  value={editMonitorInterval}
-                  onChange={(e) =>
-                    setEditMonitorInterval(Number(e.target.value))
-                  }
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
-                >
-                  <option value={1}>Every 1 minute</option>
-                  <option value={5}>Every 5 minutes</option>
-                  <option value={10}>Every 10 minutes</option>
-                  <option value={30}>Every 30 minutes</option>
-                  <option value={60}>Every 60 minutes</option>
-                </select>
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsEditModalOpen(false);
-                    setEditingMonitor(null);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 text-xs font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isUpdating}
-                  className="px-5 py-2 rounded-xl bg-primary hover:bg-red-400 text-primary-foreground text-xs font-bold transition-all shadow-md shadow-red-500/20 cursor-pointer flex items-center gap-2 disabled:opacity-50"
-                >
-                  {isUpdating ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Updating...</span>
-                    </>
-                  ) : (
-                    <span>Save Changes</span>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div className="pt-2 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setEditingMonitor(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isUpdating}
+                className="px-5 py-2 rounded-xl bg-primary hover:bg-red-400 text-primary-foreground text-xs font-bold transition-all shadow-md shadow-red-500/20 cursor-pointer flex items-center gap-2 disabled:opacity-50"
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Updating...</span>
+                  </>
+                ) : (
+                  <span>Save Changes</span>
+                )}
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

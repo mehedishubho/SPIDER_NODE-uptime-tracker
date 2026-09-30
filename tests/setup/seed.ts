@@ -97,6 +97,20 @@ export async function seedE2EUser(
 }
 
 /**
+ * Sets the user's telegramChatId so the profile page renders the connected
+ * state and its Disconnect surface (08-02 dialogs suite).
+ */
+export async function seedTelegramChatId(
+  userId: string,
+  chatId: string,
+): Promise<void> {
+  await ensurePool().query(
+    `UPDATE users SET "telegramChatId" = $1, "updatedAt" = NOW() WHERE id = $2`,
+    [chatId, userId],
+  );
+}
+
+/**
  * Creates one UP monitor for the given user. Fresh timestamps only (minutes
  * old, never >30 days — the retention cleanup purges old rows, Pitfall 2).
  * The URL is never fetched: the test server runs no cron at all (the legacy

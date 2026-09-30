@@ -5,13 +5,22 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Logout01Icon as LogOut, Activity01Icon as Activity } from "hugeicons-react";
 import { authClient } from "@/lib/auth-client";
 import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
-import Swal from "sweetalert2";
 import logo from "@/assets/logo.png"
 
 export function TeamSwitcher({
@@ -27,6 +36,10 @@ export function TeamSwitcher({
   };
 }) {
   const [activeTeam] = React.useState(teams[0]);
+  // Logout-confirm dialog (UI-SPEC destructive-confirmation contract; the
+  // retired popup library's former site): handleLogout runs only from the
+  // dialog's confirm action.
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = React.useState(false);
   const displayName = user?.name ?? "Default User";
   const displayEmail = user?.email ?? "user@spidernode.com";
   const displayAvatar = user?.avatar ?? "https://github.com/shadcn.png";
@@ -47,24 +60,8 @@ export function TeamSwitcher({
     window.location.href = "/login";
   };
 
-  const handleLogoutClick = async () => {
-    const result = await Swal.fire({
-      title: "Are you sure?",
-      text: "Do you want to log out?",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Log Out",
-      cancelButtonText: "Cancel",
-      // THM-03: dialog tokens are same-value in both modes — dark rendering unchanged
-      confirmButtonColor: "var(--primary)", // Red for the new theme
-      cancelButtonColor: "var(--dialog-muted)",
-      background: "var(--dialog-surface)",
-      color: "var(--dialog-foreground)",
-    });
-
-    if (result.isConfirmed) {
-      handleLogout();
-    }
+  const handleLogoutClick = () => {
+    setLogoutConfirmOpen(true);
   };
 
   if (!activeTeam) {
@@ -116,6 +113,33 @@ export function TeamSwitcher({
           </SidebarMenuItem>
         </SidebarMenu>
       </div>
+
+      {/* Log out confirm (UI-SPEC destructive-confirmation copy) */}
+      <AlertDialog
+        open={logoutConfirmOpen}
+        onOpenChange={setLogoutConfirmOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Log out</AlertDialogTitle>
+            <AlertDialogDescription>
+              Do you want to log out?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                setLogoutConfirmOpen(false);
+                handleLogout();
+              }}
+            >
+              Log Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

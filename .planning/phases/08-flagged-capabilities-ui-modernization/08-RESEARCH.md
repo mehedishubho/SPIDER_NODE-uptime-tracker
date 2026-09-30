@@ -511,15 +511,17 @@ if (!rl.success) {
 | A5 | Windowed column nullability (recommended nullable, NULL = no pings in window) — CONTEXT leaves "column shapes" to discretion | Pattern 4 | v2 display decision; either shape is additive and reversible by later migration |
 | A6 | `@ai-sdk/openai`/`@ai-sdk/anthropic` may be deferred (install only when their provider branches ship) while the selection map still throw-early enumerates them | Standard Stack | Unknown-value throw requires the value set decided at build time; deferring packages means their env values throw "not built" — acceptable but must be documented in `.env.example` |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Ship openai/anthropic provider branches now or GLM+custom only?**
+>All four questions were planner-discretion-scoped; the plans adopt each recommendation below. Inline (RESOLVED) markers record the adopted resolution and where it landed. (Marked resolved 2026-09-30 at plan revision.)
+
+1. **Ship openai/anthropic provider branches now or GLM+custom only?** — (RESOLVED — adopted: full env-value map with all packages installed. Landed in 08-06: Task 1 installs all five SDK packages at exact pins and Task 2 authors the openai/anthropic/custom factories completing the selection matrix; swap stays edit-env per D-02.)
    - What we know: D-02 enumerates OpenAI/Anthropic/GLM/OpenRouter/custom as swappable targets; only GLM is the day-1 default.
    - What's unclear: whether the release installs `@ai-sdk/openai`/`@ai-sdk/anthropic` or the map throw-earlies on those values until needed.
-   - Recommendation: implement the full env-value map with packages installed (they're tiny; avoids a code change at swap time), but this is planner discretion per D-02's "swap = edit env".
-2. **Recompute scheduler time relative to the 03:15 cleanup** — serialize behind cleanup on the concurrency-1 lane or schedule separately (e.g. 04:00 UTC)? Discretion; recommend a separated pattern so retention deletes never delay the recompute.
-3. **`WINDOWED_UPTIME_ENABLED` with zero v1 readers** — ship as a documented `.env.example` entry + tiny read-helper consumed only by tests (recommended), or defer the env var entirely to v2? D-22 says the flag gates reads and nothing reads; planner picks the honest minimal form.
-4. **E2E depth for AI surfaces** — functional Playwright with a stub provider (A3) vs handler-level only. Discretion per CONTEXT; recommend stub-based happy-path e2e for the partial-fill backstop (UI-SPEC marks it 🧪).
+   - Recommendation: implement the full env-value map with packages installed (they're tiny; avoids a code change at swap time), but this is planner discretion per D-02's "swap = edit env". (Adopted.)
+2. **Recompute scheduler time relative to the 03:15 cleanup** — serialize behind cleanup on the concurrency-1 lane or schedule separately (e.g. 04:00 UTC)? Discretion; recommend a separated pattern so retention deletes never delay the recompute. (RESOLVED — adopted: separated pattern "0 4 * * *" UTC. Landed in 08-01 Task 2 as RECOMPUTE_WINDOWED_PATTERN, explicitly not the cleanup's "15 3 * * *".)
+3. **`WINDOWED_UPTIME_ENABLED` with zero v1 readers** — ship as a documented `.env.example` entry + tiny read-helper consumed only by tests (recommended), or defer the env var entirely to v2? D-22 says the flag gates reads and nothing reads; planner picks the honest minimal form. (RESOLVED — adopted: documented `.env.example` entry + tests-only read helper (isWindowedUptimeReadEnabled). Landed in 08-01 Task 2.)
+4. **E2E depth for AI surfaces** — functional Playwright with a stub provider (A3) vs handler-level only. Discretion per CONTEXT; recommend stub-based happy-path e2e for the partial-fill backstop (UI-SPEC marks it 🧪). (RESOLVED — adopted: both layers — stub-based functional happy-path e2e in 08-07 tests/e2e/ai-surfaces.spec.ts (flag-ON + flag-off legs) plus handler-level streaming tests in 08-10 tests/api/ai-stream.handler.test.ts.)
 
 ## Environment Availability
 

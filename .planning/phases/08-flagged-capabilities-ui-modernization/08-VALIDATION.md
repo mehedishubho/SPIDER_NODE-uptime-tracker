@@ -42,14 +42,14 @@ Task IDs attach during planning; the requirement-level map below is binding (sou
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 08-06-T2 | 08-06 | 5 | AI-01 | T-08-17 | flag off → routes 404/inert; verify green with zero AI keys | unit (handler) | `pnpm vitest run tests/api/ai-routes.handler.test.ts -t "flag off"` | ❌ W0 | ⬜ pending |
-| 08-07-T1 | 08-07 | 6 | AI-01 | T-08-26 | UI renders zero AI trace when off (D-21) | e2e | `pnpm test:e2e -- --grep "AI flag off"` | ❌ W0 | ⬜ pending |
-| 08-06-T2 | 08-06 | 5 | AI-02 | T-08-16..20 | 401 without session; 429 + Retry-After per-user buckets; input cap; timeout path | unit (handler) | `pnpm vitest run tests/api/ai-routes.handler.test.ts` | ❌ W0 | ⬜ pending |
-| 08-06-T1 | 08-06 | 5 | AI-02 | T-08-18 | provider selection throw-early (each env-triple state) | unit | `pnpm vitest run tests/lib/ai-provider.test.ts` | ❌ W0 | ⬜ pending |
-| 08-06-T2 | 08-06 | 5 | AI-02/03 | T-08-15/22 | streaming route returns UIMessage/text stream (stub model) | unit + e2e stub | `pnpm vitest run tests/api/ai-stream.handler.test.ts` | ❌ W0 | ⬜ pending |
-| 08-06-T2 | 08-06 | 5 | AI-03 | T-08-19/22 | post-mortem composes incident+pings evidence; zero DB writes from AI routes | unit | `pnpm vitest run tests/api/ai-post-mortem.test.ts` | ❌ W0 | ⬜ pending |
-| 08-07-T2 | 08-07 | 6 | AI-04 | T-08-21/24 | assistant output validates against create-route schema; partial-fill mapping | unit | `pnpm vitest run tests/api/ai-assistant.test.ts` | ❌ W0 | ⬜ pending |
-| 08-06-T3 | 08-06 | 5 | AI-05 | T-08-SC | no `lib/ai`/`ai-sdk` import under `src/worker/**` | gate | `pnpm cron:remnants` (PHASE8 AI-in-worker leg, belt-and-braces beside `pnpm worker:boundary`) | ✓ (extend) | ⬜ pending |
+| 08-10-T1 | 08-10 | 7 | AI-01 | T-08-17 | flag off → routes 404/inert; verify green with zero AI keys | unit (handler) | `pnpm vitest run tests/api/ai-routes.handler.test.ts -t "flag off"` | ❌ W0 | ⬜ pending |
+| 08-07-T1 | 08-07 | 8 | AI-01 | T-08-26 | UI renders zero AI trace when off (D-21) | e2e | `pnpm test:e2e -- --grep "AI flag off"` | ❌ W0 | ⬜ pending |
+| 08-10-T1 | 08-10 | 7 | AI-02 | T-08-16..20 | 401 without session; 429 + Retry-After per-user buckets; input cap; timeout path | unit (handler) | `pnpm vitest run tests/api/ai-routes.handler.test.ts` | ❌ W0 | ⬜ pending |
+| 08-06-T2 | 08-06 | 6 | AI-02 | T-08-18 | provider selection throw-early (each env-triple state) | unit | `pnpm vitest run tests/lib/ai-provider.test.ts` | ❌ W0 | ⬜ pending |
+| 08-10-T1 | 08-10 | 7 | AI-02/03 | T-08-15/22 | streaming route returns UIMessage/text stream (stub model) | unit + e2e stub | `pnpm vitest run tests/api/ai-stream.handler.test.ts` | ❌ W0 | ⬜ pending |
+| 08-10-T1 | 08-10 | 7 | AI-03 | T-08-19/22 | post-mortem composes incident+pings evidence; zero DB writes from AI routes | unit | `pnpm vitest run tests/api/ai-post-mortem.test.ts` | ❌ W0 | ⬜ pending |
+| 08-07-T2 | 08-07 | 8 | AI-04 | T-08-21/24 | assistant output validates against create-route schema; partial-fill mapping | unit | `pnpm vitest run tests/api/ai-assistant.test.ts` | ❌ W0 | ⬜ pending |
+| 08-10-T2 | 08-10 | 7 | AI-05 | T-08-SC | no `lib/ai`/`ai-sdk` import under `src/worker/**` | gate | `pnpm cron:remnants` (PHASE8 AI-in-worker leg, belt-and-braces beside `pnpm worker:boundary`) | ✓ (extend) | ⬜ pending |
 | 08-01-T1 | 08-01 | 1 | DAT-11 | T-08-02 | windowed SQL math agrees with D-36 derivation on identical inputs | integration (test DB) | `pnpm vitest run tests/worker/windowed-uptime.test.ts` | ❌ W0 | ⬜ pending |
 | 08-01-T2 | 08-01 | 1 | DAT-11 | T-08-01 | maintenance dispatcher accepts new job name; scheduler upserted | unit | `pnpm vitest run tests/worker/maintenance-windowed.test.ts` | ❌ W0 | ⬜ pending |
 | 08-01-T4 | 08-01 | 1 | DAT-11 | T-08-03 | migration additive + rehearsed (carve-out list extended) | rehearsal | `pnpm rehearse:migrations` | ✓ (extend) | ⬜ pending |
@@ -63,12 +63,12 @@ Task IDs attach during planning; the requirement-level map below is binding (sou
 
 ## Wave 0 Requirements
 
-- [ ] `tests/api/ai-*.handler.test.ts` — AI route contracts (session/flag/limiter/cap/streaming) — created by 08-06 (ai-routes/ai-stream/ai-post-mortem) and 08-07 (ai-assistant)
-- [ ] `tests/lib/ai-provider.test.ts` — env-triple selection matrix (mirrors email provider tests) — created by 08-06 Task 1
+- [ ] `tests/api/ai-*.handler.test.ts` — AI route contracts (session/flag/limiter/cap/streaming) — created by 08-10 (ai-routes/ai-stream/ai-post-mortem) and 08-07 (ai-assistant)
+- [ ] `tests/lib/ai-provider.test.ts` — env-triple selection matrix (mirrors email provider tests) — created by 08-06 Tasks 1-2
 - [ ] `tests/worker/windowed-uptime.test.ts` + `tests/worker/maintenance-windowed.test.ts` — recompute math + dispatcher — created by 08-01 Tasks 1-2
-- [ ] Extended gate legs: react-icons/sweetalert2 remnants (+ lucide-react insurance, AI-in-worker rule) in the cron-remnants family, wired into `pnpm verify` — 08-02 Task 3 (deps) + 08-06 Task 3 (AI rule)
-- [ ] E2E: stub-provider AI specs + flag-off zero-trace spec (08-07, tests/e2e/ai-surfaces.spec.ts); UI robustness specs (08-03, tests/e2e/ui-robustness.spec.ts); redesign specs (08-04/08-05)
-- [ ] Characterization/contract suites stay untouched-green — the regression net for criterion 5 (asserted in 08-04/08-05/08-07 full-verify tasks)
+- [ ] Extended gate legs: react-icons/sweetalert2 remnants (+ lucide-react insurance, AI-in-worker rule) in the cron-remnants family, wired into `pnpm verify` — 08-02 Task 3 (deps) + 08-10 Task 2 (AI rule)
+- [ ] E2E: stub-provider AI specs + flag-off zero-trace spec (08-07, tests/e2e/ai-surfaces.spec.ts); UI robustness specs (08-03, tests/e2e/ui-robustness.spec.ts); redesign specs (08-04/08-05/08-09)
+- [ ] Characterization/contract suites stay untouched-green — the regression net for criterion 5 (asserted in 08-04/08-05/08-09/08-10/08-07 full-verify tasks)
 
 ---
 

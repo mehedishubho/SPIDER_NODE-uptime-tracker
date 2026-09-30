@@ -5,16 +5,16 @@ current_phase: 8
 current_phase_name: Flagged Capabilities & UI Modernization
 current_plan: 2
 status: executing
-stopped_at: Phase 8 UI-SPEC approved
-last_updated: "2026-09-30T17:45:35.563Z"
-last_activity: 2026-09-30
-last_activity_desc: Phase 06 execution started
-state_head: e1643ed32bba91545e5dd3fab8ffa98f18124816
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-09-30T19:55:57.955Z"
+last_activity: 2026-10-01
+last_activity_desc: Phase 8 execution started
+state_head: 27eee3bc4164d25aacd474cc210404f6b6f84041
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 73
-  completed_plans: 62
+  completed_plans: 63
 milestone_name: milestone
 ---
 
@@ -25,17 +25,17 @@ milestone_name: milestone
 See: .planning/PROJECT.md (updated 2026-09-19)
 
 **Core value:** Modernize the infrastructure without breaking existing monitoring — never lose or corrupt uptime data, silently stop checking, or lock users out irrecoverably.
-**Current focus:** Phase 06 — Thin API Routes & Email Abstraction
+**Current focus:** Phase 8 — Flagged Capabilities & UI Modernization
 
 ## Current Position
 
 Current Plan: 2
 Total Plans in Phase: 10
 
-Phase: 8 (Flagged Capabilities & UI Modernization) — READY TO EXECUTE
-Plan: 2 of 7
+Phase: 8 (Flagged Capabilities & UI Modernization) — EXECUTING
+Plan: 2 of 10
 Status: Ready to execute
-Last activity: 2026-09-30 — Phase 06 execution started
+Last activity: 2026-10-01 — Phase 8 execution started
 
 Progress: [████████████████████████] 61/61 plans ([█░░░░░░░░░] 13%)
 
@@ -131,6 +131,7 @@ Progress: [███████████████████████
 | Phase 07 P07-11 | 14 min | 3 tasks | 2 files |
 | Phase 06 P06 | 20min (continuation leg; Task 1 RED authoring prior session) | 3 tasks | 8 files |
 | Phase 06 P06 | 20min (continuation leg; Task 1 RED authoring prior session) | 3 tasks | 8 files |
+| Phase 08 P01 | split across 2 sessions (Tasks 1-3 + D-22 checkpoint prior session; Task 4 + closeout this leg ~10 min) | 4 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -337,6 +338,7 @@ Recent decisions affecting current work:
 - [Phase 06]: 06-06: PRODUCER_DEADLINE_MS=3000 backstop wraps ping/check-route-enqueue/email-door add; above the 1s connect + 1s command budget so fast rejection stays primary; a late add() may run once — bounded by per-enqueue-unique jobId + Tier-1 dedup (DAT-04); fail-loud beats an indefinite hang
 - [Phase 06]: 06-06: THIS drizzle stores sql-template params RAW in queryChunks (StringChunk|Number|String|Date) — the tests/api paramValues() helper filters non-StringChunk chunks; the plan's Param-wrapped 'value property' parenthetical does not match this version
 - [Phase 06]: 06-06: @/lib/queue-producer test mocks must be async importOriginal spreads (override ONLY webQueueProducer) now that enqueueTransactionalEmail imports withProducerDeadline — Rule 1 fix applied to auth-email-hooks + better-auth-cutover factories
+- [Phase 08]: D-22 reversibility gate resolved: proceed — land the per-window columns via additive migration 0004 through the 03-05 rehearsal pipeline; production apply rides the Release A deploy in plan 08-08; nightly recompute runs unconditionally from ship (user mehedishubho, 2026-09-30). — The one-way migration is acceptable: columns persist harmlessly if the v2 display switch never reads them; revert path is a documented follow-up drop migration plus re-planning; DAT-11 ships complete and Release-A-ready.
 
 ### Pending Todos
 
@@ -361,6 +363,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-30T16:32:45.650Z
-Stopped at: Phase 8 UI-SPEC approved
-Resume file: .planning/phases/08-flagged-capabilities-ui-modernization/08-UI-SPEC.md
+Last session: 2026-09-30T19:55:57.418Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: None

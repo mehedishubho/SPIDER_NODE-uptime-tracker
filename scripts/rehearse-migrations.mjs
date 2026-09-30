@@ -154,6 +154,28 @@ const SANCTIONED_DROPS_0003 = [
   "verification_tokens",
 ];
 
+// SANCTIONED ADDITIVE ARRIVALS, Phase-8 extension (0004_windowed_uptime —
+// DAT-11/D-22/D-23). The three monitors columns uptime24h/uptime7d/uptime30d
+// are 0004-ADDED nullable columns. The migration writes NO data (the D-23
+// backfill is the nightly 'recompute-windowed-uptime' job's first run, never
+// migration-time SQL), so the columns arrive NULL and sit outside monitors'
+// pinned pre-migration inventory above by construction — the same mechanism
+// that keeps 0001's and 0002's added columns out — leaving the monitors
+// digest EQUAL across the migrate with no inventory edit (the plan's "keep
+// the pre-0004 column set" branch, the 0001 precedent). Named here per the
+// CARVE_OUT_0002 labeling precedent so the evidence stays truthful about
+// which post-migrate columns are sanctioned: a documentation/labeling
+// contract consumed by the evidence renderer, never by the digest pipeline.
+// The step-8 DDL delta asserts their additive-only arrival; the delta stays
+// FATAL on any non-sanctioned removal (T-07-32 lineage — this block adds
+// names, it never weakens that rule). Extends the list, never the pipeline
+// structure (03-05 rule).
+const CARVE_OUT_0004_COLUMNS = [
+  "monitors.uptime24h",
+  "monitors.uptime7d",
+  "monitors.uptime30d",
+];
+
 function fail(context, error) {
   throw new Error(
     `rehearse-migrations failed: ${context}. ` +
@@ -951,6 +973,7 @@ async function main() {
         `${CARVE_OUT_0002_USER_COLUMNS.join(" + ")} (0002 D-08 role + D-23 boolean backfill — written outside the pinned pre-migration inventory; admin-plugin columns users.banned/banReason/banExpires ride outside the same way)`,
         `${CARVE_OUT_0002_TABLES.map((t) => t.table).join("/")} (0002 new Better Auth tables — no BEFORE baseline; counted via the new-tables path, arrival asserted by the DDL delta)`,
         `${SANCTIONED_DROPS_0003.join("/")} (0003 SANCTIONED DROPS — data dropped WITH the tables per D-27; the BEFORE count IS the rows dropped, the AFTER side is absent by design)`,
+        `${CARVE_OUT_0004_COLUMNS.join(" + ")} (0004 additive nullable windowed-uptime columns — arrive NULL, no migration-time writes; D-23 backfill is the nightly recompute job's first run; outside monitors' pinned pre-migration inventory by construction)`,
       ].join("; "),
       tables: tableRows,
       newTables,

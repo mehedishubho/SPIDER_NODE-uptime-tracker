@@ -368,7 +368,38 @@ Plans:
   4. Dashboard components use shadcn primitives with one dialog system and one icon system; every polling fetch is abortable (AbortController), timers clear on unmount, URL derivation is hydration-safe, and there is a single Toaster
   5. The visual redesign ships with light mode looking intentional (light-safe brand assets, sidebar token reconciliation) while monitoring behavior and public API shapes stay unchanged — characterization and contract tests still green
 
-**Plans**: TBD
+**Plans**: 8/8 plans
+
+Plans:
+**Wave 1** *(release-a tag after completion)*
+
+- [ ] 08-01-PLAN.md — DAT-11 windowed-uptime backend: migration 0004 + nightly recompute job + scheduler + env entry, D-22 one-way decision gate, [BLOCKING] single-runner apply + rehearsal with carve-out extension (DAT-11)
+
+**Wave 2** *(blocked on 08-01 — release-tag composition per D-37)*
+
+- [ ] 08-02-PLAN.md — UI-02 dialog + icon consolidation: shadcn dialog/alert-dialog (two-trap verified), 3 confirm-site + modal migrations, react-icons/sweetalert2 deletions with PHASE8 remnant gates, single Toaster (UI-02)
+
+**Wave 3** *(blocked on 08-02 — shared Dashboard.tsx)*
+
+- [ ] 08-03-PLAN.md — UI-04 client robustness: AbortController on all polling fetches, cleared timers, hydration-safe URL derivation, robustness e2e spec (UI-04)
+
+**Wave 4** *(blocked on 08-03; parallel pair, no file overlap — release-b tag after completion)*
+
+- [ ] 08-04-PLAN.md — Tier-1 redesign: dashboard stats header + denser list + cleaner monitor detail on shadcn primitives, typography scale, tier-1 token migration, motion micro-interactions, skeleton loaders (UI-01, UI-05)
+- [ ] 08-05-PLAN.md — UI-03 light mode: WR-02 marketing surfaces, 11-token review + per-mode splits, --dialog-* retirement, tier-2 sweep, sidebar reconciliation, light-safe Lottie (UI-03)
+
+**Wave 5** *(blocked on 08-04 + 08-05 — D-36 AI last)*
+
+- [ ] 08-06-PLAN.md — AI provider foundation: AI SDK pins + lib/ai env-swappable layer (GLM day-1 default), AI_* env entries, post-mortem route with full guard chain, AI-in-worker gate leg, zero-key verify (AI-01, AI-02)
+
+**Wave 6** *(blocked on 08-06)*
+
+- [ ] 08-07-PLAN.md — AI feature UX: post-mortem inline streaming card + monitor-assistant route/prefill (partial fill, submit-as-confirmation), server-side flag propagation, stub-provider e2e + D-21 zero-trace spec (AI-03, AI-04, AI-05)
+
+**Wave 7** *(final — blocked on 08-07 — release-c tag)*
+
+- [ ] 08-08-PLAN.md — D-37/D-38 release choreography: runbook Phase-8 section, three soaked releases from pinned tags (windowed backend / redesign / AI dark), AI flip with live smoke, 08-DEPLOY-RECORD (AI-01, DAT-11, UI-05 production proof legs)
+
 **UI hint**: yes
 
 ## Requirement Coverage

@@ -42,20 +42,20 @@ Task IDs attach during planning; the requirement-level map below is binding (sou
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| TBD | TBD | TBD | AI-01 | — | flag off → routes 404/inert; verify green with zero AI keys | unit (handler) | `pnpm vitest run tests/api/ai-routes.handler.test.ts -t "flag off"` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | AI-01 | — | UI renders zero AI trace when off (D-21) | e2e | `pnpm test:e2e -- --grep "AI flag off"` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | AI-02 | T-08-* | 401 without session; 429 + Retry-After per-user buckets; input cap; timeout path | unit (handler) | `pnpm vitest run tests/api/ai-routes.handler.test.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | AI-02 | — | provider selection throw-early (each env-triple state) | unit | `pnpm vitest run tests/lib/ai-provider.test.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | AI-02/03 | — | streaming route returns UIMessage/text stream (stub model) | unit + e2e stub | `pnpm vitest run tests/api/ai-stream.handler.test.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | AI-03 | — | post-mortem composes incident+pings evidence; zero DB writes from AI routes | unit | `pnpm vitest run tests/api/ai-post-mortem.test.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | AI-04 | — | assistant output validates against create-route schema; partial-fill mapping | unit | `pnpm vitest run tests/api/ai-assistant.test.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | AI-05 | — | no `lib/ai`/`ai-sdk` import under `src/worker/**` | gate | `pnpm worker:boundary` (extended) | ✓ (extend) | ⬜ pending |
-| TBD | TBD | TBD | DAT-11 | — | windowed SQL math agrees with D-36 derivation on identical inputs | integration (test DB) | `pnpm vitest run tests/worker/windowed-uptime.test.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | DAT-11 | — | maintenance dispatcher accepts new job name; scheduler upserted | unit | `pnpm vitest run tests/worker/maintenance-windowed.test.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | DAT-11 | — | migration additive + rehearsed (carve-out list extended) | rehearsal | `pnpm rehearse:migrations` | ✓ (extend) | ⬜ pending |
-| TBD | TBD | TBD | UI-02/D-33 | — | react-icons/sweetalert2 remnant gates RED on re-introduction | gate | `pnpm verify` (extended gate legs) | ✓ (extend) | ⬜ pending |
-| TBD | TBD | TBD | UI-04 | — | polling fetches abort on unmount; timers clear; single Toaster; hydration-safe URL | unit/e2e | `pnpm test:e2e` + component tests | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | UI-05 | — | characterization + contract suites stay green (criterion 5) | regression | `pnpm test && pnpm test:e2e` | ✓ | ⬜ pending |
+| 08-06-T2 | 08-06 | 5 | AI-01 | T-08-17 | flag off → routes 404/inert; verify green with zero AI keys | unit (handler) | `pnpm vitest run tests/api/ai-routes.handler.test.ts -t "flag off"` | ❌ W0 | ⬜ pending |
+| 08-07-T1 | 08-07 | 6 | AI-01 | T-08-26 | UI renders zero AI trace when off (D-21) | e2e | `pnpm test:e2e -- --grep "AI flag off"` | ❌ W0 | ⬜ pending |
+| 08-06-T2 | 08-06 | 5 | AI-02 | T-08-16..20 | 401 without session; 429 + Retry-After per-user buckets; input cap; timeout path | unit (handler) | `pnpm vitest run tests/api/ai-routes.handler.test.ts` | ❌ W0 | ⬜ pending |
+| 08-06-T1 | 08-06 | 5 | AI-02 | T-08-18 | provider selection throw-early (each env-triple state) | unit | `pnpm vitest run tests/lib/ai-provider.test.ts` | ❌ W0 | ⬜ pending |
+| 08-06-T2 | 08-06 | 5 | AI-02/03 | T-08-15/22 | streaming route returns UIMessage/text stream (stub model) | unit + e2e stub | `pnpm vitest run tests/api/ai-stream.handler.test.ts` | ❌ W0 | ⬜ pending |
+| 08-06-T2 | 08-06 | 5 | AI-03 | T-08-19/22 | post-mortem composes incident+pings evidence; zero DB writes from AI routes | unit | `pnpm vitest run tests/api/ai-post-mortem.test.ts` | ❌ W0 | ⬜ pending |
+| 08-07-T2 | 08-07 | 6 | AI-04 | T-08-21/24 | assistant output validates against create-route schema; partial-fill mapping | unit | `pnpm vitest run tests/api/ai-assistant.test.ts` | ❌ W0 | ⬜ pending |
+| 08-06-T3 | 08-06 | 5 | AI-05 | T-08-SC | no `lib/ai`/`ai-sdk` import under `src/worker/**` | gate | `pnpm cron:remnants` (PHASE8 AI-in-worker leg, belt-and-braces beside `pnpm worker:boundary`) | ✓ (extend) | ⬜ pending |
+| 08-01-T1 | 08-01 | 1 | DAT-11 | T-08-02 | windowed SQL math agrees with D-36 derivation on identical inputs | integration (test DB) | `pnpm vitest run tests/worker/windowed-uptime.test.ts` | ❌ W0 | ⬜ pending |
+| 08-01-T2 | 08-01 | 1 | DAT-11 | T-08-01 | maintenance dispatcher accepts new job name; scheduler upserted | unit | `pnpm vitest run tests/worker/maintenance-windowed.test.ts` | ❌ W0 | ⬜ pending |
+| 08-01-T4 | 08-01 | 1 | DAT-11 | T-08-03 | migration additive + rehearsed (carve-out list extended) | rehearsal | `pnpm rehearse:migrations` | ✓ (extend) | ⬜ pending |
+| 08-02-T3 | 08-02 | 2 | UI-02/D-33 | T-08-06 | react-icons/sweetalert2 remnant gates RED on re-introduction | gate | `pnpm verify` (extended gate legs) | ✓ (extend) | ⬜ pending |
+| 08-03-T1..T3 | 08-03 | 3 | UI-04 | T-08-07/08 | polling fetches abort on unmount; timers clear; single Toaster; hydration-safe URL | unit/e2e | `pnpm test:e2e -- tests/e2e/ui-robustness.spec.ts` | ❌ W0 | ⬜ pending |
+| 08-04-T3 | 08-04 | 4 | UI-05 | T-08-09 | characterization + contract suites stay green (criterion 5) | regression | `pnpm test && pnpm test:e2e` | ✓ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -63,12 +63,12 @@ Task IDs attach during planning; the requirement-level map below is binding (sou
 
 ## Wave 0 Requirements
 
-- [ ] `tests/api/ai-*.handler.test.ts` — AI route contracts (session/flag/limiter/cap/streaming)
-- [ ] `tests/lib/ai-provider.test.ts` — env-triple selection matrix (mirrors email provider tests)
-- [ ] `tests/worker/windowed-uptime.test.ts` + `tests/worker/maintenance-windowed.test.ts` — recompute math + dispatcher
-- [ ] Extended gate legs: react-icons/sweetalert2 remnants (+ optional lucide-react, AI-in-worker) in the cron-remnants family, wired into `pnpm verify`
-- [ ] E2E: stub-provider AI specs + flag-off zero-trace spec; UI robustness specs (Playwright `api`/`e2e` projects)
-- [ ] Characterization/contract suites stay untouched-green — the regression net for criterion 5
+- [ ] `tests/api/ai-*.handler.test.ts` — AI route contracts (session/flag/limiter/cap/streaming) — created by 08-06 (ai-routes/ai-stream/ai-post-mortem) and 08-07 (ai-assistant)
+- [ ] `tests/lib/ai-provider.test.ts` — env-triple selection matrix (mirrors email provider tests) — created by 08-06 Task 1
+- [ ] `tests/worker/windowed-uptime.test.ts` + `tests/worker/maintenance-windowed.test.ts` — recompute math + dispatcher — created by 08-01 Tasks 1-2
+- [ ] Extended gate legs: react-icons/sweetalert2 remnants (+ lucide-react insurance, AI-in-worker rule) in the cron-remnants family, wired into `pnpm verify` — 08-02 Task 3 (deps) + 08-06 Task 3 (AI rule)
+- [ ] E2E: stub-provider AI specs + flag-off zero-trace spec (08-07, tests/e2e/ai-surfaces.spec.ts); UI robustness specs (08-03, tests/e2e/ui-robustness.spec.ts); redesign specs (08-04/08-05)
+- [ ] Characterization/contract suites stay untouched-green — the regression net for criterion 5 (asserted in 08-04/08-05/08-07 full-verify tasks)
 
 ---
 

@@ -132,7 +132,10 @@ test("dashboard: navigate-away with the check-now poll running records zero page
   // Force a check-now (fake 202 + real poll loop), land inside the loop's
   // first delayed read (~2s cadence + 800ms hold), then leave — the loop's
   // fetchMonitors pass aborts cleanly on unmount.
-  await page.getByTitle("Re-check endpoint status").click();
+  // 08-04 redesign: row actions live in the dropdown-menu overflow — open the
+  // row menu first (same reconciliation as dialogs.spec).
+  await page.getByRole("button", { name: "Row actions" }).first().click();
+  await page.getByRole("menuitem", { name: "Re-check endpoint status" }).click();
   await page.waitForTimeout(2400);
   await page.getByRole("link", { name: "Incidents" }).click();
   await expect(page).toHaveURL(/\/dashboard\/incidents/, { timeout: 15_000 });

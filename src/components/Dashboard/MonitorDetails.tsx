@@ -6,6 +6,16 @@ import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
 import { Activity01Icon as Activity, ArrowLeft01Icon as ArrowLeft, Clock01Icon as Clock, GlobeIcon as Globe, Loading01Icon as Loader2, Alert01Icon as AlertTriangle, CheckmarkCircle02Icon as CheckCircle2, CancelCircleIcon as XCircle, ArrowUpRight01Icon as TrendingUp, ServerStack01Icon as ServerCrash } from "hugeicons-react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 
 interface Ping {
   id: string;
@@ -113,10 +123,12 @@ export function MonitorDetails() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <span className="text-xs text-slate-400 font-mono">Loading Monitor Data...</span>
+          <Loader2 className="size-8 animate-spin text-primary" />
+          <span className="font-mono text-xs text-muted-foreground">
+            Loading Monitor Data...
+          </span>
         </div>
       </div>
     );
@@ -127,67 +139,80 @@ export function MonitorDetails() {
   // Chart preparation
   // Reverse pings to show oldest to newest (left to right)
   const chartPings = [...monitor.pings].reverse().slice(-50); // Show last 50
-  
+
   return (
-    <div className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        
+    <div className="min-h-screen bg-background p-4 text-foreground sm:p-6 lg:p-8">
+      <div className="mx-auto flex max-w-7xl flex-col gap-8">
+
         {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div className="flex items-center gap-4">
-            <Link 
-              href="/dashboard"
-              className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            <Button
+              variant="outline"
+              size="icon"
+              asChild
+              aria-label="Back to dashboard"
             >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-                {monitor.name}
+              <Link href="/dashboard">
+                <ArrowLeft className="size-5" />
+              </Link>
+            </Button>
+            <div className="min-w-0">
+              <h1
+                title={monitor.name}
+                className="flex min-w-0 items-center gap-3 text-lg font-semibold text-foreground"
+              >
+                <span className="truncate">{monitor.name}</span>
                 <span
-                  className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                  data-testid="detail-status-badge"
+                  className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-2.5 py-1 font-mono text-xs font-semibold ${
                     !monitor.isActive
-                      ? "bg-slate-500/10 text-slate-400 border-slate-500/30"
+                      ? "border-border bg-muted text-muted-foreground"
                       : monitor.status === "UP"
-                      ? "bg-emerald-500/10 text-status-up border-emerald-500/30"
+                      ? "border-status-up/30 bg-status-up/10 text-status-up"
                       : monitor.status === "DOWN"
-                      ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
-                      : "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                      ? "border-status-down/30 bg-status-down/10 text-status-down"
+                      : "border-border bg-muted text-muted-foreground"
                   }`}
                 >
                   <span
-                    className={`w-2 h-2 rounded-full ${
+                    className={`size-2 rounded-full ${
                       !monitor.isActive
-                        ? "bg-slate-500"
+                        ? "bg-muted-foreground/50"
                         : monitor.status === "UP"
-                        ? "bg-status-up animate-ping"
-                        : "bg-rose-500"
+                        ? "bg-status-up animate-status-pulse"
+                        : "bg-status-down"
                     }`}
                   />
                   {!monitor.isActive ? "PAUSED" : monitor.status}
                 </span>
               </h1>
-              <a 
-                href={monitor.url} 
-                target="_blank" 
+              <a
+                href={monitor.url}
+                target="_blank"
                 rel="noreferrer"
-                className="text-sm text-slate-400 hover:text-primary flex items-center gap-1 mt-1 transition-colors"
+                title={monitor.url}
+                className="mt-1 flex max-w-md items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                <Globe className="w-3.5 h-3.5" />
-                {monitor.url}
+                <Globe className="size-3.5 shrink-0" />
+                <span className="truncate">{monitor.url}</span>
               </a>
             </div>
           </div>
-          
-          <div className="flex items-center gap-6 text-sm text-slate-400 bg-slate-900/50 p-3 rounded-xl border border-slate-800/80">
+
+          <div className="flex items-center gap-6 rounded-xl border border-border bg-secondary/50 p-3 text-sm">
             <div className="flex flex-col">
-              <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Check Interval</span>
-              <span className="font-mono text-white">{monitor.interval} minutes</span>
+              <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                Check Interval
+              </span>
+              <span className="font-mono text-foreground">{monitor.interval} minutes</span>
             </div>
-            <div className="w-px h-8 bg-slate-800"></div>
+            <Separator orientation="vertical" className="h-8" />
             <div className="flex flex-col">
-              <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Last Checked</span>
-              <span className="font-mono text-white">
+              <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                Last Checked
+              </span>
+              <span className="font-mono text-foreground">
                 {monitor.lastChecked ? new Date(monitor.lastChecked).toLocaleTimeString() : "Never"}
               </span>
             </div>
@@ -195,148 +220,179 @@ export function MonitorDetails() {
         </div>
 
         {/* Metrics Overview */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="glass-panel p-5 rounded-2xl border border-slate-800">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-mono">OVERALL UPTIME</span>
-              <Activity className="w-4 h-4 text-status-up" />
-            </div>
-            <div className={`text-3xl font-extrabold font-mono ${monitor.uptimePercent < 95 ? "text-rose-400" : "text-status-up"}`}>
-              {monitor.uptimePercent ? monitor.uptimePercent.toFixed(2) : 100}%
-            </div>
-          </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Card className="gap-2 py-5">
+            <CardHeader className="px-5">
+              <CardDescription className="flex items-center justify-between text-xs font-mono uppercase tracking-wider">
+                <span>OVERALL UPTIME</span>
+                <Activity className="size-4 text-muted-foreground" aria-hidden />
+              </CardDescription>
+              <CardTitle
+                data-testid="detail-uptime"
+                className={`font-mono text-[28px] font-semibold leading-tight ${
+                  monitor.uptimePercent < 95 ? "text-status-down" : "text-status-up"
+                }`}
+              >
+                {monitor.uptimePercent ? monitor.uptimePercent.toFixed(2) : 100}%
+              </CardTitle>
+            </CardHeader>
+          </Card>
 
-          <div className="glass-panel p-5 rounded-2xl border border-slate-800">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-mono">AVG RESPONSE TIME</span>
-              <TrendingUp className="w-4 h-4 text-primary" />
-            </div>
-            <div className="text-3xl font-extrabold font-mono text-white">
-              {monitor.responseTime || 0}ms
-            </div>
-          </div>
+          <Card className="gap-2 py-5">
+            <CardHeader className="px-5">
+              <CardDescription className="flex items-center justify-between text-xs font-mono uppercase tracking-wider">
+                <span>AVG RESPONSE TIME</span>
+                <TrendingUp className="size-4 text-muted-foreground" aria-hidden />
+              </CardDescription>
+              <CardTitle
+                data-testid="detail-latency"
+                className="font-mono text-[28px] font-semibold leading-tight text-foreground"
+              >
+                {monitor.responseTime || 0}ms
+              </CardTitle>
+            </CardHeader>
+          </Card>
 
-          <div className="glass-panel p-5 rounded-2xl border border-slate-800">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-mono">TOTAL INCIDENTS</span>
-              <AlertTriangle className="w-4 h-4 text-amber-400" />
-            </div>
-            <div className="text-3xl font-extrabold font-mono text-amber-400">
-              {monitor.incidents.length}
-            </div>
-          </div>
+          <Card className="gap-2 py-5">
+            <CardHeader className="px-5">
+              <CardDescription className="flex items-center justify-between text-xs font-mono uppercase tracking-wider">
+                <span>TOTAL INCIDENTS</span>
+                <AlertTriangle className="size-4 text-muted-foreground" aria-hidden />
+              </CardDescription>
+              <CardTitle
+                data-testid="detail-incidents"
+                className="font-mono text-[28px] font-semibold leading-tight text-accent-gold"
+              >
+                {monitor.incidents.length}
+              </CardTitle>
+            </CardHeader>
+          </Card>
         </div>
 
         {/* Response Time Chart (Bar Chart visualization) */}
-        <div className="glass-panel p-5 sm:p-6 rounded-2xl border border-slate-800">
-          <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-primary" />
-            Response Time History (Last 50 checks)
-          </h2>
-          
-          <div className="h-48 w-full flex items-end gap-1 overflow-hidden relative border-b border-slate-800 pb-2">
-            {chartPings.length === 0 ? (
-              <div className="absolute inset-0 flex items-center justify-center text-slate-500 font-mono text-xs">
-                No ping data available yet.
+        <Card className="gap-4 py-5">
+          <CardHeader className="px-5">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
+              <Activity className="size-5 text-muted-foreground" aria-hidden />
+              Response Time History (Last 50 checks)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-5">
+            <div className="relative flex h-48 w-full items-end gap-1 overflow-hidden border-b border-border pb-2">
+              {chartPings.length === 0 ? (
+                <div className="absolute inset-0 flex items-center justify-center font-mono text-xs text-muted-foreground">
+                  No ping data available yet.
+                </div>
+              ) : (
+                chartPings.map((ping) => {
+                  // max height for 1000ms
+                  const heightPercent = Math.min(100, Math.max(5, (ping.responseTime / 1000) * 100));
+                  const isDown = ping.status === "DOWN";
+
+                  return (
+                    <div
+                      key={ping.id}
+                      title={`${ping.responseTime}ms at ${new Date(ping.createdAt).toLocaleTimeString()}`}
+                      className={`group relative min-w-[4px] flex-1 cursor-crosshair rounded-t-sm transition-all hover:opacity-80 ${
+                        // Status-colored data rides the status tokens: DOWN
+                        // bars status-down, UP bars status-up (primary red is
+                        // reserved for CTAs/brand per the UI-SPEC Color row).
+                        isDown ? "bg-status-down" : "bg-status-up"
+                      }`}
+                      style={{ height: `${isDown ? 10 : heightPercent}%` }}
+                    >
+                      <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded border border-border bg-popover px-2 py-1 text-xs text-popover-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                        {isDown ? "OFFLINE" : `${ping.responseTime}ms`}
+                        <div className="mt-0.5 text-xs text-muted-foreground">{new Date(ping.createdAt).toLocaleTimeString()}</div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Incident History — Card composition; the block structure (icon +
+            title + description + started/resolved timestamps + ACTIVE/
+            RESOLVED badge) is the 08-07 post-mortem mount point and stays */}
+        <Card className="gap-0 py-0">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
+              <ServerCrash className="size-5 text-muted-foreground" aria-hidden />
+              Incident History
+            </CardTitle>
+            <CardDescription className="text-xs text-muted-foreground">
+              Recent downtime events and their duration.
+            </CardDescription>
+          </CardHeader>
+          <Separator />
+          <CardContent className="p-0">
+            {monitor.incidents.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 p-12 text-center">
+                <div className="flex size-12 items-center justify-center rounded-full border border-border bg-secondary text-status-up">
+                  <CheckCircle2 className="size-6" />
+                </div>
+                <h3 className="text-sm font-semibold text-foreground">Clean History</h3>
+                <p className="text-xs text-muted-foreground">
+                  No incidents recorded for this monitor.
+                </p>
               </div>
             ) : (
-              chartPings.map((ping, i) => {
-                // max height for 1000ms
-                const heightPercent = Math.min(100, Math.max(5, (ping.responseTime / 1000) * 100));
-                const isDown = ping.status === "DOWN";
-                
-                return (
-                  <div 
-                    key={ping.id} 
-                    title={`${ping.responseTime}ms at ${new Date(ping.createdAt).toLocaleTimeString()}`}
-                    className={`flex-1 min-w-[4px] rounded-t-sm transition-all hover:opacity-80 cursor-crosshair group relative ${
-                      isDown ? 'bg-rose-500' : 'bg-primary'
-                    }`}
-                    style={{ height: `${isDown ? 10 : heightPercent}%` }}
-                  >
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-slate-900 border border-slate-800 text-xs text-white px-2 py-1 rounded pointer-events-none whitespace-nowrap z-10 transition-opacity">
-                      {isDown ? 'OFFLINE' : `${ping.responseTime}ms`}
-                      <div className="text-[9px] text-slate-400 mt-0.5">{new Date(ping.createdAt).toLocaleTimeString()}</div>
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </div>
+              <div className="flex flex-col gap-4 p-4 sm:p-6">
+                {monitor.incidents.map((incident) => {
+                  const isOngoing = incident.status === "ONGOING";
 
-        {/* Incident History Section */}
-        <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
-          <div className="p-4 sm:p-6 border-b border-slate-800/80">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <ServerCrash className="w-5 h-5 text-slate-400" />
-              Incident History
-            </h2>
-            <p className="text-xs text-slate-400 mt-1">
-              Recent downtime events and their duration.
-            </p>
-          </div>
-          
-          {monitor.incidents.length === 0 ? (
-            <div className="p-12 text-center space-y-3">
-              <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-800 text-status-up flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-6 h-6" />
+                  return (
+                    <Card key={incident.id} data-testid="incident-block" className="gap-3 py-4">
+                      <CardHeader className="gap-2 px-4">
+                        <CardTitle className="flex items-center gap-3 text-sm font-semibold text-foreground">
+                          <span
+                            className={`flex size-8 shrink-0 items-center justify-center rounded-full ${
+                              isOngoing
+                                ? "bg-status-down/10 text-status-down"
+                                : "bg-status-up/10 text-status-up"
+                            }`}
+                          >
+                            {isOngoing ? <XCircle className="size-4" /> : <CheckCircle2 className="size-4" />}
+                          </span>
+                          {isOngoing ? "Downtime Ongoing" : "Downtime Resolved"}
+                        </CardTitle>
+                        <CardDescription className="line-clamp-2 text-xs text-muted-foreground">
+                          {incident.description || "Connection timeout or invalid status code."}
+                        </CardDescription>
+                        <CardAction>
+                          <span
+                            data-testid="incident-status-badge"
+                            className={`inline-flex items-center rounded border px-2.5 py-1 font-mono text-xs font-semibold tracking-wider ${
+                              isOngoing
+                                ? "border-status-down/30 bg-status-down/10 text-status-down"
+                                : "border-status-up/30 bg-status-up/10 text-status-up"
+                            }`}
+                          >
+                            {isOngoing ? "ACTIVE" : "RESOLVED"}
+                          </span>
+                        </CardAction>
+                      </CardHeader>
+                      <CardContent className="flex flex-wrap items-center gap-4 px-4 font-mono text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="size-3" />
+                          Started: {new Date(incident.startedAt).toLocaleString()}
+                        </span>
+                        {!isOngoing && incident.resolvedAt && (
+                          <span className="flex items-center gap-1.5 text-status-up">
+                            <Activity className="size-3" />
+                            Resolved: {new Date(incident.resolvedAt).toLocaleString()}
+                          </span>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
-              <h3 className="text-sm font-semibold text-slate-300">Clean History</h3>
-              <p className="text-xs text-slate-500">
-                No incidents recorded for this monitor.
-              </p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-800/60">
-              {monitor.incidents.map((incident) => {
-                const isOngoing = incident.status === "ONGOING";
-                
-                return (
-                  <div key={incident.id} className="p-4 sm:p-6 hover:bg-slate-800/20 transition-colors">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-4">
-                        <div className={`mt-0.5 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          isOngoing ? "bg-rose-500/10 text-rose-500" : "bg-emerald-500/10 text-status-up"
-                        }`}>
-                          {isOngoing ? <XCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-bold text-white">
-                            {isOngoing ? "Downtime Ongoing" : "Downtime Resolved"}
-                          </h4>
-                          <p className="text-xs text-slate-400 mt-1">
-                            {incident.description || "Connection timeout or invalid status code."}
-                          </p>
-                          <div className="flex items-center gap-4 mt-3 text-[11px] font-mono text-slate-500">
-                            <span className="flex items-center gap-1.5">
-                              <Clock className="w-3 h-3 text-slate-600" />
-                              Started: {new Date(incident.startedAt).toLocaleString()}
-                            </span>
-                            {!isOngoing && incident.resolvedAt && (
-                              <span className="flex items-center gap-1.5 text-emerald-500/80">
-                                <Activity className="w-3 h-3" />
-                                Resolved: {new Date(incident.resolvedAt).toLocaleString()}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <span className={`px-2.5 py-1 rounded border text-[10px] font-bold tracking-wider ${
-                        isOngoing 
-                          ? "bg-rose-500/10 border-rose-500/30 text-rose-400 animate-pulse"
-                          : "bg-emerald-500/10 border-emerald-500/30 text-status-up"
-                      }`}>
-                        {isOngoing ? "ACTIVE" : "RESOLVED"}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+            )}
+          </CardContent>
+        </Card>
 
       </div>
     </div>

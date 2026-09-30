@@ -26,6 +26,7 @@ import { PlusSignIcon as Plus, RefreshIcon as RefreshCw, Delete02Icon as Trash2,
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardAction,
@@ -396,8 +397,8 @@ export function Dashboard() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <span className="text-xs text-slate-400 font-mono">
+          <Loader2 className="size-8 animate-spin text-primary" />
+          <span className="font-mono text-xs text-muted-foreground">
             Loading Dashboard...
           </span>
         </div>
@@ -420,59 +421,55 @@ export function Dashboard() {
     <div className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-8">
         {/* Header Bar */}
-        <div className="glass-panel p-4 sm:p-6 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-slate-800">
+        <div className="glass-panel flex flex-col items-start justify-between gap-4 rounded-2xl border border-border p-4 sm:flex-row sm:items-center sm:p-6">
           <div className="flex items-center gap-4">
             {userImage ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={userImage}
                 alt={userName}
-                className="w-12 h-12 rounded-xl object-cover ring-2 ring-primary/40"
+                className="size-12 rounded-xl object-cover ring-2 ring-primary/40"
               />
             ) : (
-              <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-primary font-mono font-bold text-lg red-glow">
+              <div className="red-glow flex size-12 items-center justify-center rounded-xl border border-primary/30 bg-primary/10 font-mono text-lg font-semibold text-primary">
                 {userInitials}
               </div>
             )}
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-white">{userName}</h1>
-                <span className="px-2 py-0.5 rounded-md bg-red-500/10 text-primary text-[10px] font-mono font-semibold border border-red-500/20">
+                <h1 className="text-lg font-semibold text-foreground">{userName}</h1>
+                <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 font-mono text-xs font-semibold text-primary">
                   PRO MONITOR
                 </span>
               </div>
-              <p className="text-xs text-slate-400 font-mono mt-0.5">
+              <p className="mt-0.5 font-mono text-xs text-muted-foreground">
                 {userEmail}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-            <Link
-              href="/dashboard/profile"
-              className="px-3.5 py-2.5 rounded-xl glass-panel hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white text-xs font-semibold transition-colors cursor-pointer"
-            >
-              Profile
-            </Link>
+          <div className="flex w-full items-center justify-end gap-3 sm:w-auto">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard/profile">Profile</Link>
+            </Button>
 
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-red-400 text-primary-foreground font-bold text-xs transition-all shadow-lg shadow-red-500/20 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Monitor</span>
-            </button>
+            <Button size="sm" onClick={() => setIsAddModalOpen(true)}>
+              <Plus className="size-4" />
+              Add Monitor
+            </Button>
 
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-destructive"
               onClick={async () => {
                 await authClient.signOut();
                 window.location.href = "/login";
               }}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-rose-400 text-xs font-semibold transition-colors cursor-pointer"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="size-4" />
               <span className="hidden sm:inline">Sign Out</span>
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -793,45 +790,55 @@ export function Dashboard() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleCreateMonitor} className="space-y-4">
+          <form onSubmit={handleCreateMonitor} className="flex flex-col gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label
+                htmlFor="new-monitor-name"
+                className="mb-1.5 block text-xs text-muted-foreground"
+              >
                 Monitor Name
               </label>
-              <input
+              <Input
+                id="new-monitor-name"
                 type="text"
                 value={newMonitorName}
                 onChange={(e) => setNewMonitorName(e.target.value)}
                 placeholder="e.g. Primary API Gateway"
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label
+                htmlFor="new-monitor-url"
+                className="mb-1.5 block text-xs text-muted-foreground"
+              >
                 Target URL
               </label>
-              <input
+              <Input
+                id="new-monitor-url"
                 type="url"
                 value={newMonitorUrl}
                 onChange={(e) => setNewMonitorUrl(e.target.value)}
                 placeholder="https://api.example.com/health"
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label
+                htmlFor="new-monitor-interval"
+                className="mb-1.5 block text-xs text-muted-foreground"
+              >
                 Check Interval
               </label>
               <select
+                id="new-monitor-interval"
                 value={newMonitorInterval}
                 onChange={(e) =>
                   setNewMonitorInterval(Number(e.target.value))
                 }
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
+                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
               >
                 <option value={1}>Every 1 minute</option>
                 <option value={5}>Every 5 minutes</option>
@@ -841,28 +848,25 @@ export function Dashboard() {
               </select>
             </div>
 
-            <div className="pt-2 flex items-center justify-end gap-3">
-              <button
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => setIsAddModalOpen(false)}
-                className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 text-xs font-semibold cursor-pointer"
               >
                 Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-5 py-2 rounded-xl bg-primary hover:bg-red-400 text-primary-foreground text-xs font-bold transition-all shadow-md shadow-red-500/20 cursor-pointer flex items-center gap-2 disabled:opacity-50"
-              >
+              </Button>
+              <Button type="submit" size="sm" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <Loader2 className="size-4 animate-spin" />
                     <span>Saving...</span>
                   </>
                 ) : (
                   <span>Create Monitor</span>
                 )}
-              </button>
+              </Button>
             </div>
           </form>
         </DialogContent>
@@ -886,45 +890,55 @@ export function Dashboard() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleEditMonitor} className="space-y-4">
+          <form onSubmit={handleEditMonitor} className="flex flex-col gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label
+                htmlFor="edit-monitor-name"
+                className="mb-1.5 block text-xs text-muted-foreground"
+              >
                 Monitor Name
               </label>
-              <input
+              <Input
+                id="edit-monitor-name"
                 type="text"
                 value={editMonitorName}
                 onChange={(e) => setEditMonitorName(e.target.value)}
                 placeholder="e.g. Primary API Gateway"
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label
+                htmlFor="edit-monitor-url"
+                className="mb-1.5 block text-xs text-muted-foreground"
+              >
                 Target URL
               </label>
-              <input
+              <Input
+                id="edit-monitor-url"
                 type="url"
                 value={editMonitorUrl}
                 onChange={(e) => setEditMonitorUrl(e.target.value)}
                 placeholder="https://api.example.com/health"
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label
+                htmlFor="edit-monitor-interval"
+                className="mb-1.5 block text-xs text-muted-foreground"
+              >
                 Check Interval
               </label>
               <select
+                id="edit-monitor-interval"
                 value={editMonitorInterval}
                 onChange={(e) =>
                   setEditMonitorInterval(Number(e.target.value))
                 }
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-sm focus:border-primary outline-none"
+                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
               >
                 <option value={1}>Every 1 minute</option>
                 <option value={5}>Every 5 minutes</option>
@@ -934,31 +948,28 @@ export function Dashboard() {
               </select>
             </div>
 
-            <div className="pt-2 flex items-center justify-end gap-3">
-              <button
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => {
                   setIsEditModalOpen(false);
                   setEditingMonitor(null);
                 }}
-                className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 text-xs font-semibold cursor-pointer"
               >
                 Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isUpdating}
-                className="px-5 py-2 rounded-xl bg-primary hover:bg-red-400 text-primary-foreground text-xs font-bold transition-all shadow-md shadow-red-500/20 cursor-pointer flex items-center gap-2 disabled:opacity-50"
-              >
+              </Button>
+              <Button type="submit" size="sm" disabled={isUpdating}>
                 {isUpdating ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <Loader2 className="size-4 animate-spin" />
                     <span>Updating...</span>
                   </>
                 ) : (
                   <span>Save Changes</span>
                 )}
-              </button>
+              </Button>
             </div>
           </form>
         </DialogContent>

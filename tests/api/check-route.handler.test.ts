@@ -60,6 +60,31 @@ const activeMonitor = {
   isActive: true,
 };
 
+// 06-06 (gap 1): module-level fixture Dates shared by the advance mock and
+// the compensation pin — the route must pass the advance RETURNING values
+// straight back as the restore's parameters, so identity is assertable.
+const PRIOR_NEXT_CHECK_AT = new Date("2026-09-30T10:00:00.000Z");
+const ADVANCED_NEXT_CHECK_AT = new Date("2026-09-30T10:05:00.000Z");
+
+/**
+ * Extracts the parameter VALUES from a drizzle sql`...` statement captured by
+ * h.db.execute. In this drizzle version template params sit RAW in
+ * queryChunks (Number/String/Date directly) while template text is wrapped in
+ * StringChunk instances — so the params are exactly the non-StringChunk
+ * chunks (probe-verified chunk types: StringChunk | Number | String | Date).
+ */
+function paramValues(statement: unknown): unknown[] {
+  const chunks = (statement as { queryChunks?: unknown[] }).queryChunks ?? [];
+  return chunks.filter(
+    (chunk) =>
+      !(
+        chunk !== null &&
+        typeof chunk === "object" &&
+        chunk.constructor?.name === "StringChunk"
+      ),
+  );
+}
+
 beforeEach(() => {
   mockSession(null);
   resetDbMocks();
@@ -68,8 +93,17 @@ beforeEach(() => {
   seams.rateLimit.mockReset();
   // Admit-by-default limiter; the 429 cases override per call.
   seams.rateLimit.mockResolvedValue({ success: true, remaining: 5, resetSeconds: 30 });
-  // Advance-by-default drizzle UPDATE (one row claimed).
-  h.db.execute.mockResolvedValue({ rows: [{ id: 5 }] });
+  // Advance-by-default drizzle UPDATE (one row claimed). 06-06: the CTE
+  // advance's RETURNING also carries the captured prior + the advanced value.
+  h.db.execute.mockResolvedValue({
+    rows: [
+      {
+        id: 5,
+        prior_next_check_at: PRIOR_NEXT_CHECK_AT,
+        advanced_next_check_at: ADVANCED_NEXT_CHECK_AT,
+      },
+    ],
+  });
   seams.enqueueManualCheck.mockResolvedValue({
     jobId: "check-manual:5:1699999999999",
     priority: 1,
@@ -253,5 +287,85 @@ describe("POST /api/monitors/[id]/check — enqueue-time advance (Pitfall 8) + d
 
     expect(res.status).toBe(500);
     await expect(res.json()).resolves.toEqual({ error: "Failed to check monitor" });
+  });
+});
+
+describe("POST /api/monitors/[id]/check — enqueue-failure compensation (06-06 gap 1, API-02)", () => {
+  it("enqueue rejection → the guarded restore fires AFTER the rejection with the advance RETURNING values as its parameters", async () => {
+    mockSession(sessionA);
+    dbState.results = [[activeMonitor]];
+    seams.enqueueManualCheck.mockRejectedValue(
+      new Error("Reached the max retries per request limit (current value: 1)."),
+    );
+
+    const res = await postCheck();
+
+    // The 503 contract is byte-identical to the pre-compensation route.
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({
+      error: "Service temporarily unavailable — try again shortly",
+    });
+    // Advance + compensating restore = exactly TWO db.execute calls.
+    expect(h.db.execute).toHaveBeenCalledTimes(2);
+    // The restore ran after the failed enqueue call (compensation, not a
+    // pre-enqueue write).
+    expect(h.db.execute.mock.invocationCallOrder[1]).toBeGreaterThan(
+      seams.enqueueManualCheck.mock.invocationCallOrder[0],
+    );
+    // The restore statement is parameterized by the advance's RETURNING
+    // values passed straight back: the prior (restore target), monitorId,
+    // userId (ownership), and the advanced value (the equality guard).
+    const restoreParams = paramValues(h.db.execute.mock.calls[1][0]);
+    expect(restoreParams).toContain(5);
+    expect(restoreParams).toContain(USER_A_ID);
+    expect(restoreParams).toContain(PRIOR_NEXT_CHECK_AT);
+    expect(restoreParams).toContain(ADVANCED_NEXT_CHECK_AT);
+  });
+
+  it("guard miss (concurrent writer moved the row — restore matches zero rows) → still the 503 body, zero unhandled rejections", async () => {
+    mockSession(sessionA);
+    dbState.results = [[activeMonitor]];
+    h.db.execute
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 5,
+            prior_next_check_at: PRIOR_NEXT_CHECK_AT,
+            advanced_next_check_at: ADVANCED_NEXT_CHECK_AT,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+    seams.enqueueManualCheck.mockRejectedValue(new Error("simulated redis down"));
+
+    const unhandled: unknown[] = [];
+    const onUnhandled = (err: unknown) => unhandled.push(err);
+    process.on("unhandledRejection", onUnhandled);
+    let res: Response;
+    try {
+      res = await postCheck();
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({
+      error: "Service temporarily unavailable — try again shortly",
+    });
+    // The restore executed and its zero-row guard miss never threw past the
+    // catch — the concurrent writer's value stays authoritative.
+    expect(h.db.execute).toHaveBeenCalledTimes(2);
+    expect(unhandled).toEqual([]);
+  });
+
+  it("happy path never restores: successful enqueue → exactly ONE db.execute (the advance), restore never invoked", async () => {
+    mockSession(sessionA);
+    dbState.results = [[activeMonitor]];
+
+    const res = await postCheck();
+
+    expect(res.status).toBe(202);
+    expect(h.db.execute).toHaveBeenCalledTimes(1);
+    expect(seams.enqueueManualCheck).toHaveBeenCalledTimes(1);
   });
 });

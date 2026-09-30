@@ -23,7 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PlusSignIcon as Plus, RefreshIcon as RefreshCw, Delete02Icon as Trash2, LinkSquare01Icon as ExternalLink, Logout01Icon as LogOut, GlobeIcon as Globe, Clock01Icon as Clock, Loading01Icon as Loader2, Edit02Icon as Edit2, EcoPowerIcon as Power, MoreVerticalIcon as MoreVertical } from "hugeicons-react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
   TooltipContent,
@@ -394,13 +395,45 @@ export function Dashboard() {
     status === "loading" ||
     (status === "unauthenticated" && loadingMonitors)
   ) {
+    // Skeleton mirrors the loaded layout (D-28, UI-SPEC loading rows): stats
+    // cards + the list-card shell — no spinner, no copy.
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="size-8 animate-spin text-primary" />
-          <span className="font-mono text-xs text-muted-foreground">
-            Loading Dashboard...
-          </span>
+      <div className="min-h-screen bg-background p-4 text-foreground sm:p-6 lg:p-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-8" data-testid="dashboard-skeleton">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i} className="gap-2 py-5">
+                <CardHeader className="px-5">
+                  <Skeleton className="h-3 w-28" />
+                  <Skeleton className="h-8 w-24" />
+                </CardHeader>
+                <CardContent className="px-5">
+                  <Skeleton className="h-3 w-32" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <Card className="gap-0 py-0">
+            <CardHeader className="p-4 sm:p-6">
+              <Skeleton className="h-5 w-44" />
+              <Skeleton className="h-3 w-72" />
+            </CardHeader>
+            <Separator />
+            <CardContent className="flex flex-col gap-4 p-4 sm:p-6">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-6 w-24 rounded-full" />
+                  <div className="flex flex-1 flex-col gap-1.5">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-56" />
+                  </div>
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="size-8" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -509,9 +542,21 @@ export function Dashboard() {
             <Separator />
             <CardContent className="p-0">
               {loadingMonitors && monitors.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 p-12 font-mono text-xs text-muted-foreground">
-                  <Loader2 className="size-6 animate-spin text-primary" />
-                  <span>Fetching status records...</span>
+                // First list load renders skeleton rows shaped like the
+                // loaded rows (D-28) — the spinner+text loader retired.
+                <div className="flex flex-col gap-4 p-4 sm:p-6" data-testid="list-skeleton">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-6 w-24 rounded-full" />
+                      <div className="flex flex-1 flex-col gap-1.5">
+                        <Skeleton className="h-4 w-40" />
+                        <Skeleton className="h-3 w-56" />
+                      </div>
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="size-8" />
+                    </div>
+                  ))}
                 </div>
               ) : monitors.length === 0 ? (
                 <div className="flex flex-col items-center gap-3 p-12 text-center">
@@ -602,14 +647,27 @@ export function Dashboard() {
                             {/* Status & Latency Badge */}
                             <td className="whitespace-nowrap px-4 py-3 sm:px-6">
                               <div className="flex items-center gap-2">
-                                <span
-                                  className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-semibold ${statusColor}`}
-                                >
-                                  <span
-                                    className={`size-2 rounded-full ${dotColor}`}
-                                  />
-                                  {label}
-                                </span>
+                                {/* Status-change crossfade (D-28): the pill
+                                    swaps through a 200ms fade keyed on the
+                                    status label; reduced motion swaps
+                                    instantly (duration 0). */}
+                                <AnimatePresence mode="wait" initial={false}>
+                                  <motion.span
+                                    key={label}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{
+                                      duration: reduceMotion ? 0 : 0.2,
+                                    }}
+                                    className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-semibold ${statusColor}`}
+                                  >
+                                    <span
+                                      className={`size-2 rounded-full ${dotColor}`}
+                                    />
+                                    {label}
+                                  </motion.span>
+                                </AnimatePresence>
                                 {isActive && (
                                   <span
                                     className={`ml-1 font-mono text-xs transition-number ${isDown ? "text-status-down" : "text-muted-foreground"}`}

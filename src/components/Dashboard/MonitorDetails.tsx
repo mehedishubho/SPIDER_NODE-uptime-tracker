@@ -4,8 +4,9 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useAuthSession } from "@/lib/auth-client";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
-import { Activity01Icon as Activity, ArrowLeft01Icon as ArrowLeft, Clock01Icon as Clock, GlobeIcon as Globe, Loading01Icon as Loader2, Alert01Icon as AlertTriangle, CheckmarkCircle02Icon as CheckCircle2, CancelCircleIcon as XCircle, ArrowUpRight01Icon as TrendingUp, ServerStack01Icon as ServerCrash } from "hugeicons-react";
+import { Activity01Icon as Activity, ArrowLeft01Icon as ArrowLeft, Clock01Icon as Clock, GlobeIcon as Globe, Alert01Icon as AlertTriangle, CheckmarkCircle02Icon as CheckCircle2, CancelCircleIcon as XCircle, ArrowUpRight01Icon as TrendingUp, ServerStack01Icon as ServerCrash } from "hugeicons-react";
 import Link from "next/link";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,6 +17,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Ping {
   id: string;
@@ -53,6 +55,9 @@ export function MonitorDetails() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
+  // D-28: prefers-reduced-motion gates the status-badge crossfade on this
+  // surface — reduced-motion users get an instant swap (duration 0).
+  const reduceMotion = useReducedMotion();
 
   const [monitor, setMonitor] = useState<MonitorDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -122,13 +127,56 @@ export function MonitorDetails() {
   }, [status, id, fetchDetails]);
 
   if (status === "loading" || loading) {
+    // Skeleton mirrors the loaded layout (D-28, UI-SPEC loading rows):
+    // detail header, metric cards, chart block, incident-history card —
+    // no spinner, no copy.
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="size-8 animate-spin text-primary" />
-          <span className="font-mono text-xs text-muted-foreground">
-            Loading Monitor Data...
-          </span>
+      <div className="min-h-screen bg-background p-4 text-foreground sm:p-6 lg:p-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-8" data-testid="detail-skeleton">
+          {/* Detail header */}
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-4">
+              <Skeleton className="size-9 rounded-md" />
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-6 w-40" />
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                </div>
+                <Skeleton className="h-3.5 w-64" />
+              </div>
+            </div>
+            <Skeleton className="h-[76px] w-full rounded-xl sm:w-[300px]" />
+          </div>
+
+          {/* Metric cards */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Card key={i} className="gap-2 py-5">
+                <CardHeader className="px-5">
+                  <Skeleton className="h-3 w-32" />
+                  <Skeleton className="h-8 w-24" />
+                </CardHeader>
+              </Card>
+            ))}
+          </div>
+
+          {/* Response-time chart */}
+          <Card className="gap-4 py-5">
+            <CardHeader className="px-5">
+              <Skeleton className="h-5 w-64" />
+            </CardHeader>
+            <CardContent className="px-5">
+              <Skeleton className="h-48 w-full" />
+            </CardContent>
+          </Card>
+
+          {/* Incident history */}
+          <Card className="gap-0 py-0">
+            <CardHeader className="p-4 sm:p-6">
+              <Skeleton className="h-5 w-36" />
+              <Skeleton className="h-3 w-64" />
+            </CardHeader>
+          </Card>
         </div>
       </div>
     );
@@ -163,29 +211,39 @@ export function MonitorDetails() {
                 className="flex min-w-0 items-center gap-3 text-lg font-semibold text-foreground"
               >
                 <span className="truncate">{monitor.name}</span>
-                <span
-                  data-testid="detail-status-badge"
-                  className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-2.5 py-1 font-mono text-xs font-semibold ${
-                    !monitor.isActive
-                      ? "border-border bg-muted text-muted-foreground"
-                      : monitor.status === "UP"
-                      ? "border-status-up/30 bg-status-up/10 text-status-up"
-                      : monitor.status === "DOWN"
-                      ? "border-status-down/30 bg-status-down/10 text-status-down"
-                      : "border-border bg-muted text-muted-foreground"
-                  }`}
-                >
-                  <span
-                    className={`size-2 rounded-full ${
+                {/* Status-change crossfade (D-28): the badge swaps through a
+                    200ms fade keyed on the monitor status; reduced motion
+                    swaps instantly (duration 0). */}
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.span
+                    key={`${monitor.isActive}-${monitor.status}`}
+                    data-testid="detail-status-badge"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: reduceMotion ? 0 : 0.2 }}
+                    className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-2.5 py-1 font-mono text-xs font-semibold ${
                       !monitor.isActive
-                        ? "bg-muted-foreground/50"
+                        ? "border-border bg-muted text-muted-foreground"
                         : monitor.status === "UP"
-                        ? "bg-status-up animate-status-pulse"
-                        : "bg-status-down"
+                        ? "border-status-up/30 bg-status-up/10 text-status-up"
+                        : monitor.status === "DOWN"
+                        ? "border-status-down/30 bg-status-down/10 text-status-down"
+                        : "border-border bg-muted text-muted-foreground"
                     }`}
-                  />
-                  {!monitor.isActive ? "PAUSED" : monitor.status}
-                </span>
+                  >
+                    <span
+                      className={`size-2 rounded-full ${
+                        !monitor.isActive
+                          ? "bg-muted-foreground/50"
+                          : monitor.status === "UP"
+                          ? "bg-status-up animate-status-pulse"
+                          : "bg-status-down"
+                      }`}
+                    />
+                    {!monitor.isActive ? "PAUSED" : monitor.status}
+                  </motion.span>
+                </AnimatePresence>
               </h1>
               <a
                 href={monitor.url}

@@ -184,9 +184,12 @@ describe("windowed uptime recompute (DAT-11)", () => {
   it(
     "2. zero-ping windows keep NULL (A5 nullable shape); a zero-ping monitor stays all-NULL",
     async () => {
-      // M2: pings ONLY inside the 24h window -> uptime7d/uptime30d stay NULL.
-      const withRecent = await seedMonitor({ totalChecks: 0, failedChecks: 0, uptimePercent: 100 });
-      await seedPings(withRecent, 4, 2, 4); // 4 pings @ 2h, 1 DOWN -> 75.00
+      // M2: pings ONLY at 20 days — inside the 30d window but OUTSIDE 24h/7d
+      // (windows are cumulative: 30d ⊇ 7d ⊇ 24h, so the outer windows are
+      // where NULLs can occur). uptime24h/uptime7d stay NULL; uptime30d
+      // computes (4 pings, 1 DOWN -> 75.00).
+      const withOldOnly = await seedMonitor({ totalChecks: 0, failedChecks: 0, uptimePercent: 100 });
+      await seedPings(withOldOnly, 4, 480, 4); // 4 pings @ 20d, 1 DOWN -> 75.00
 
       // M3: zero pings anywhere -> all three windows NULL.
       const silent = await seedMonitor({ totalChecks: 0, failedChecks: 0, uptimePercent: 100 });
@@ -195,10 +198,10 @@ describe("windowed uptime recompute (DAT-11)", () => {
       expect(report.monitorsRecomputed).toBe(2);
       expect(report.batches).toEqual([2]);
 
-      const recentRow = await windowedRow(withRecent);
-      expect(recentRow.uptime24h).toBe(75);
-      expect(recentRow.uptime7d).toBeNull();
-      expect(recentRow.uptime30d).toBeNull();
+      const oldRow = await windowedRow(withOldOnly);
+      expect(oldRow.uptime24h).toBeNull();
+      expect(oldRow.uptime7d).toBeNull();
+      expect(oldRow.uptime30d).toBe(75);
 
       const silentRow = await windowedRow(silent);
       expect(silentRow.uptime24h).toBeNull();

@@ -222,6 +222,26 @@ function canonicalizeEmailVerifiedCollision(line) {
   );
 }
 
+// Canonicalize pull's property rendering of the windowed uptime columns
+// (08-01, DAT-11). drizzle-kit pull camelCases every column name into the
+// property via its bundled camelcase@7, which UPPERCASES the letter following
+// a digit: physical "uptime24h"/"uptime7d"/"uptime30d" render as properties
+// uptime24H/uptime7D/uptime30D with NO explicit column-name argument —
+// adopting pull's line verbatim would describe physical columns that do not
+// exist (the same non-adoptable-rendering class as the gen_random_uuid
+// default above). The committed authority spells the property with the
+// physical column name (the drizzle property IS the column name when no
+// explicit name is given), and this rule rewrites pull's rendering into that
+// canonical form on BOTH sides, identically. Fail-closed posture holds: only
+// these three exact renderings are rewritten; any other drift in the block
+// (type change, default change, a renamed window column) still diffs red.
+function canonicalizeUptimeWindowProperties(line) {
+  return line
+    .replace(/^(\s*)uptime24H:( doublePrecision\(\),?)$/, "$1uptime24h:$2")
+    .replace(/^(\s*)uptime7D:( doublePrecision\(\),?)$/, "$1uptime7d:$2")
+    .replace(/^(\s*)uptime30D:( doublePrecision\(\),?)$/, "$1uptime30d:$2");
+}
+
 // The documented normalization (03-07 Task 1, research A5 — textual route):
 // identical on BOTH sides — strip // comments, trim trailing whitespace,
 // drop blank lines (collapsing runs), normalize line endings (the Windows
@@ -231,10 +251,12 @@ function canonicalizeEmailVerifiedCollision(line) {
 function normalizeSchema(text) {
   const lines = [];
   for (const rawLine of text.split(/\r?\n/)) {
-    const line = canonicalizeEmailVerifiedCollision(
-      canonicalizeBooleanOpclass(
-        canonicalizeDefaultRenderings(
-          stripLineComment(rawLine).replace(/\s+$/, "")
+    const line = canonicalizeUptimeWindowProperties(
+      canonicalizeEmailVerifiedCollision(
+        canonicalizeBooleanOpclass(
+          canonicalizeDefaultRenderings(
+            stripLineComment(rawLine).replace(/\s+$/, "")
+          )
         )
       )
     );

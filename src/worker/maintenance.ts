@@ -39,6 +39,14 @@ import type * as schema from "@/db/schema";
 // statement_timeout (§25.2) is sized above one 5000-row batch pass (01-03).
 // The lane's worker runs at concurrency 1 (D-7: deletes never parallelize).
 //
+// WINDOWED RECOMPUTE (DAT-11, 08-01): the lane's second job name
+// 'recompute-windowed-uptime' recomputes monitors.uptime24h/7d/30d from the
+// retained ping history with the D-36 exact-extraction expression and writes
+// ONLY those three columns (the displayed lifetime numbers are never
+// touched). Unconditional from ship (D-22) — WINDOWED_UPTIME_ENABLED gates
+// reads only, and nothing reads the windowed values in v1 (D-24). No dry-run
+// form: the job is idempotent and touches nothing displayed.
+//
 // Security (T-04-28): report payloads and log lines carry ids, counts, and
 // sizes only — never URLs, alert bodies, or tokens.
 // ---------------------------------------------------------------------------
@@ -53,6 +61,21 @@ export const INCIDENT_RETENTION_DAYS = 90;
 
 /** DAT-08: max rows per DELETE statement in the real run. */
 export const RETENTION_BATCH = 5000;
+
+/**
+ * DAT-11: the windowed-uptime recompute job name — the maintenance lane's
+ * SECOND accepted job name (08-CONTEXT D-22: runs unconditionally from ship;
+ * WINDOWED_UPTIME_ENABLED gates reads only, and nothing reads in v1).
+ */
+export const RECOMPUTE_WINDOWED_UPTIME_JOB_NAME = "recompute-windowed-uptime";
+
+/**
+ * DAT-11: monitors per recompute UPDATE statement (keyset page). The
+ * RETENTION_BATCH discipline applied to the recompute: every statement is
+ * bounded well under the pool's 30 s statement_timeout (§25.2) regardless of
+ * how many monitors exist.
+ */
+export const WINDOWED_RECOMPUTE_BATCH = 500;
 
 /** Observation-only horizon for stale write_guards rows (§13; reported, never deleted here). */
 export const WRITE_GUARD_RETENTION_DAYS = 7;
@@ -153,6 +176,137 @@ export async function runConsistencyAudit(db: WorkerDb = workerDb): Promise<Cons
       delta: row.stored_percent - row.derived_percent,
     }));
   return { checked: rows.length, discrepancies };
+}
+
+// ---------------------------------------------------------------------------
+// Windowed uptime recompute (DAT-11, 08-CONTEXT D-22/D-23/D-24)
+// ---------------------------------------------------------------------------
+
+/** One monitor's recomputed windowed values (report row — ids/counts only). */
+export interface WindowedUptimeResult {
+  monitorId: number;
+  /** Computed uptime per window; null = zero pings in the window (the column stays NULL — A5). */
+  uptime24h: number | null;
+  uptime7d: number | null;
+  uptime30d: number | null;
+}
+
+/** The windowed recompute report — the job log captures this object. */
+export interface WindowedRecomputeReport {
+  monitors: WindowedUptimeResult[];
+  monitorsRecomputed: number;
+  /** Updated-row count per UPDATE statement (each ≤ WINDOWED_RECOMPUTE_BATCH). */
+  batches: number[];
+}
+
+/**
+ * The 04-04 D-36 exact-extraction expression VERBATIM (the consistencyAuditSql
+ * form: power-of-two ::bigint shift — 2^52 for ratios >= 1, 2^60 below —
+ * half-adder constant, integer floor division, single /100.0) with
+ * window-scoped (total, down) ping counts substituted for the lifetime
+ * counters. The numeric half-up round() call is NEVER reintroduced here
+ * (Pitfall 6: round() fails inexact .xx5 ties because PG float8::numeric
+ * collapses to the shortest round-trip decimal, landing exactly ON the tie).
+ */
+function windowedUptimeExpr(total: SQL, down: SQL): SQL {
+  return sql`(CASE
+    WHEN (((${total} - ${down})::double precision / ${total}) * 100.0::double precision) >= 1::double precision
+      THEN floor(
+        (
+          (
+            (
+              (((${total} - ${down})::double precision / ${total}) * 100.0::double precision * 4503599627370496::double precision)::bigint
+            )::numeric * 100 + 2251799813685248
+          ) / 4503599627370496
+        )
+      )
+      ELSE floor(
+        (
+          (
+            (
+              (((${total} - ${down})::double precision / ${total}) * 100.0::double precision * 1152921504606846976::double precision)::bigint
+            )::numeric * 100 + 576460752303423488
+          ) / 1152921504606846976
+        )
+      )
+  END)::double precision / 100.0::double precision`;
+}
+
+/**
+ * One bounded recompute batch: the keyset page of monitors after `lastId`,
+ * per-monitor (total, DOWN) ping counts per window (failure = status='DOWN',
+ * the tier1/tier2 vocabulary), and the D-36-fed UPDATE — writing EXACTLY the
+ * three new columns (T-08-01; uptimePercent/totalChecks/failedChecks are the
+ * displayed lifetime numbers and are never touched — D-24). Zero-ping windows
+ * write NULL explicitly (A5 nullable shape). Window boundaries use the same
+ * UTC-naive form as the retention SQL (pings.createdAt is timestamp(3)
+ * without time zone, A6).
+ */
+function recomputeWindowedBatchSql(lastId: number, batchLimit: number): SQL {
+  const window24 = sql`(now() AT TIME ZONE 'utc') - interval '24 hours'`;
+  const window7 = sql`(now() AT TIME ZONE 'utc') - interval '7 days'`;
+  const window30 = sql`(now() AT TIME ZONE 'utc') - interval '30 days'`;
+  return sql`
+WITH batch AS (
+  SELECT id FROM monitors WHERE id > ${lastId} ORDER BY id LIMIT ${batchLimit}
+),
+counts AS (
+  SELECT b.id,
+         (SELECT count(*)::int FROM pings p WHERE p."monitorId" = b.id AND p."createdAt" >= ${window24}) AS total_24h,
+         (SELECT count(*)::int FROM pings p WHERE p."monitorId" = b.id AND p."createdAt" >= ${window24} AND p.status = 'DOWN') AS down_24h,
+         (SELECT count(*)::int FROM pings p WHERE p."monitorId" = b.id AND p."createdAt" >= ${window7}) AS total_7d,
+         (SELECT count(*)::int FROM pings p WHERE p."monitorId" = b.id AND p."createdAt" >= ${window7} AND p.status = 'DOWN') AS down_7d,
+         (SELECT count(*)::int FROM pings p WHERE p."monitorId" = b.id AND p."createdAt" >= ${window30}) AS total_30d,
+         (SELECT count(*)::int FROM pings p WHERE p."monitorId" = b.id AND p."createdAt" >= ${window30} AND p.status = 'DOWN') AS down_30d
+    FROM batch b
+)
+UPDATE monitors SET
+  "uptime24h" = CASE WHEN counts.total_24h > 0 THEN ${windowedUptimeExpr(sql`counts.total_24h`, sql`counts.down_24h`)} ELSE NULL END,
+  "uptime7d" = CASE WHEN counts.total_7d > 0 THEN ${windowedUptimeExpr(sql`counts.total_7d`, sql`counts.down_7d`)} ELSE NULL END,
+  "uptime30d" = CASE WHEN counts.total_30d > 0 THEN ${windowedUptimeExpr(sql`counts.total_30d`, sql`counts.down_30d`)} ELSE NULL END
+FROM counts
+WHERE monitors.id = counts.id
+RETURNING monitors.id AS "monitorId", monitors."uptime24h", monitors."uptime7d", monitors."uptime30d"
+`;
+}
+
+/**
+ * DAT-11: recomputes every monitor's windowed uptime (24h/7d/30d) from the
+ * retained ping history (30 days — D-23: the first run IS the backfill) and
+ * writes ONLY the three new columns. Keyset-paginated in
+ * WINDOWED_RECOMPUTE_BATCH-sized statements (the RETENTION_BATCH discipline —
+ * every statement stays bounded under the pool's 30 s statement_timeout,
+ * §25.2). Idempotent: re-running over the same pings converges on the same
+ * values (the D-22 nightly job recomputes from scratch every night — never an
+ * increment).
+ */
+export async function runWindowedUptimeRecompute(
+  db: WorkerDb = workerDb,
+  logger: Pick<pino.Logger, "info" | "warn" | "error"> = log
+): Promise<WindowedRecomputeReport> {
+  const report: WindowedRecomputeReport = { monitors: [], monitorsRecomputed: 0, batches: [] };
+  let lastId = 0;
+  // Bounded by construction: every statement updates at most
+  // WINDOWED_RECOMPUTE_BATCH rows (the keyset page); the loop ends the first
+  // time a page comes back short.
+  for (;;) {
+    const rows = (
+      await db.execute(recomputeWindowedBatchSql(lastId, WINDOWED_RECOMPUTE_BATCH))
+    ).rows as unknown as WindowedUptimeResult[];
+    report.batches.push(rows.length);
+    report.monitors.push(...rows);
+    if (rows.length < WINDOWED_RECOMPUTE_BATCH) break;
+    lastId = rows[rows.length - 1].monitorId;
+  }
+  report.monitorsRecomputed = report.monitors.length;
+  logger.info(
+    {
+      monitorsRecomputed: report.monitorsRecomputed,
+      batches: report.batches.length,
+    },
+    "windowed uptime recompute complete (D-36 exact extraction per window; D-22 unconditional write, D-24 nothing reads in v1)"
+  );
+  return report;
 }
 
 // ---------------------------------------------------------------------------
@@ -345,27 +499,57 @@ export interface MaintenanceDeps {
 }
 
 /**
- * The maintenance-lane processor (WRK-13). Job name is "cleanup" (the
- * §14.1 maintenance-cleanup scheduler's name; enqueueMaintenance uses the same
- * — one name, one processor, no dispatch ambiguity). Payload { dryRun }:
- * absent or true => the zero-write report; false => the looped batched
- * deletes. Both modes return the full report object (the job log captures
- * it) and log one structured pino line.
+ * The maintenance-lane processor (WRK-13 / DAT-11). Two accepted job names —
+ * "cleanup" (the §14.1 maintenance-cleanup scheduler's name; enqueueMaintenance
+ * uses the same) and "recompute-windowed-uptime" (the DAT-11 nightly recompute,
+ * 08-CONTEXT D-22) — one processor, no dispatch ambiguity. Cleanup payload
+ * { dryRun }: absent or true => the zero-write report; false => the looped
+ * batched deletes. Both modes return the full report object (the job log
+ * captures it) and log one structured pino line.
  */
+export async function processMaintenanceJob(
+  job: MaintenanceLaneJob & { name: typeof RECOMPUTE_WINDOWED_UPTIME_JOB_NAME },
+  deps?: MaintenanceDeps
+): Promise<WindowedRecomputeReport>;
+export async function processMaintenanceJob(
+  job: MaintenanceLaneJob,
+  deps?: MaintenanceDeps
+): Promise<MaintenanceReport>;
 export async function processMaintenanceJob(
   job: MaintenanceLaneJob,
   deps: MaintenanceDeps = {}
-): Promise<MaintenanceReport> {
+): Promise<MaintenanceReport | WindowedRecomputeReport> {
   const db = deps.db ?? workerDb;
-  const redis = deps.redis ?? maintenanceRedis();
   const logger = deps.logger ?? log;
   const jobId = job.id ?? "maintenance";
+
+  // DAT-11 (D-22): the windowed recompute is the lane's second job — DB-only
+  // (no Redis), unconditional write posture from ship. Dispatched BEFORE the
+  // cleanup machinery so the recompute path never touches retention code (or
+  // resolves a Redis client it cannot use).
+  if (job.name === RECOMPUTE_WINDOWED_UPTIME_JOB_NAME) {
+    const report = await runWindowedUptimeRecompute(db, logger);
+    logger.info(
+      {
+        jobId,
+        jobName: job.name,
+        monitorsRecomputed: report.monitorsRecomputed,
+        batches: report.batches.length,
+      },
+      "maintenance: windowed-uptime recompute job complete"
+    );
+    return report;
+  }
+
+  // The cleanup path's Redis observations resolve only here — the recompute
+  // branch above never needs a Redis client.
+  const redis = deps.redis ?? maintenanceRedis();
 
   if (job.name !== "cleanup") {
     // Loud, never a silent skip — an undeclared maintenance job name is a
     // contract violation (same discipline as the dbWrites lane's dispatcher).
     throw new Error(
-      `processMaintenanceJob: unknown maintenance job name '${job.name}' (expected 'cleanup')`
+      `processMaintenanceJob: unknown maintenance job name '${job.name}' (expected 'cleanup' or '${RECOMPUTE_WINDOWED_UPTIME_JOB_NAME}')`
     );
   }
   const data = (job.data ?? {}) as { dryRun?: boolean };

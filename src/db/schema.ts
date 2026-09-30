@@ -17,7 +17,11 @@
 // (07-09, D-27/D-32 drop release) removed the four legacy NextAuth-era
 // tables (sessions, verification_tokens, password_reset_tokens, accounts)
 // WITH their data — the declarations below no longer describe them, and the
-// schema gate proves schema/DB agreement on the migrated shape. This file is
+// schema gate proves schema/DB agreement on the migrated shape. Migration
+// 0004 (08-01, DAT-11) added the windowed uptime columns
+// monitors.uptime24h/uptime7d/uptime30d (nullable double precision, no
+// backfill — the nightly 'recompute-windowed-uptime' job populates them from
+// retained pings, D-22/D-23). This file is
 // now a pull of the docker test database after
 // the full committed migration set (0000 + 0001 + 0002 + 0003) ran through
 // the single runner — the state src/db/schema.ts must always describe. The two
@@ -91,6 +95,9 @@ export const monitors = pgTable("monitors", {
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 	nextCheckAt: timestamp("next_check_at", { withTimezone: true, mode: 'string' }),
 	consecutiveFailures: integer("consecutive_failures").default(0).notNull(),
+	uptime24h: doublePrecision(),
+	uptime7d: doublePrecision(),
+	uptime30d: doublePrecision(),
 }, (table) => [
 	index("idx_monitors_due").using("btree", table.isActive.asc().nullsLast().op("bool_ops"), table.nextCheckAt.asc().nullsLast().op("timestamptz_ops")).where(sql`"isActive"`),
 	foreignKey({

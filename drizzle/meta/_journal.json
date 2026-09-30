@@ -29,6 +29,13 @@
       "when": 1790695276723,
       "tag": "0003_drop_legacy_auth_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790795934906,
+      "tag": "0004_windowed_uptime",
+      "breakpoints": true
     }
   ]
 }

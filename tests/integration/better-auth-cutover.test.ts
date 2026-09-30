@@ -36,14 +36,22 @@ const producerMocks = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock("@/lib/queue-producer", () => ({
-  webQueueProducer: () => ({
-    ping: vi.fn(async () => "PONG"),
-    email: { add: producerMocks.emailAdd },
-    checks: { add: vi.fn() },
-    close: async () => {},
-  }),
-}));
+// 06-06 gap 2: async importOriginal factory spreading the REAL module and
+// overriding ONLY webQueueProducer — the REAL withProducerDeadline wraps the
+// email door's add (enqueueTransactionalEmail imports it from this module),
+// so a locally-absent export must never silently skip the production wrap.
+vi.mock("@/lib/queue-producer", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/queue-producer")>();
+  return {
+    ...actual,
+    webQueueProducer: () => ({
+      ping: vi.fn(async () => "PONG"),
+      email: { add: producerMocks.emailAdd },
+      checks: { add: vi.fn() },
+      close: async () => {},
+    }),
+  };
+});
 
 process.env.BETTER_AUTH_SECRET = `tracer-secret-${randomUUID()}-${randomUUID()}`;
 process.env.BETTER_AUTH_URL = "http://localhost:3000";

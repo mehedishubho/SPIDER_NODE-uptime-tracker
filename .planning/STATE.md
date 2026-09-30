@@ -3,18 +3,18 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 8
 current_phase_name: Flagged Capabilities & UI Modernization
-current_plan: 5
+current_plan: 6
 status: executing
-stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-09-30T21:55:22.328Z"
+stopped_at: Completed 08-05-PLAN.md
+last_updated: "2026-09-30T22:30:47.060Z"
 last_activity: 2026-10-01
 last_activity_desc: Phase 8 execution started
-state_head: 680770859e5f85a290253a13e693991000d169af
+state_head: 5767cb2914390610b78c99d45177779fbaf151db
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 73
-  completed_plans: 67
+  completed_plans: 68
 milestone_name: milestone
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 
 ## Current Position
 
-Current Plan: 5
+Current Plan: 6
 Total Plans in Phase: 10
 
 Phase: 8 (Flagged Capabilities & UI Modernization) — EXECUTING
-Plan: 5 of 10
+Plan: 6 of 10
 Status: Ready to execute
 Last activity: 2026-10-01 — Phase 8 execution started
 
@@ -136,6 +136,7 @@ Progress: [███████████████████████
 | Phase 08 P03 | 26 min | 3 tasks | 5 files |
 | Phase 06 P07 | ~15min close-out leg (Task 3 verification + SUMMARY; Tasks 1-2 + operator checkpoint prior sessions) | 3 tasks | 5 files |
 | Phase 08 P04 | 2 sessions (prior session Tasks 1 + partial 2, quota-terminated; resume leg Tasks 2-3 + closeout ~45 min) | 3 tasks | 6 files |
+| Phase 08 P05 | 26min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -353,6 +354,10 @@ Recent decisions affecting current work:
 - [Phase 08]: 08-04: two-monitor e2e seed (incident-free + ONGOING-incident) drives both detail legs from one spec; Task-1 aggregate assertions read the real fleet and the rows test filters by name (list is newest-first) — data-truth pins track the seed shape
 - [Phase 08]: 08-04: all three tier-1 spinner+text loaders retired (not just the named 'Fetching status records...') — UI-SPEC loading rows put every tier-1 loading state on skeleton compositions mirroring final layout via the same Card shells
 - [Phase 08]: 08-04: UI-01 complete (shadcn adoption on tier-1); UI-05 deliberately left Pending — its release clause spans 08-05 light-pass + 08-08 Release B (02-03 false-signal precedent)
+- [Phase 08]: 08-05: 11-token review — 3 per-mode splits (accent-cyan/muted-meta/danger-strong light variants >=4.5:1), 8 kept same-value with rationale; .dark byte-stable by sorted-diff proof (D-31)
+- [Phase 08]: 08-05: WR-02 discharged (D-26) — the four WR-02 surfaces token-driven; light-mode.spec.ts (7 tests) proves token-resolved computed colors + in-page WCAG contrast in forced light
+- [Phase 08]: 08-05: render.ts consumed into the zero-hex sanctioned list (mail.ts email-HTML rationale); WINDOWS 6-7 fixed; Pagination.tsx dead-component finding logged for 08-09
+- [Phase 08]: 08-05: UI-03 deliberately left Pending — part 2 (tier-2 sweep + sidebar reconciliation) is 08-09's; requirements-completed stays empty (false-signal precedent)
 
 ### Pending Todos
 
@@ -377,6 +382,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-30T21:55:21.649Z
-Stopped at: Completed 08-04-PLAN.md
+Last session: 2026-09-30T22:30:46.446Z
+Stopped at: Completed 08-05-PLAN.md
 Resume file: None

@@ -1,7 +1,7 @@
 "use client";
 import { Controller, useFormContext } from "react-hook-form";
 import { cn } from "@/lib/utils";
-import { FaChevronDown, FaChevronUp } from "react-icons/fa"; // Default Icons
+import { ArrowDown01Icon, ArrowUp01Icon } from "hugeicons-react"; // Default Icons
 import React, { useState } from "react";
 
 interface MyFormSelectProps {
@@ -31,8 +31,8 @@ const MyFormSelect = ({
   labelClassName,
   selectClassName,
   setSelectedState,
-  upIcon = <FaChevronUp />, // Default Up Icon
-  downIcon = <FaChevronDown />, // Default Down Icon
+  upIcon = <ArrowUp01Icon />, // Default Up Icon
+  downIcon = <ArrowDown01Icon />, // Default Down Icon
 }: MyFormSelectProps) => {
   const { control } = useFormContext();
   const [isOpen, setIsOpen] = useState(false);

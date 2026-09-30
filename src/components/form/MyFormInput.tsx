@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
-import { FiEye, FiEyeOff } from "react-icons/fi";
+import { ViewIcon, ViewOffIcon } from "hugeicons-react";
 
 interface RadioOption {
   value: string;
@@ -275,9 +275,9 @@ const MyFormInput = ({
                 disabled={disabled}
               >
                 {isPasswordVisible ? (
-                  <FiEye size={20} />
+                  <ViewIcon size={20} />
                 ) : (
-                  <FiEyeOff size={20} />
+                  <ViewOffIcon size={20} />
                 )}
               </button>
             )}

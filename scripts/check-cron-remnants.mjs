@@ -41,7 +41,15 @@
 //      import specifiers regardless: the D-05 blast script was invoked by
 //      name and carried zero importers, so a clean-content recreation of it
 //      must still trip. Phase-5-set hits land plain (always enforced);
-//      Phase-7-set hits are phase7-marked, mirroring the specifier checks.
+//      Phase-7-set hits are phase7-marked, mirroring the specifier checks;
+//  13. (Phase-8 deletion, 08-02 — UI-02, D-33/D-34) any import/require
+//      specifier of react-icons or sweetalert2 (the icon/dialog remnants of
+//      the two dependencies deleted at the redesign release), plus the
+//      lucide-react insurance leg (exact specifier + banned dependency —
+//      a never-present dep guarded so the stale components.json iconLibrary
+//      can never silently re-introduce it via a registry add; Pitfall 1).
+//      Phase-8-set hits are phase8-marked; PHASE8_ENFORCED is true from the
+//      08-02 arming step (the deletions and the gate land in the same task).
 //
 // The Phase-7 extension (checks 8-11) ships in ADVISORY posture first — the
 // 06-05 pre-arm lifecycle: findings are REPORTED (exit 0) while the Phase-7
@@ -170,6 +178,16 @@ const PHASE7_BANNED_DEPENDENCIES = [
   "js-cookie",
   "@types/js-cookie",
 ];
+// Phase-8 deletion (08-02, UI-02 D-33/D-34): the two dependencies deleted at
+// the redesign release — react-icons (icon consolidation to hugeicons) and
+// sweetalert2 (dialog consolidation to shadcn alert-dialog + sonner) — plus
+// the lucide-react INSURANCE leg: never a dependency of this repo, but
+// components.json's stale iconLibrary value means a future `shadcn add`
+// could silently import it (Pitfall 1), so specifier + dependency are both
+// banned. Exact + prefix forms so "react-icons/fa" subpaths all trip.
+const PHASE8_EXACT_SPECIFIERS = new Set(["react-icons", "sweetalert2", "lucide-react"]);
+const PHASE8_SPECIFIER_PREFIXES = ["react-icons/", "sweetalert2/", "lucide-react/"];
+const PHASE8_BANNED_DEPENDENCIES = ["react-icons", "sweetalert2", "lucide-react"];
 const ROOT_CONFIG_FILES = ["playwright.config.ts", "next.config.ts", "ecosystem.config.js"];
 
 // The Phase-7 extension's advisory→armed lifecycle (06-05 pattern): the
@@ -178,6 +196,10 @@ const ROOT_CONFIG_FILES = ["playwright.config.ts", "next.config.ts", "ecosystem.
 // Phase-7 finding now fails the verify chain exactly like the Phase-5/6
 // classes, permanently.
 const PHASE7_ENFORCED = true;
+// The Phase-8 extension (checks 13) arms in the SAME task that deletes the
+// dependencies (08-02): the sweep proves zero specifiers before `pnpm
+// remove`, so the gate is born ENFORCED — no advisory period is possible.
+const PHASE8_ENFORCED = true;
 
 const DEFAULT_ROOTS = () => {
   const roots = [path.join("src")];
@@ -215,7 +237,10 @@ function usage() {
     "retired NEXTAUTH_SECRET/NEXTAUTH_URL + AUTH_NOTICE_* env tokens, and",
     "the Phase-7 banned dependencies. The 07-11 WR-04 extension flags any",
     "code file NAMED like a deleted module from either basename set (a",
-    "remnant by file name, import specifiers regardless). Default targets:",
+    "remnant by file name, import specifiers regardless). The Phase-8",
+    "extension (08-02) flags react-icons / sweetalert2 specifiers and the",
+    "lucide-react insurance leg, plus their dependency declarations",
+    "(UI-02, D-33/D-34). Default targets:",
     "src/, scripts/ (07-11), dist/worker.js, .next/server, and the repo-root",
     "config files playwright.config.ts / next.config.ts / ecosystem.config.js",
     "(each when present) plus ./package.json. docs/, .planning/,",
@@ -283,6 +308,17 @@ function phase7DeletedModuleImport(specifier) {
   return PHASE7_DELETED_MODULE_BASENAMES.has(base);
 }
 
+// Phase-8 (08-02): the deleted icon/dialog dependency specifiers plus the
+// lucide-react insurance leg. Exact forms for the bare package names,
+// prefix forms for subpaths ("react-icons/fa", "sweetalert2/dist/...").
+function phase8BannedImport(specifier) {
+  if (PHASE8_EXACT_SPECIFIERS.has(specifier)) return true;
+  for (const prefix of PHASE8_SPECIFIER_PREFIXES) {
+    if (specifier.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
 function isCommentLine(line) {
   const trimmed = line.trim();
   return trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith("*");
@@ -341,6 +377,12 @@ function scanCodeFile(file) {
           text: `imports a deleted Phase-7 module ("${specifier}") at line ${index + 1} (AUTH-07/08, DRZ-07, D-05)`,
         });
       }
+      if (phase8BannedImport(specifier)) {
+        reasons.push({
+          phase8: true,
+          text: `imports a banned Phase-8 package ("${specifier}") at line ${index + 1} (UI-02, D-33/D-34)`,
+        });
+      }
     }
   });
   // 07-11 (WR-04 gap closure): the three exact-file-name historical tools are
@@ -394,6 +436,14 @@ function checkPackageJson(packageJsonPath) {
           reasons.push({
             phase7: true,
             text: `${section} still declares ${name} (Phase-7 deletion release, AUTH-07/DRZ-07)`,
+          });
+        }
+      }
+      for (const name of PHASE8_BANNED_DEPENDENCIES) {
+        if (name in deps) {
+          reasons.push({
+            phase8: true,
+            text: `${section} still declares ${name} (Phase-8 dialog/icon consolidation, UI-02, D-33/D-34)`,
           });
         }
       }
@@ -494,10 +544,13 @@ function main(argv) {
     }
   }
 
-  // Phase split: the Phase-5/6 classes stay enforced; the Phase-7 extension
-  // reports advisory until PHASE7_ENFORCED flips (07-08 arming step).
-  const enforcedFindings = findings.filter((f) => !f.phase7 || PHASE7_ENFORCED);
-  const advisoryFindings = findings.filter((f) => f.phase7 && !PHASE7_ENFORCED);
+  // Phase split: the Phase-5/6 classes stay enforced; each phased extension
+  // (Phase-7, Phase-8) is enforced once its arming flag flips true — arming
+  // an extension never relaxes the classes already armed before it.
+  const isEnforced = (f) =>
+    (!f.phase7 || PHASE7_ENFORCED) && (!f.phase8 || PHASE8_ENFORCED);
+  const enforcedFindings = findings.filter(isEnforced);
+  const advisoryFindings = findings.filter((f) => !isEnforced(f));
 
   const scannedCount = codeFiles.length + entrypointFiles.length;
   if (enforcedFindings.length > 0) {
@@ -517,8 +570,8 @@ function main(argv) {
   }
   if (advisoryFindings.length > 0) {
     const lines = [
-      `[cron-remnants] ADVISORY (Phase-7 extension, pre-arm): ${advisoryFindings.length} finding(s) ` +
-        `— exit 0 while the 07-08 deletions land; the arming step flips these to violations:`,
+      `[cron-remnants] ADVISORY (pre-arm extension): ${advisoryFindings.length} finding(s) ` +
+        `— exit 0 until that phase's deletions land and its arming flag flips:`,
     ];
     for (const finding of advisoryFindings) {
       lines.push(`  ${finding.file}: ${finding.reason}`);
@@ -530,7 +583,8 @@ function main(argv) {
   console.log(
     `[cron-remnants] green — ${scannedCount} code file(s) scanned across ${roots.join(", ")}` +
       (packageJsonRelative ? ` (+ ${packageJsonRelative})` : "") +
-      ", no cron remnants (D-41/D-27) and no Phase-7 auth/Prisma remnants"
+      ", no cron remnants (D-41/D-27), no Phase-7 auth/Prisma remnants, and " +
+      "no Phase-8 icon/dialog remnants"
   );
   return 0;
 }

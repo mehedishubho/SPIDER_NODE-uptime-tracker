@@ -197,3 +197,27 @@ documented 0xC0000005 Turbopack build transient; the harness assigns a free
 health port (`freePort()`), so this is NOT the 9090 collision, and six sibling
 cases booted the identical fresh bundle green. Single retry: GREEN (7/7 across
 the two runs).
+
+## Boot-time env checklist / healthz required-by-feature posture field (DEFERRED)
+
+**Found during:** 06-07 (G-06-7 closure, 2026-09-30)
+
+**Item:** 06-UAT G-06-7 missing-item 2 — the optional hardening: a boot-time env
+checklist (or a healthz `required-by-feature` posture field) listing the env keys each
+feature requires, so an omitted secret (the G-06-7 class: a launch env contract missing
+`TELEGRAM_WEBHOOK_SECRET`) is visible without a probe.
+
+**Status: DEFERRED to the backlog — deliberately not built in 06-07.**
+
+**Rationale:** it would extend the 07-05-owned healthz/readyz surface and needs its own
+design pass — which keys are required-by-feature (and for whom: operator vs CI vs
+readiness semantics), and whether a missing optional-by-deployment key (this topology
+runs `EMAIL_PROVIDER=console`, stand-in OAuth creds) should report `posture` rather than
+flip readiness. Conflating that with the gap closure would change a pinned health
+surface without its design gate.
+
+**What shipped instead (the non-speculative pieces):** the tracked ladder probe
+`scripts/probe-telegram-webhook-ladder.mjs` (default 401/401/429 + `--baseline`
+500/500/429 RED instrument, never reads the secret) and the runbook §9 env-contract
+omission lesson naming the 0707 contract's missing key. The deferral is a forward-tracked
+backlog input, NOT a closure of this item.

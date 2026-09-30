@@ -610,6 +610,8 @@ Prefer the `Authorization: Bearer` form — both routes accept it. The `?secret=
 
 **`TELEGRAM_WEBHOOK_SECRET` hygiene (S-2 closure, D-20):** generate strong (e.g. `openssl rand -base64 32`, restricted to Telegram's `secret_token` charset `[A-Za-z0-9_-]`), never commit it — env-only; `.env.example` documents the name, never a value — and **rotation is one `setWebhook` re-run with the new `secret_token`** (update the env and restart the web app in the same breath, then re-run the call; no code rollback involved). The stand-in mint is stand-in-only: rehearsal secrets never carry into production and never appear in evidence files (facts and hashes only).
 
+**G-06-7 lesson — launch env contracts must carry the secret (06-07):** the Phase-07 flip launch env contract (`.snapshots/0707-prod-worker-env.sh`, 14 keys, gitignored) omitted `TELEGRAM_WEBHOOK_SECRET`, so the correctly-coded webhook route answered its designed fail-closed **500 instead of 401** on the no-secret and wrong-length legs from 2026-09-24 (the flip boot) until the 06-07 closure — a config omission masquerading as an auth regression (06-UAT test 7). Every future launch-env-contract mint MUST carry `TELEGRAM_WEBHOOK_SECRET` (the name is already documented in `.env.example`; the value is operator-minted and enters the gitignored contract via its file-read pattern only). `scripts/probe-telegram-webhook-ladder.mjs` is the standing re-verification instrument: default mode expects 401/401/429, `--baseline` mode documents the 500/500/429 missing-env shape; it never reads or sends the secret itself.
+
 ---
 
 ## 10. Worker-host egress control (apply once — Phase 4 worker provisioning)

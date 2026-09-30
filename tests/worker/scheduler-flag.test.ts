@@ -185,9 +185,11 @@ describe("scheduler flag + tick lane (WRK-10 / D-16 / RES-05)", () => {
       expect(recompute?.name).toBe("recompute-windowed-uptime");
       // The dryRun-false note applies to the CLEANUP only: the recompute's
       // write posture is structural (D-22 — unconditional from ship, no
-      // dry-run form), so its template payload is empty.
+      // dry-run form), so its template payload is empty. BullMQ 6 omits
+      // template.data entirely for an empty payload — `?? {}` normalizes
+      // that storage form (the pin is "no payload / no dryRun flag").
       expect(cleanup?.template?.data).toEqual({ dryRun: false });
-      expect(recompute?.template?.data).toEqual({});
+      expect(recompute?.template?.data ?? {}).toEqual({});
 
       // Exactly five schedulers across all lanes: 1 tick + 2 maintenance
       // + 1 flush sweep + 1 relay pass.

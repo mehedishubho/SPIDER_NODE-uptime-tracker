@@ -42,6 +42,18 @@ export const CHECK_TICK_SCHEDULER_ID = "check-tick";
 export const MAINTENANCE_CLEANUP_SCHEDULER_ID = "maintenance-cleanup";
 export const MAINTENANCE_CLEANUP_PATTERN = "15 3 * * *";
 /**
+ * DAT-11 (08-01): the nightly windowed-uptime recompute (audit §14.1
+ * maintenance lane, 08-CONTEXT D-22/D-23). Its pattern is deliberately
+ * SEPARATED from the cleanup's "15 3 * * *" — the maintenance lane runs at
+ * concurrency 1, so a near-03:15 pattern would serialize the recompute behind
+ * the retention deletes (research OQ2): 04:00 UTC leaves the whole 03:15
+ * pass to finish first. Job name matches maintenance.ts's
+ * RECOMPUTE_WINDOWED_UPTIME_JOB_NAME (one name, one processor — the cleanup
+ * literal precedent).
+ */
+export const RECOMPUTE_WINDOWED_SCHEDULER_ID = "recompute-windowed-uptime";
+export const RECOMPUTE_WINDOWED_PATTERN = "0 4 * * *";
+/**
  * Tier-2 straggler sweep (§16.2 cadence driver): rides the DBWRITES lane —
  * the lane whose consumer owns flush dispatch — every FLUSH_CADENCE_MS, so
  * staged routine-UP batches whose flush job was breaker-gated (or lost to a
@@ -387,6 +399,34 @@ export async function upsertSchedulersAtBoot(opts: {
     }
   );
 
+  // The windowed-uptime recompute: daily 04:00 UTC (DAT-11, D-22) — the
+  // maintenance lane's second job (the dispatcher accepts
+  // 'recompute-windowed-uptime' beside 'cleanup'). Write posture is
+  // STRUCTURAL, not a payload flag: the job has no dry-run form — it
+  // recomputes the three windowed columns from pings idempotently and runs
+  // unconditionally from ship, so the v2 display switch finds complete data
+  // from night one (D-23 backfill on the first run). WINDOWED_UPTIME_ENABLED
+  // gates READS only; nothing reads the windowed values in v1 (D-24). The
+  // template payload is empty (the cleanup's dryRun:false payload has no
+  // analog here by design — the operator's manual enqueue script keeps its
+  // own explicit flags per the cleanup precedent, and there is no dry-run
+  // flag to expose).
+  await queues.maintenance.upsertJobScheduler(
+    RECOMPUTE_WINDOWED_SCHEDULER_ID,
+    { pattern: RECOMPUTE_WINDOWED_PATTERN },
+    {
+      name: "recompute-windowed-uptime",
+      data: {},
+      opts: {
+        priority: LANE_PRIORITY.maintenance,
+        attempts: 5,
+        backoff: { type: "exponential", delay: 5000 },
+        removeOnComplete: { age: 86400 },
+        removeOnFail: { age: 604800 },
+      },
+    }
+  );
+
   // The Tier-2 straggler sweep: every FLUSH_CADENCE_MS on the dbWrites lane
   // (see FLUSH_SWEEP_SCHEDULER_ID above for why dbWrites, not maintenance).
   // Same D-16 lever as every other recurring scheduler — zero autonomous
@@ -430,6 +470,7 @@ export async function upsertSchedulersAtBoot(opts: {
   const upserted = [
     { queue: QUEUE_NAMES.scheduler, schedulerId: CHECK_TICK_SCHEDULER_ID },
     { queue: QUEUE_NAMES.maintenance, schedulerId: MAINTENANCE_CLEANUP_SCHEDULER_ID },
+    { queue: QUEUE_NAMES.maintenance, schedulerId: RECOMPUTE_WINDOWED_SCHEDULER_ID },
     { queue: QUEUE_NAMES.dbWrites, schedulerId: FLUSH_SWEEP_SCHEDULER_ID },
     { queue: QUEUE_NAMES.alerts, schedulerId: OUTBOX_RELAY_SCHEDULER_ID },
   ];

@@ -77,6 +77,19 @@ export const RECOMPUTE_WINDOWED_UPTIME_JOB_NAME = "recompute-windowed-uptime";
  */
 export const WINDOWED_RECOMPUTE_BATCH = 500;
 
+/**
+ * DAT-11/D-22: WINDOWED_UPTIME_ENABLED gates READS of the windowed uptime
+ * columns ONLY — and nothing reads them in v1 (D-24; the display switch is
+ * v2/PROD-01). The nightly 'recompute-windowed-uptime' job populates the
+ * columns UNCONDITIONALLY regardless of this flag (D-22), so the flag being
+ * off changes nothing visible. Same literal-'true' parse discipline as
+ * WORKER_SCHEDULER_ENABLED (anything but "true" means disabled). Exported for
+ * the v2 display switch + tests; v1 has zero production readers.
+ */
+export function isWindowedUptimeReadEnabled(): boolean {
+  return process.env.WINDOWED_UPTIME_ENABLED === "true";
+}
+
 /** Observation-only horizon for stale write_guards rows (§13; reported, never deleted here). */
 export const WRITE_GUARD_RETENTION_DAYS = 7;
 

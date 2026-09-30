@@ -52,6 +52,16 @@
       "timestamp": "2026-09-30T21:47:40.379Z",
       "status": "completed",
       "completion_timestamp": "2026-09-30T21:55:47.007Z"
+    },
+    {
+      "agent_id": "08-05",
+      "task_description": "Execute 08-05: WR-02 token migration + globals.css per-mode splits + light-safe brand assets + light-mode e2e",
+      "phase": "08",
+      "plan": "05",
+      "segment": null,
+      "timestamp": "2026-09-30T22:02:33.637Z",
+      "status": "completed",
+      "completion_timestamp": "2026-09-30T22:31:03.850Z"
     }
   ]
 }

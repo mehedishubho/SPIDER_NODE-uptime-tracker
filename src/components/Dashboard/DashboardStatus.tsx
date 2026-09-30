@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useAuthSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -21,6 +27,12 @@ interface StatusData {
   user: { id: string; name: string | null };
   monitors: Monitor[];
 }
+
+// 02-07 mounted-guard precedent (Pitfall 10): false during SSR and the
+// hydration render, true afterwards. Expressed via useSyncExternalStore with
+// a no-op subscribe because the repo lint forbids synchronous setState in
+// effects.
+const emptySubscribe = () => () => {};
 
 export function DashboardStatus() {
   const { data: session, isPending } = useAuthSession();
@@ -84,9 +96,19 @@ export function DashboardStatus() {
     if (status === "authenticated") fetchStatus();
   }, [status, fetchStatus]);
 
-  const publicUrl = typeof window !== "undefined" && session?.user?.id
-    ? `${window.location.origin}/status/${session.user.id}`
-    : "";
+  // Hydration-safe publicUrl derivation (UI-04 / Pitfall 10): the in-render
+  // window check is gone — server HTML and the client's first render now
+  // agree on the empty value, and the origin is derived post-mount behind
+  // the 02-07 mounted guard. The copy handler and the display fallback
+  // already tolerate the delayed value.
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
+  const [publicUrl, setPublicUrl] = useState("");
+
+  useEffect(() => {
+    if (mounted && session?.user?.id) {
+      setPublicUrl(`${window.location.origin}/status/${session.user.id}`);
+    }
+  }, [mounted, session?.user?.id]);
 
   const copyLink = () => {
     if (!publicUrl) return;

@@ -197,3 +197,53 @@ test("public status: navigate away mid-fetch records zero pageerrors and console
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });
+
+test("dashboard status: hydration-safe URL — zero hydration errors, copy value populates after mount", async ({
+  page,
+}) => {
+  // Hydration listeners (smoke.spec convention) attach BEFORE the full
+  // document load: any server/client markup disagreement on this surface
+  // lands here.
+  const hydrationProblems: string[] = [];
+  page.on("pageerror", (error) => {
+    if (/hydrat|did not match|server[- ]rendered|mismatch/i.test(error.message)) {
+      hydrationProblems.push(error.message);
+    }
+  });
+  page.on("console", (msg) => {
+    if (
+      msg.type() === "error" &&
+      /hydrat|did not match|server[- ]rendered|mismatch/i.test(msg.text())
+    ) {
+      hydrationProblems.push(msg.text());
+    }
+  });
+
+  await loginViaUi(page);
+  await page.goto("/dashboard/status");
+  await expect(page.getByText("Your Status Page")).toBeVisible();
+
+  // publicUrl derives post-mount (mounted guard + effect): the copy control
+  // populates with the seeded user's public path instead of staying on the
+  // "Loading..." fallback.
+  await expect(page.locator("code")).toContainText(`/status/${userId}`, {
+    timeout: 15_000,
+  });
+
+  expect(hydrationProblems).toEqual([]);
+});
+
+test("exactly one Toaster mounts app-wide (root ThemedToaster)", async ({
+  page,
+}) => {
+  // The single-Toaster UI-04 criterion, asserted in this spec per the plan:
+  // 08-02 deleted the duplicate dashboard-layout import and the root
+  // ThemedToaster is the only mount. Sonner 2.0.7 renders its eager
+  // <section aria-label="Notifications …"> container once per Toaster
+  // mount — the per-position [data-sonner-toaster] lists only appear while
+  // toasts are active, so the section is the stable mount census.
+  await page.goto("/login");
+  await expect(
+    page.locator('section[aria-label*="Notifications"]'),
+  ).toHaveCount(1);
+});

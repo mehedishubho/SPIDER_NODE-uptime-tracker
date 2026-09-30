@@ -274,7 +274,7 @@ Plans:
   3. No endpoint accepts a secret via query string and no `CRON_SECRET` reference remains in the codebase; error responses never leak stack traces or internals
   4. With SMTP down, account registration still completes and the verification email arrives once SMTP recovers (queued, bounded attempts, backoff); a permanently undeliverable address stops retrying via a typed unrecoverable error; the existing HTML template renders unchanged from its new location
 
-**Plans**: 5/5 plans executed + 1 gap-closure plan (06-VERIFICATION: 2 enqueue-failure-path gaps)
+**Plans**: 5/5 plans executed + 2 gap-closure plans (06-VERIFICATION: 2 enqueue-failure-path gaps; 06-UAT: G-06-2 manual non-transition persist + G-06-7 webhook secret env posture)
 
 Plans:
 **Wave 1** *(no dependencies)*
@@ -297,6 +297,10 @@ Plans:
 **Wave 5** *(gap closure — blocked on 06-01 + 06-02; from 06-VERIFICATION gaps_found)*
 
 - [ ] 06-06-PLAN.md — Enqueue-failure-path closure: compensating next_check_at restore on failed check-now enqueue (CR-01/gap 1) + producer-side 3s deadline bounding every web-side producer await for the silently-unreachable Redis mode (gap 2) (API-01, API-02)
+
+**Wave 6** *(gap closure — blocked on 06-06: shared deferred-items.md; from 06-UAT G-06-2/G-06-7)*
+
+- [ ] 06-07-PLAN.md — UAT gap closure: manual non-transition check-now results persist in-job via the §16.2 additive follow-up UPDATE + the missing engine end-to-end repeat-check pin (G-06-2), and the TELEGRAM_WEBHOOK_SECRET operator env fix with a tracked 401/401/429 ladder probe (G-06-7) (API-01, SEC-03)
 
 ### Phase 7: Better Auth Cutover, Admin Gating & Prisma Removal
 

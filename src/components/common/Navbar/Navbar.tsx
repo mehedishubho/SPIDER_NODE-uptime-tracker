@@ -13,7 +13,7 @@ export const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-slate-800/80 bg-background/80 backdrop-blur-md font-sans">
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md font-sans">
       <div className="w-full max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 py-3.5">
         {/* Brand Logo */}
         <Link href="/" className="flex items-center gap-2.5 group">
@@ -21,7 +21,7 @@ export const Navbar = () => {
             <Activity className="w-5 h-5" />
           </div> */}
           <Image src={logo} alt="Logo" width={50} height={50} className="w-12 h-12 object-contain" />
-          <span className="text-xl font-bold tracking-tight text-white font-heading">
+          <span className="text-xl font-bold tracking-tight text-foreground font-heading">
             Spider<span className="text-primary">Node</span>
           </span>
         </Link>
@@ -32,19 +32,19 @@ export const Navbar = () => {
             href="https://github.com/rakibutsho/uptime-tracker"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700 bg-slate-900/60 text-slate-300 hover:text-white text-xs font-medium transition-all"
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-border hover:border-muted-foreground/40 bg-secondary/60 text-muted-foreground hover:text-foreground text-xs font-medium transition-all"
           >
             <Github className="w-4 h-4" />
             <span>Star on GitHub</span>
           </Link>
 
           {status === "loading" ? (
-            <div className="w-24 h-8 bg-slate-800/60 rounded-lg animate-pulse" />
+            <div className="w-24 h-8 bg-muted/60 rounded-lg animate-pulse" />
           ) : session ? (
             <div className="flex items-center gap-3">
               <Link
                 href="/dashboard"
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-red-500 text-white text-xs font-bold transition-all shadow-md shadow-red-500/20"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-red-500 text-primary-foreground text-xs font-bold transition-all shadow-md shadow-red-500/20"
               >
                 <LayoutDashboard className="w-4 h-4" />
                 <span>Dashboard</span>
@@ -54,7 +54,7 @@ export const Navbar = () => {
                   await authClient.signOut();
                   window.location.href = "/";
                 }}
-                className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
+                className="p-2 rounded-xl bg-secondary border border-border text-muted-foreground hover:text-rose-400 transition-colors cursor-pointer"
                 title="Sign Out"
               >
                 <LogOut className="w-4 h-4" />
@@ -63,7 +63,7 @@ export const Navbar = () => {
           ) : (
             <Link
               href="/login"
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-red-500 text-white text-xs font-bold transition-all shadow-md shadow-red-500/20"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-red-500 text-primary-foreground text-xs font-bold transition-all shadow-md shadow-red-500/20"
             >
               <LogIn className="w-4 h-4" />
               <span>Sign In</span>
@@ -74,7 +74,7 @@ export const Navbar = () => {
         {/* Mobile menu trigger */}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-300"
+          className="md:hidden p-2 rounded-lg bg-secondary border border-border text-muted-foreground"
         >
           {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
@@ -82,12 +82,12 @@ export const Navbar = () => {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-b border-slate-800 bg-foreground-invert px-4 py-4 space-y-3">
+        <div className="md:hidden border-b border-border bg-background px-4 py-4 space-y-3">
           <a
             href="https://github.com/rakibutsho/uptime-tracker"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-slate-900 text-slate-300 text-sm font-medium"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-secondary text-muted-foreground text-sm font-medium"
           >
             <Github className="w-4 h-4" />
             <span>Star on GitHub</span>
@@ -98,7 +98,7 @@ export const Navbar = () => {
               <Link
                 href="/dashboard"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white font-bold text-sm"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm"
               >
                 <LayoutDashboard className="w-4 h-4" />
                 <span>Go to Dashboard</span>
@@ -118,7 +118,7 @@ export const Navbar = () => {
             <Link
               href="/login"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white font-bold text-sm"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm"
             >
               <LogIn className="w-4 h-4" />
               <span>Sign In</span>

@@ -35,14 +35,14 @@ export default function HowItWorks() {
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
         <div className="text-center max-w-2xl mx-auto mb-20">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/80 border border-slate-800 text-slate-300 text-xs font-mono mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary/80 border border-border text-muted-foreground text-xs font-mono mb-4">
             <Activity className="w-3.5 h-3.5 text-primary" />
             Quick Start Guide
           </div>
-          <h2 className="text-3xl md:text-4xl font-extrabold font-heading tracking-tight text-white">
+          <h2 className="text-3xl md:text-4xl font-extrabold font-heading tracking-tight text-foreground">
             From Zero to Monitored in <span className="text-primary">60 Seconds</span>
           </h2>
-          <p className="text-slate-400 mt-4 text-base">
+          <p className="text-muted-foreground mt-4 text-base">
             No complex SDKs or messy configurations. Just point us at your infrastructure and we&apos;ll handle the rest.
           </p>
         </div>
@@ -63,16 +63,16 @@ export default function HowItWorks() {
                     {step.id}
                   </div>
                   
-                  <div className="relative z-10 p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 shadow-inner">
+                  <div className="relative z-10 p-3 rounded-2xl bg-surface-deep/80 border border-surface-raised shadow-inner">
                     {step.icon}
                   </div>
                 </div>
 
                 {/* Content */}
-                <h3 className="text-xl font-bold font-heading text-slate-100 mb-3">
+                <h3 className="text-xl font-bold font-heading text-foreground mb-3">
                   {step.title}
                 </h3>
-                <p className="text-sm text-slate-400 leading-relaxed max-w-[280px]">
+                <p className="text-sm text-muted-foreground leading-relaxed max-w-[280px]">
                   {step.description}
                 </p>
               </div>

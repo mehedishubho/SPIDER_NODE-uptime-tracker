@@ -78,7 +78,7 @@ export function TeamSwitcher({
               <Activity className="size-6" />
             </div> */}
             <Image src={logo} alt="Logo" width={50} height={50} className="w-12 h-12 object-contain" />
-            <span className="text-xl font-bold tracking-tight text-white font-mono">
+            <span className="text-xl font-bold tracking-tight text-foreground font-mono">
               Spider<span className="text-primary">Node</span>
             </span>
           </Link>
@@ -87,20 +87,10 @@ export function TeamSwitcher({
 
       {/* Footer user and logout */}
       <div className="absolute bottom-4 left-4 right-4">
-        {/* <div className="mb-4 flex items-center gap-3 rounded-xl bg-white/70 p-2">
-          <Avatar className="h-9 w-9">
-            <AvatarImage src={displayAvatar} alt={displayName} />
-            <AvatarFallback>{displayFallback}</AvatarFallback>
-          </Avatar>
-          <div className="min-w-0">
-            <p className="truncate text-xs font-semibold text-dialog-foreground">
-              {displayName}
-            </p>
-            <p className="truncate text-[11px] text-muted-meta">
-              {displayEmail}
-            </p>
-          </div>
-        </div> */}
+        {/* 08-05: the dead commented avatar block (last reference to the
+            retired --dialog-* Swal tokens) was deleted with the token
+            retirement — the display* locals stay for the 08-09 sidebar
+            reconciliation to re-wire. */}
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton

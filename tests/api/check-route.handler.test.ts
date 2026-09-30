@@ -42,9 +42,19 @@ const seams = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/lib/queue-producer", () => ({
-  webQueueProducer: () => ({ checks: seams.checksQueue }),
-}));
+// 06-06 (gap 2): async importOriginal factory spreading the REAL module and
+// overriding ONLY webQueueProducer — the REAL withProducerDeadline runs
+// through the route (a locally re-implemented mock would prove nothing about
+// the production wrap). The @/worker/queues mock keeps enqueueManualCheck
+// only; QUEUE_NAMES is referenced solely inside the never-called real
+// webQueueProducer factory body.
+vi.mock("@/lib/queue-producer", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/queue-producer")>();
+  return {
+    ...actual,
+    webQueueProducer: () => ({ checks: seams.checksQueue }),
+  };
+});
 vi.mock("@/worker/queues", () => ({ enqueueManualCheck: seams.enqueueManualCheck }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: seams.rateLimit, getIP: vi.fn() }));
 
@@ -367,5 +377,45 @@ describe("POST /api/monitors/[id]/check — enqueue-failure compensation (06-06 
     expect(res.status).toBe(202);
     expect(h.db.execute).toHaveBeenCalledTimes(1);
     expect(seams.enqueueManualCheck).toHaveBeenCalledTimes(1);
+  });
+
+  it("never-settling enqueue (silently-unreachable Redis) → deadline rejects → the fixed 503 + the compensating restore (06-06 gap 2, T-06-07)", async () => {
+    vi.useFakeTimers();
+    try {
+      mockSession(sessionA);
+      dbState.results = [[activeMonitor]];
+      // The essential property of never-connectable Redis: neither resolve
+      // nor reject (offline-queue/connecting state that never settles).
+      seams.enqueueManualCheck.mockImplementation(() => new Promise<never>(() => {}));
+
+      const { PRODUCER_DEADLINE_MS } = (await import("@/lib/queue-producer")) as unknown as {
+        PRODUCER_DEADLINE_MS?: number;
+      };
+      const deadlineMs = PRODUCER_DEADLINE_MS ?? 3000;
+
+      const pending = postCheck();
+      // Race the route answer against a sentinel so the pre-deadline tree
+      // fails THIS assertion (the route hangs) instead of tripping the
+      // suite-wide test timeout and leaking fake timers into sibling cases.
+      const sentinelMs = deadlineMs + 2_000;
+      const raced = Promise.race([
+        pending.then(() => "ANSWERED"),
+        new Promise<string>((resolve) => setTimeout(() => resolve("HANGING"), sentinelMs)),
+      ]);
+      await vi.advanceTimersByTimeAsync(sentinelMs);
+      expect(await raced).toBe("ANSWERED");
+
+      const res = await pending;
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({
+        error: "Service temporarily unavailable — try again shortly",
+      });
+      // Task 1's restore runs on the deadline path too: advance + restore.
+      expect(h.db.execute).toHaveBeenCalledTimes(2);
+      // The deadline timer is cleared — no live timer survives the request.
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

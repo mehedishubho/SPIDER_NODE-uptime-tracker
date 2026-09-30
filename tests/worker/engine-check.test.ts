@@ -70,7 +70,7 @@ interface MonitorRow {
   status: string;
   "totalChecks": number;
   "failedChecks": number;
-  "lastChecked": string | null;
+  "lastChecked": string | Date | null;
   "responseTime": number | null;
 }
 
@@ -603,10 +603,18 @@ describe("check processor — WRK-01/WRK-05/RES-01 (§15.1 + §16 routing)", () 
 
         // The D-01 poll completion predicate: lastChecked is strictly newer
         // than the second enqueue's queuedAt epoch. The column is a naive UTC
-        // timestamp and this host runs +06, so normalize space->T + append Z
-        // before parsing (a bare Date(string) parse is 6 h wrong).
+        // timestamp and this host runs +06 — normalize to a UTC epoch-ms
+        // before comparing. (Plan-text note: pg returns the column as a Date
+        // parsed as LOCAL, whose local components ARE the naive stamp's
+        // fields — getTime() - getTimezoneOffset()*60000 therefore reads the
+        // stamp AS UTC; the string branch keeps the plan's literal space->T +
+        // Z normalization. A bare Date(string) parse would be 6 h wrong.)
         const queuedAtMs = Number.parseInt(second.jobId.split(":")[2], 10);
-        const lastCheckedMs = Date.parse(monitor.lastChecked!.replace(" ", "T") + "Z");
+        const stamped = monitor.lastChecked!;
+        const lastCheckedMs =
+          typeof stamped === "string"
+            ? Date.parse(stamped.replace(" ", "T") + "Z")
+            : stamped.getTime() - stamped.getTimezoneOffset() * 60_000;
         expect(lastCheckedMs).toBeGreaterThan(queuedAtMs);
       } finally {
         await capture.lane.close();

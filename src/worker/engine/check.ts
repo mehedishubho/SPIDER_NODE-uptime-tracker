@@ -10,7 +10,7 @@ import { buildLogger, jobLogger } from "../logger";
 import { acquireMonitorLock, withLockRenewal } from "../locks";
 import { applyTransition } from "../persist/tier1";
 import type { Tier1Result } from "../persist/tier1";
-import { flushDueMonitors, flushMonitor, makeBatchId, stageResult } from "../persist/tier2";
+import { flushDueMonitors, flushMonitor, makeBatchId, monitorFlushUpdateSql, stageResult } from "../persist/tier2";
 import type { Tier2FlushResult } from "../persist/tier2";
 import { BREAKER_GATE_MARKER, canEnqueue, recordResult, recordSuccess } from "../breaker";
 import { flushJobId, LANE_PRIORITY, workerQueues } from "../queues";
@@ -135,7 +135,7 @@ export type CheckJobResult =
   | { outcome: "noop-monitor-missing" }
   | { outcome: "noop-lock-held" }
   | { outcome: "aborted-lock-lost" }
-  | ({ outcome: "tier1"; targetStatus: "UP" | "DOWN" } & Tier1Result)
+  | ({ outcome: "tier1"; targetStatus: "UP" | "DOWN"; manualFlushed?: boolean } & Tier1Result)
   | { outcome: "tier2"; flushJobId: string | null; flushGated: boolean };
 
 /** The monitor fields the processor needs — loaded from the ROW (T-04-22). */
@@ -225,7 +225,15 @@ async function runCheckJob(job: CheckJob, deps: ProcessCheckDeps): Promise<Check
   const startedAt = Date.now();
   // Manual jobs ride the check-manual:{monitorId}:{epochMs} id shape — they
   // always take Tier 1 (a synchronous evidence ping for the poll UX) even
-  // when the outcome is a non-transition UP.
+  // when the outcome is a non-transition UP. 06-07 (G-06-2): a manual job
+  // whose applyTransition reports applied:false (the UP-on-UP / DOWN-on-DOWN
+  // repeat — the transition guard matches zero rows by design, DAT-04) ALSO
+  // lands its fresh result in-job via the exported §16.2 additive UPDATE
+  // (monitorFlushUpdateSql): counters, lastChecked and responseTime move
+  // inside the job's lifetime, so the D-01 poll (lastChecked past the
+  // enqueue epoch) completes in seconds. Never a status write, never any
+  // scheduling column (Pitfall 8: the route's enqueue-time advance stays the
+  // only manual schedule movement).
   const manual = jobId?.startsWith("check-manual:") ?? false;
 
   // 1. Load the monitor — the ROW is the url authority (T-04-22).
@@ -260,6 +268,21 @@ async function runCheckJob(job: CheckJob, deps: ProcessCheckDeps): Promise<Check
     // 5. Tier classification: Tier 1 for any down-class outcome, any non-UP
     //    monitor status, or a manual job; Tier 2 ONLY for routine UP on an
     //    UP monitor (stageResult's UP-only contract mirrors this exactly).
+    //    Manual non-transitions (06-07/G-06-2): evidence + any transition via
+    //    applyTransition, then counters/lastChecked/responseTime via the
+    //    in-job §16.2 additive follow-up below — synchronous per 06-CONTEXT
+    //    D-01 (manual checks persist in seconds, never the ≤60 s Tier-2
+    //    window) and Phase-05 D-04 (manual results land at check time, never
+    //    waiting on the periodic flush host).
+    //    Rejected alternatives: (a) un-guard the transition UPDATE for manual
+    //    jobs — deriveEventType keys off `applied` and would fabricate
+    //    incident.down plus a duplicate ONGOING incident on EVERY repeat
+    //    manual check of a DOWN monitor, and it breaks DAT-04 count-once for
+    //    transitions; (b) route manual non-transitions into the Tier-2
+    //    stageResult + delayed flush lane — the 30 s flush delay cannot beat
+    //    the D-01 30 s poll give-up (violating the seconds contract), and
+    //    stageResult is UP-class-only by the pinned 04-05 contract so
+    //    DOWN-on-DOWN cannot stage at all.
     const tier1 = outcome.kind === "down" || monitor.status !== "UP" || manual;
 
     if (tier1) {
@@ -284,6 +307,31 @@ async function runCheckJob(job: CheckJob, deps: ProcessCheckDeps): Promise<Check
         },
         db
       );
+
+      // 06-07 (G-06-2): the manual non-transition follow-up. applyTransition
+      // already committed this delivery's evidence ping (statement 1, always
+      // — the sole ping per delivery, preserving the 04-05 counters-never-
+      // account-a-missing-evidence-row invariant; a BullMQ redelivery re-runs
+      // both halves symmetrically). When the transition guard matched zero
+      // rows on a MANUAL job, this repeat's fresh result still has to land
+      // in-job: ONE §16.2 additive UPDATE through the job's db handle —
+      // never a status write, never any scheduling column (Pitfall 8). Zero
+      // returned rows (the monitor vanished mid-job, or the deactivated
+      // race) is the documented benign §16.2 no-op — identical to the flush
+      // posture; do not branch on which cause fired (IN-04).
+      let manualFlushed: boolean | undefined;
+      if (manual && !result.applied) {
+        const failedInc = outcome.kind === "down" ? 1 : 0;
+        await db.execute(
+          monitorFlushUpdateSql(monitorId, 1, failedInc, Date.now(), outcome.responseTimeMs)
+        );
+        manualFlushed = true;
+        log.info(
+          { monitorId, jobId, durationMs: Date.now() - startedAt },
+          "manual non-transition persisted — in-job additive flush (§16.2 semantics, D-01/D-04)"
+        );
+      }
+
       // TEST-ONLY crash checkpoint (D-29 / T-04-30, plan 04-08 Task 2):
       // WORKER_TEST_CRASH_AFTER=tier1_commit hard-exits the process
       // immediately AFTER the Tier 1 COMMIT (applyTransition resolved — the
@@ -304,7 +352,15 @@ async function runCheckJob(job: CheckJob, deps: ProcessCheckDeps): Promise<Check
         { tier: 1, durationMs: Date.now() - startedAt, ...result },
         "check persisted — Tier 1 transition transaction (§16.1)"
       );
-      return { outcome: "tier1", targetStatus: outcome.kind === "up" ? "UP" : "DOWN", ...result };
+      return {
+        outcome: "tier1",
+        targetStatus: outcome.kind === "up" ? "UP" : "DOWN",
+        // Set ONLY when the manual in-job follow-up ran — a manual check that
+        // persisted nothing beyond its evidence ping must stay observable as
+        // such, never a silent no-op (API-01 transparency).
+        ...(manualFlushed === true ? { manualFlushed } : {}),
+        ...result,
+      };
     }
 
     // 6. Tier 2: routine UP on an UP monitor — stage, then enqueue the flush.

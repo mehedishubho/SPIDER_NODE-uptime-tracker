@@ -1,14 +1,14 @@
 ---
 status: partial
 phase: 06-thin-api-routes-email-abstraction
-source: [06-01-SUMMARY.md, 06-02-SUMMARY.md, 06-03-SUMMARY.md, 06-04-SUMMARY.md, 06-05-SUMMARY.md]
+source: [06-01-SUMMARY.md, 06-02-SUMMARY.md, 06-03-SUMMARY.md, 06-04-SUMMARY.md, 06-05-SUMMARY.md, 06-VERIFICATION.md]
 started: 2026-09-29T22:24:06Z
-updated: 2026-09-29T22:41:46Z
+updated: 2026-09-30T22:15:56Z
 ---
 
 ## Current Test
 
-[testing paused — 1 item outstanding]
+[testing paused — 7 re-verification items outstanding]
 
 ## Tests
 
@@ -22,6 +22,7 @@ expected: On the Dashboard, click Check now on an active monitor. The button swa
 result: issue
 reported: "Delegate-run: 202 body contract VERIFIED ({jobId: 'check-manual:4:...', queuedAt}, immediate). FIRST check (PENDING→UP transition) persisted sub-second (Tier 1 applied:true, lastChecked 22:36:28.676Z, status UP, responseTime 24ms). REPEAT check-now on the now-UP monitor: worker job ran (check-manual:4:1790721457894, Tier 1 txn applied:false) but NOTHING persisted — no check row, lastChecked stayed 22:36:28.676Z, totalChecks stayed 1 across a full 30s poll window AND re-check 44s later. The client poll (lastChecked > queuedAt, 30s give-up) can never complete for a repeat manual check on an UP monitor → always the timeout info toast; data refreshes only at the next SCHEDULED check (interval minutes later). The phase's #1 success criterion (SC-1/API-01 fresh result via polling) fails in the most common case."
 severity: blocker
+resolution: "FIXED by 06-07 Task 1 (commits 2117249 RED + 2b0b218 GREEN): manual non-transition results persist in-job via the §16.2 additive follow-up (manualFlushed, requireActive-guarded). Engine tests 10-12 prove the contract on real PG/Redis (12/12). Source-level fix verified by the 2026-09-30 re-verification (G-06-2 CLOSED); live-worker proof pending the next release rebuild — see Test 19."
 
 ### 3. Check-Now Rate Limit — 429 + Retry-After
 expected: Trigger check-now repeatedly past the per-user/per-IP limits (7/min, 30/h buckets). Response is 429 with a numeric Retry-After header, and the Dashboard toast surfaces the retry window from that header.
@@ -49,6 +50,7 @@ expected: POST /api/telegram/webhook without the X-Telegram-Bot-Api-Secret-Token
 result: issue
 reported: "Delegate-run: rate-limit leg EXACT — 30 requests consumed the window then 429 from the 31st (limiter-first ladder, D-21, works; only the loopback bucket burned). Secret legs FAIL the contract shape: no-secret and wrong-length both return 500, not 401. Web log names the cause: 'Telegram Webhook Error: TELEGRAM_WEBHOOK_SECRET is not configured' — the Phase-07 flip env contract (.snapshots/0707-prod-worker-env.sh, 14 keys) omits TELEGRAM_WEBHOOK_SECRET, so the route takes its designed loud config-error path (fail-closed: body never processed, no chat-binding write, never accepts). The code is correct (06-03 pins: unset→500 by design, wrong secret→401); the RUNNING POSTURE lacks the secret. Production mint was operator-attested at 06-05 §12 but never entered the 07-era launch env."
 severity: major
+resolution: "FIXED 2026-10-01: operator set TELEGRAM_WEBHOOK_SECRET in the launch env contract; web restarted through it. Tracked probe (scripts/probe-telegram-webhook-ladder.mjs) recorded the before/after in 06-07-SUMMARY: baseline 500/500/429 → after 401/401/429 + login 200, exit 0. Independently re-run by the 2026-09-30 re-verifier: 401/401/429 exit 0 (G-06-7 CLOSED)."
 
 ### 8. Monitor Create — SSRF Admission
 expected: Creating (or PATCHing the URL of) a monitor with a private/loopback URL (e.g. http://127.0.0.1, http://169.254.169.254) is refused with 400 and an actionable message carrying no resolution internals. A normal public URL is accepted.
@@ -111,12 +113,40 @@ result: pass
 source: automated
 coverage_id: 06-05/D4
 
+### 19. Live re-run: repeat check-now persists (post-rebuild)
+expected: On the live stack, after the next release rebuild + worker restart carries the G-06-2 fix (dist/worker.js beyond sha f71cbdc): repeat check-now on an already-UP monitor → fresh lastChecked > queuedAt within the poll window (no timeout toast). Superseded as source-level proof by engine tests 10-12 (12/12); this is the live-worker confirmation.
+result: [pending]
+
+### 20. CR-01 correction-of-record acceptance
+expected: Operator acknowledges the record: the gap-closure review's "restore inert in production" premise did NOT reproduce (drizzle's node-postgres session already returns full-µs timestamptz text — fixer proved GREEN-before-fix on real PG); the ::text/::timestamptz fix was retained as a strictly-safer explicit SQL contract, honestly documented in 06-REVIEW-GAPCLOSURE-DISPOSITION.md.
+result: [pending]
+
+### 21. Phase mode metadata: Mode mvp with non-User-Story goal (carried)
+expected: Decision on the carried metadata discrepancy — ROADMAP declares Mode: mvp but the goal is not User-Story format; verification proceeded standard goal-backward per Phase 3/4/5 precedent.
+result: [pending]
+
+### 22. Operator-attested release observables (carried)
+expected: Operator re-acknowledges the attested items from the initial round (production mint/setWebhook, soak observations, dead-men quiet) — unchanged from 06-DEPLOY-RECORD.md §12's attestation split.
+result: [pending]
+
+### 23. Dashboard check-now UX contract (carried)
+expected: Carried manual item — Dashboard check-now button/toast contract observed in the browser (202 → "Checking…" → fresh toast; 429 Retry-After toast; timeout info toast).
+result: [pending]
+
+### 24. 06-06 backstop truth: late-delivery race
+expected: Backstop-tagged truth — deadline fires but the enqueue add later succeeds (late delivery); planner-tagged verification:backstop with no held-out test; the verifier abstained per the honest-verifier rule. Human acceptance that the bounded late-apply window (monotonic-unique jobIds; tier1 owns the slot write on transitions) is acceptable.
+result: [pending]
+
+### 25. Flagged prohibition: no Redis URL in failure logs
+expected: Prohibition "no Redis URL in failure logs" (06-06 P3) currently inspection-clean (failure logs carry only literal strings, µs timestamps, error.message) but has no standing test — flagged fail-closed. Recommend a log-content pin in a follow-up; human acceptance of the interim state.
+result: [pending]
+
 ## Summary
 
-total: 18
+total: 25
 passed: 15
 issues: 2
-pending: 0
+pending: 7
 skipped: 0
 blocked: 1
 
@@ -124,35 +154,23 @@ blocked: 1
 
 <!-- YAML format for plan-phase --gaps consumption -->
 - gap_id: G-06-2
+  status: resolved
+  resolved_by: 06-07-PLAN
+  resolved_at: 2026-09-30
   truth: "Check-now on an already-UP monitor returns 202 and the fresh result appears via polling within the documented latency (lastChecked > queuedAt, 30s window)"
-  status: failed
   reason: "User reported: repeat check-now on an UP monitor times out — 202 body correct, first-check (transition) sub-second, but the repeat manual check persists NOTHING (applied:false, no Tier-2 staging); poll can never complete"
   severity: blocker
   test: 2
-  root_cause: "Manual checks are hard-routed to the Tier-1 transition transaction (src/worker/engine/check.ts:263 'outcome.kind === \"down\" || monitor.status !== \"UP\" || manual' — Phase-04 design 31bb9b2), and the Tier-1 UPDATE is transition-guarded (src/worker/persist/tier1.ts:196-198 WHERE id = ... AND status <> target AND \"isActive\") — so an UP→UP manual result matches 0 rows: no check row, no lastChecked/responseTime/totalChecks update, and the job never reaches the Tier-2 routine-UP staging path (scheduler checks do). Client poll contract (D-01: lastChecked > queuedAt, 30s give-up) is unsatisfiable for repeat manual checks; the monitor row refreshes only at the next SCHEDULED check (interval minutes later). Live evidence: worker log 22:37:37.926 'check persisted — Tier 1 transition transaction' {m:4, tier:1, applied:false}; API lastChecked stayed 22:36:28.676Z / totalChecks 1 across the 30s poll and a 44s re-check."
-  artifacts:
-    - path: "src/worker/engine/check.ts"
-      issue: "line 263: '|| manual' routes manual checks to Tier 1 unconditionally; the no-transition branch falls through applyTransition (applied:false) and returns without staging the routine result"
-    - path: "src/worker/persist/tier1.ts"
-      issue: "lines 196-198: transitionUpdateSql WHERE status <> target — correct for scheduler duplicates, drops manual UP→UP results entirely"
-  missing:
-    - "Persist manual non-transition results (route them to the Tier-2 stageResult path like scheduler checks, or un-guard lastChecked/responseTime/totalChecks for manual jobs, or flush in-job per the Phase-05 D-04 manual-flush intent)"
-    - "End-to-end pin: repeat check-now on an UP monitor → lastChecked > queuedAt within the poll window (no such pin exists; unit suites pin route + client in isolation)"
-  debug_session: ""
+  root_cause: "Manual checks were hard-routed to the Tier-1 transition transaction (src/worker/engine/check.ts:263 '|| manual' — Phase-04 design 31bb9b2), and the Tier-1 UPDATE is transition-guarded (src/worker/persist/tier1.ts:196-198 WHERE id = ... AND status <> target AND \"isActive\") — so an UP→UP manual result matched 0 rows: no check row, no lastChecked/responseTime/totalChecks update, and the job never reached the Tier-2 routine-UP staging path."
+  resolution: "06-07 Task 1: when a manual job's applyTransition returns applied:false, ONE in-job follow-up runs the §16.2 additive UPDATE (monitorFlushUpdateSql with requireActive) — synchronous per D-01, no status/scheduling writes (Pitfall 8). Engine tests 10-12 (12/12 on real PG/Redis) pin it; re-verification 2026-09-30 CLOSED the gap at source level. Live-worker proof deferred to Test 19 (next release rebuild)."
 
 - gap_id: G-06-7
+  status: resolved
+  resolved_by: 06-07-PLAN
+  resolved_at: 2026-10-01
   truth: "Telegram webhook POST without the correct secret header is refused 401 (constant-time compare, wrong-length 401); flood past 30/min → 429"
-  status: failed
-  reason: "User reported: no-secret and wrong-length POSTs return 500 instead of 401 — web log: 'Telegram Webhook Error: TELEGRAM_WEBHOOK_SECRET is not configured'; rate-limit leg exact (429 from the 31st request)"
+  reason: "User reported: no-secret and wrong-length POSTs return 500 instead of 401 — web log: 'TELEGRAM_WEBHOOK_SECRET is not configured'; rate-limit leg exact (429 from the 31st request)"
   severity: major
   test: 7
-  root_cause: "Ops/env regression, not a code defect: the Phase-07 flip launch env contract (.snapshots/0707-prod-worker-env.sh — 14 keys) omits TELEGRAM_WEBHOOK_SECRET, so the web process (restarted through that contract since 2026-09-24) takes the route's DESIGNED loud config-error path (throw → logged 500, fail-closed, body never processed, no chat-binding write). The production mint was operator-attested at 06-05 §12 but the value never entered the 07-era launch env. Code is correct per 06-03 pins (unset→500 loud by design; wrong-secret correct-length→401; limiter-first ladder verified live)."
-  artifacts:
-    - path: ".snapshots/0707-prod-worker-env.sh"
-      issue: "launch env contract missing TELEGRAM_WEBHOOK_SECRET (operator-owned value; §12-attested mint exists operator-side)"
-    - path: "src/app/api/telegram/webhook/route.ts"
-      issue: "none — behaves exactly as pinned; surfaces the missing config loudly"
-  missing:
-    - "Operator adds the minted TELEGRAM_WEBHOOK_SECRET to the launch env contract and restarts web (+worker harmless) — then the 401/429 ladder re-verifies green"
-    - "Optional hardening: a boot-time env checklist (or healthz posture field) listing required-by-feature env so an omitted secret is visible without a probe"
-  debug_session: ""
+  root_cause: "Ops/env regression, not a code defect: the Phase-07 flip launch env contract omitted TELEGRAM_WEBHOOK_SECRET, so the route took its designed loud config-error path (fail-closed 500). Code was correct per 06-03 pins."
+  resolution: "Operator set the minted secret in .snapshots/0707-prod-worker-env.sh; web restarted through it (0709 script). Tracked probe recorded before 500/500/429 → after 401/401/429 + login 200 (06-07-SUMMARY, verbatim); re-verifier independently re-ran: 401/401/429 exit 0. CLOSED."

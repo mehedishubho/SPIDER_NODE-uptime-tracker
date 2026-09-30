@@ -375,15 +375,29 @@ VALUES ${sql.join(tuples, sql`, `)}
  *     staged newest timestamp is strictly newer than the row's CURRENT
  *     lastChecked (SET expressions read the old row; a NULL lastChecked
  *     takes the ELSE branch per the pinned asymmetry)
+ *
+ * `requireActive` (WR-01, default false): appends `AND "isActive"` to the
+ * WHERE so the UPDATE matches zero rows on a DEACTIVATED monitor. Tier-2
+ * flushes keep the default (a paused monitor's staged batch still commits —
+ * the guard's own monitor-missing/skip contracts are unchanged); the manual
+ * in-job follow-up passes true because a deactivated monitor must record
+ * nothing beyond its evidence ping (tier1's transition inertness).
  */
 export function monitorFlushUpdateSql(
   monitorId: number,
   dTotal: number,
   dFailed: number,
   lastTsMs: number,
-  lastRtMs: number
+  lastRtMs: number,
+  requireActive = false
 ): SQL {
   const lastTs = formatPgTimestamp(lastTsMs);
+  // WR-01: the opt-in "isActive" tail, gated PER CALL — the shared Tier-2
+  // flushes keep the ungated form (default), while the manual in-job
+  // follow-up passes true so a monitor deactivated mid-job is fully inert
+  // beyond its evidence ping (matching tier1's transition guard and the
+  // engine's step-1 posture).
+  const activeGuard = requireActive ? sql` AND "isActive"` : sql``;
   // Power-of-two extraction constants (D-36): 2^52 = 4503599627370496 with
   // half-adder 2^51 = 2251799813685248 covers y >= 1; 2^60 =
   // 1152921504606846976 with half-adder 2^59 = 576460752303423488 covers
@@ -434,7 +448,7 @@ UPDATE monitors
        "responseTime" = CASE WHEN ${lastTs}::timestamp > "lastChecked"
                              THEN ${lastRtMs}
                              ELSE "responseTime" END
- WHERE id = ${monitorId}
+ WHERE id = ${monitorId}${activeGuard}
 RETURNING id
 `;
 }

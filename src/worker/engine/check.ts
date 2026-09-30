@@ -315,21 +315,34 @@ async function runCheckJob(job: CheckJob, deps: ProcessCheckDeps): Promise<Check
       // both halves symmetrically). When the transition guard matched zero
       // rows on a MANUAL job, this repeat's fresh result still has to land
       // in-job: ONE §16.2 additive UPDATE through the job's db handle —
-      // never a status write, never any scheduling column (Pitfall 8). Zero
-      // returned rows (the monitor vanished mid-job, or the deactivated
-      // race) is the documented benign §16.2 no-op — identical to the flush
-      // posture; do not branch on which cause fired (IN-04).
+      // never a status write, never any scheduling column (Pitfall 8).
+      //
+      // WR-01 (contract pinned by engine case 12): the follow-up is
+      // requireActive-gated, so a monitor DEACTIVATED mid-job records
+      // NOTHING beyond its evidence ping — identical inertness to tier1's
+      // transition guard (AND "isActive") and the step-1 load posture; a
+      // monitor VANISHED mid-job matches zero rows the same way. Both causes
+      // share one no-write outcome (no branching on which fired, IN-04) and
+      // manualFlushed stays unset so a check that persisted nothing beyond
+      // its evidence ping is observable as such (API-01 transparency).
       let manualFlushed: boolean | undefined;
       if (manual && !result.applied) {
         const failedInc = outcome.kind === "down" ? 1 : 0;
-        await db.execute(
-          monitorFlushUpdateSql(monitorId, 1, failedInc, Date.now(), outcome.responseTimeMs)
+        const flushed = await db.execute(
+          monitorFlushUpdateSql(monitorId, 1, failedInc, Date.now(), outcome.responseTimeMs, true)
         );
-        manualFlushed = true;
-        log.info(
-          { monitorId, jobId, durationMs: Date.now() - startedAt },
-          "manual non-transition persisted — in-job additive flush (§16.2 semantics, D-01/D-04)"
-        );
+        if (flushed.rows.length > 0) {
+          manualFlushed = true;
+          log.info(
+            { monitorId, jobId, durationMs: Date.now() - startedAt },
+            "manual non-transition persisted — in-job additive flush (§16.2 semantics, D-01/D-04)"
+          );
+        } else {
+          log.info(
+            { monitorId, jobId, durationMs: Date.now() - startedAt },
+            "manual non-transition follow-up matched zero rows (monitor vanished or deactivated mid-job) — nothing persisted beyond the evidence ping (§16.2 no-op)"
+          );
+        }
       }
 
       // TEST-ONLY crash checkpoint (D-29 / T-04-30, plan 04-08 Task 2):
@@ -355,9 +368,10 @@ async function runCheckJob(job: CheckJob, deps: ProcessCheckDeps): Promise<Check
       return {
         outcome: "tier1",
         targetStatus: outcome.kind === "up" ? "UP" : "DOWN",
-        // Set ONLY when the manual in-job follow-up ran — a manual check that
-        // persisted nothing beyond its evidence ping must stay observable as
-        // such, never a silent no-op (API-01 transparency).
+        // Set ONLY when the manual in-job follow-up WROTE — a manual check
+        // that persisted nothing beyond its evidence ping (vanished OR
+        // deactivated monitor, WR-01) must stay observable as such, never a
+        // silent no-op (API-01 transparency).
         ...(manualFlushed === true ? { manualFlushed } : {}),
         ...result,
       };

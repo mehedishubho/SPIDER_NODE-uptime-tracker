@@ -1,6 +1,6 @@
 import type { JobsOptions } from "bullmq";
 import { LANE_PRIORITY } from "@/worker/queues";
-import { webQueueProducer } from "@/lib/queue-producer";
+import { webQueueProducer, withProducerDeadline } from "@/lib/queue-producer";
 import type { EmailPayload } from "./index";
 
 // ---------------------------------------------------------------------------
@@ -48,6 +48,10 @@ export async function enqueueTransactionalEmail(
   deps: { emailQueue?: EmailQueueClient } = {}
 ): Promise<{ job: unknown }> {
   const queue = deps.emailQueue ?? webQueueProducer().email;
-  const job = await queue.add("send", payload, { ...EMAIL_JOB_OPTIONS });
+  // 06-06 gap 2: the add rides the producer-side deadline — a silently
+  // unreachable Redis rejects by the bound (the Better Auth hooks'
+  // sendVerificationEmail/sendResetPasswordEmail path is bounded through this
+  // door; their existing error surfacing is unchanged).
+  const job = await withProducerDeadline(queue.add("send", payload, { ...EMAIL_JOB_OPTIONS }));
   return { job };
 }

@@ -36,6 +36,54 @@ const globalForProducer = global as unknown as {
   webQueueProducer?: WebQueueProducerSet;
 };
 
+// ---------------------------------------------------------------------------
+// Producer-side deadline (06-06 gap 2, T-06-07 / VERIFICATION truth 3): the
+// bounded profile above only rejects FAST when Redis actively refuses — a
+// never-connectable endpoint (firewall drop) never settles either way and
+// would pin a request handler forever. withProducerDeadline is the backstop
+// racing every web-side producer await (ping, check-route enqueue, email
+// door add) against a 3s bound whose rejection the routes' existing catches
+// map to the fixed 503. 3s sits above the 1s connect + 1s command budget so
+// the fast-rejection path stays primary; the deadline covers the silent mode
+// where nothing else fires (deferred-items item 3 recorded 2-3s).
+// ---------------------------------------------------------------------------
+
+/** Backstop bound for web-side producer awaits (silent-unreachable Redis). */
+export const PRODUCER_DEADLINE_MS = 3000;
+
+/** Rejection type when a producer await exceeds its deadline (name pinned). */
+export class ProducerDeadlineError extends Error {
+    constructor(ms: number) {
+        super(
+            `producer await exceeded the ${ms}ms deadline (silently-unreachable Redis backstop — mapped to a loud 503)`,
+        );
+        this.name = "ProducerDeadlineError";
+    }
+}
+
+/**
+ * Races a producer await against a deadline. Fast settles/rejects pass
+ * through the race untouched; a never-settling await rejects with
+ * ProducerDeadlineError at `ms` (default PRODUCER_DEADLINE_MS). The losing
+ * timer is always cleared (check-now-poll timer-hygiene precedent).
+ */
+export async function withProducerDeadline<T>(
+    promise: Promise<T>,
+    ms: number = PRODUCER_DEADLINE_MS,
+): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        return await Promise.race([
+            promise,
+            new Promise<never>((_, reject) => {
+                timer = setTimeout(() => reject(new ProducerDeadlineError(ms)), ms);
+            }),
+        ]);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 export function webQueueProducer(): WebQueueProducerSet {
   if (!globalForProducer.webQueueProducer) {
     const connectionString = process.env.REDIS_URL;
@@ -62,7 +110,7 @@ export function webQueueProducer(): WebQueueProducerSet {
       checks,
       email,
       connection,
-      ping: () => connection.ping(),
+            ping: () => withProducerDeadline(connection.ping()),
       async close(): Promise<void> {
         // BullMQ quits a passed-in client on close() (it does not track
         // shared ownership), so every close is settled defensively and the

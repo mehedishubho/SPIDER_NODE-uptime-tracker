@@ -3,7 +3,7 @@ import { getAuthSession } from "@/lib/session";
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api-error";
 import { rateLimit } from "@/lib/rate-limit";
-import { webQueueProducer } from "@/lib/queue-producer";
+import { webQueueProducer, withProducerDeadline } from "@/lib/queue-producer";
 import { db } from "@/db";
 import { monitors } from "@/db/schema";
 import { enqueueManualCheck } from "@/worker/queues";
@@ -129,18 +129,30 @@ export async function POST(req: Request, { params }: RouteParams) {
         // not the response write.
         const queuedAt = Date.now();
         try {
-            const { jobId } = await enqueueManualCheck(monitorId, {
-                checksQueue: webQueueProducer().checks,
-            });
+            // 06-06 gap 2: the enqueue rides the producer-side deadline —
+            // the wrap bounds the await so a SILENTLY-unreachable
+            // Redis (firewall drop: neither resolve nor reject) still answers
+            // in bounded time instead of hanging the request forever.
+            const { jobId } = await withProducerDeadline(
+                enqueueManualCheck(monitorId, {
+                    checksQueue: webQueueProducer().checks,
+                }),
+            );
             return NextResponse.json({ jobId, queuedAt }, { status: 202 });
         } catch (error) {
             // API-02: every enqueue-path failure maps to a LOUD 503 —
             // BreakerOpenError (the Postgres breaker's enqueue-side refusal;
-            // inert in the web process today but correct if ever wired) and
-            // any add() rejection: the bounded producer profile
-            // (maxRetriesPerRequest 1, 1s connect/command timeouts) rejects
-            // FAST when Redis is unreachable instead of hanging the request
-            // or silently no-op'ing.
+            // inert in the web process today but correct if ever wired), any
+            // add() rejection, and ProducerDeadlineError (the 3s silent-mode
+            // backstop): the bounded producer profile (maxRetriesPerRequest
+            // 1, 1s connect/command timeouts) rejects FAST when Redis is
+            // unreachable, and the deadline catches the never-settling mode —
+            // never a hang, never a silent no-op. Tradeoff: when the deadline
+            // fires but the underlying add() later succeeds (Redis recovering
+            // mid-flight), the late job may still run once — bounded by the
+            // per-enqueue-unique jobId (check-manual:{id}:{epochMs}) and
+            // Tier-1 dedup (DAT-04 evidence-only duplicate); fail-loud with a
+            // possible late delivery strictly beats an indefinite hang.
             console.error("Check Monitor Error:", error);
             // 06-06 gap 1 (VERIFICATION truth 12): the advance above already
             // committed, and src/worker/claim.ts claims on

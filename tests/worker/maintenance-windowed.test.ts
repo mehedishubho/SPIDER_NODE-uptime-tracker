@@ -145,3 +145,33 @@ describe("maintenance lane — windowed recompute dispatcher (DAT-11)", () => {
     20_000
   );
 });
+
+describe("WINDOWED_UPTIME_ENABLED read gate (DAT-11/D-22)", () => {
+  it(
+    "isWindowedUptimeReadEnabled: true ONLY for the literal 'true'; unset/false/other are off",
+    async () => {
+      const saved = process.env.WINDOWED_UPTIME_ENABLED;
+      try {
+        vi.resetModules();
+        const mod = await import("@/worker/maintenance");
+
+        delete process.env.WINDOWED_UPTIME_ENABLED;
+        expect(mod.isWindowedUptimeReadEnabled()).toBe(false);
+
+        process.env.WINDOWED_UPTIME_ENABLED = "false";
+        expect(mod.isWindowedUptimeReadEnabled()).toBe(false);
+
+        process.env.WINDOWED_UPTIME_ENABLED = "1";
+        expect(mod.isWindowedUptimeReadEnabled()).toBe(false);
+
+        process.env.WINDOWED_UPTIME_ENABLED = "true";
+        expect(mod.isWindowedUptimeReadEnabled()).toBe(true);
+      } finally {
+        if (saved === undefined) delete process.env.WINDOWED_UPTIME_ENABLED;
+        else process.env.WINDOWED_UPTIME_ENABLED = saved;
+        vi.resetModules();
+      }
+    },
+    15_000
+  );
+});

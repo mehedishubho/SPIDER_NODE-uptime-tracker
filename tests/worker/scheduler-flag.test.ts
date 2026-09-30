@@ -32,12 +32,15 @@ import { startHealthServer } from "@/worker/health";
 //   1. flag false -> ZERO schedulers on BOTH queues, yet the tick-lane
 //      consumer still processes a manually enqueued job (D-16: flag gates
 //      SCHEDULING only — never a paused queue, Pitfall 12)
-//   2. flag true -> exactly one check-tick + one maintenance-cleanup
-//      scheduler; re-upsert is idempotent; after a simulated Redis restart
-//      (flush) the next boot re-declares, still exactly one (RES-05);
-//      the maintenance template carries DRYRUN FALSE (D-14, 06-04) — the
-//      daily 03:15 pass runs REAL retention deletes, restoring legacy
-//      daily-cleanup parity (05-REVIEW WR-03)
+//   2. flag true -> exactly one check-tick + TWO maintenance-lane schedulers
+//      (the 03:15 cleanup + the 04:00 windowed-uptime recompute, DAT-11);
+//      re-upsert is idempotent; after a simulated Redis restart (flush) the
+//      next boot re-declares, still exactly one per id (RES-05);
+//      the cleanup template carries DRYRUN FALSE (D-14, 06-04) — the daily
+//      03:15 pass runs REAL retention deletes, restoring legacy daily-cleanup
+//      parity (05-REVIEW WR-03); the recompute template carries an EMPTY
+//      payload — its write posture is structural (D-22: unconditional from
+//      ship, no dry-run form)
 //   3. processTick assigns lanes through the real claim: UP -> priority 10,
 //      non-UP -> priority 1, jobId = check:{monitorId}:{claim-epoch}
 //   4. /metrics.json carries the queue section (per-lane depth, head-waiting
@@ -118,6 +121,8 @@ beforeEach(async () => {
   await flushQueueKeys("bull:monitor-scheduler:");
   await flushQueueKeys("bull:maintenance:");
   await flushQueueKeys("bull:monitor-checks:");
+  await flushQueueKeys("bull:db-writes:");
+  await flushQueueKeys("bull:alerts:");
   resetBacklogDropCount();
 });
 
@@ -152,7 +157,7 @@ describe("scheduler flag + tick lane (WRK-10 / D-16 / RES-05)", () => {
   );
 
   it(
-    "2. flag TRUE: exactly one check-tick + one maintenance scheduler; idempotent re-upsert; Redis-wipe re-declare stays at one (RES-05)",
+    "2. flag TRUE: exactly one check-tick + TWO maintenance-lane schedulers (cleanup + windowed recompute); idempotent re-upsert; Redis-wipe re-declare stays (RES-05)",
     async () => {
       await upsertSchedulersAtBoot({ schedulerEnabled: true, queues });
 
@@ -164,21 +169,36 @@ describe("scheduler flag + tick lane (WRK-10 / D-16 / RES-05)", () => {
       expect(tickSchedulers[0].name).toBe("check-tick");
       expect(tickSchedulers[0].every).toBe(CHECK_TICK_EVERY_MS);
 
+      // DAT-11 (08-01): the maintenance lane carries TWO schedulers — the
+      // 03:15 cleanup AND the 04:00 windowed-uptime recompute (a separated
+      // pattern so retention deletes never delay the recompute on the
+      // concurrency-1 lane; research OQ2). Five schedulers total.
       const maintenanceSchedulers = await queues.maintenance.getJobSchedulers();
-      expect(maintenanceSchedulers).toHaveLength(1);
-      expect(maintenanceSchedulers[0].key).toBe(MAINTENANCE_CLEANUP_SCHEDULER_ID);
-      expect(maintenanceSchedulers[0].pattern).toBe(MAINTENANCE_CLEANUP_PATTERN);
-      // D-14 (06-04): the daily template carries REAL retention deletes —
-      // dryRun false is hardcoded in the template payload, so the 03:15 UTC
-      // pass deletes (pings >30d, RESOLVED incidents >90d). The operator's
-      // manual script keeps its own explicit dry-run/apply flags.
-      expect(maintenanceSchedulers[0].template?.data).toEqual({ dryRun: false });
+      expect(maintenanceSchedulers).toHaveLength(2);
+      const cleanup = maintenanceSchedulers.find((s) => s.key === MAINTENANCE_CLEANUP_SCHEDULER_ID);
+      const recompute = maintenanceSchedulers.find((s) => s.key === "recompute-windowed-uptime");
+      expect(cleanup).toBeDefined();
+      expect(recompute).toBeDefined();
+      expect(cleanup?.pattern).toBe(MAINTENANCE_CLEANUP_PATTERN);
+      expect(recompute?.pattern).toBe("0 4 * * *");
+      expect(recompute?.pattern).not.toBe(MAINTENANCE_CLEANUP_PATTERN);
+      expect(recompute?.name).toBe("recompute-windowed-uptime");
+      // The dryRun-false note applies to the CLEANUP only: the recompute's
+      // write posture is structural (D-22 — unconditional from ship, no
+      // dry-run form), so its template payload is empty.
+      expect(cleanup?.template?.data).toEqual({ dryRun: false });
+      expect(recompute?.template?.data).toEqual({});
+
+      // Exactly five schedulers across all lanes: 1 tick + 2 maintenance
+      // + 1 flush sweep + 1 relay pass.
+      expect(await queues.dbWrites.getJobSchedulers()).toHaveLength(1);
+      expect(await queues.alerts.getJobSchedulers()).toHaveLength(1);
 
       // Idempotent: a second boot (concurrent or restart) converges — still
       // exactly one scheduler per id, at most one delayed job per scheduler.
       await upsertSchedulersAtBoot({ schedulerEnabled: true, queues });
       expect(await queues.scheduler.getJobSchedulers()).toHaveLength(1);
-      expect(await queues.maintenance.getJobSchedulers()).toHaveLength(1);
+      expect(await queues.maintenance.getJobSchedulers()).toHaveLength(2);
 
       // RES-05: Redis restarted (schedulers wiped) — the next boot
       // re-declares, and upsert convergence keeps it at exactly one.
@@ -188,6 +208,8 @@ describe("scheduler flag + tick lane (WRK-10 / D-16 / RES-05)", () => {
       const redeclared = await queues.scheduler.getJobSchedulers();
       expect(redeclared).toHaveLength(1);
       expect(redeclared[0].key).toBe(CHECK_TICK_SCHEDULER_ID);
+      // The maintenance lane re-declares BOTH schedulers.
+      expect(await queues.maintenance.getJobSchedulers()).toHaveLength(2);
     },
     20_000
   );

@@ -88,21 +88,41 @@ export async function POST(req: Request, { params }: RouteParams) {
         // shared web pool via the src/db drizzle client. Ownership + isActive
         // are restated in the WHERE: a row that vanished, moved, or paused
         // between the read and this UPDATE claims nothing -> 404.
+        //
+        // 06-06 gap 1 (VERIFICATION truth 12): the advance CAPTURES the
+        // pre-advance value via a prior CTE — RETURNING cannot see pre-update
+        // values on this Postgres, so the CTE reference is the capture
+        // mechanism. On success the capture is simply unused; on an enqueue
+        // failure the catch below restores it so a failed request never
+        // silently postpones the monitor's next scheduled check.
         const advanced = await db.execute(sql`
+            WITH prior AS (
+                SELECT m.id, m.next_check_at
+                  FROM monitors m
+                 WHERE m.id = ${monitorId}
+                   AND m."userId" = ${session.user.id}
+                   AND m."isActive"
+                   FOR UPDATE
+            )
             UPDATE monitors m
                SET next_check_at = GREATEST(
                     now() + (m.interval * interval '1 minute'),
-                    m.next_check_at + (m.interval * interval '1 minute')
+                    prior.next_check_at + (m.interval * interval '1 minute')
                    )
-             WHERE m.id = ${monitorId}
-               AND m."userId" = ${session.user.id}
-               AND m."isActive"
-            RETURNING m.id
+              FROM prior
+             WHERE m.id = prior.id
+            RETURNING m.id, prior.next_check_at AS prior_next_check_at, m.next_check_at AS advanced_next_check_at
         `);
-        const claimedRows = advanced.rows as Array<{ id: number }>;
+        const claimedRows = advanced.rows as Array<{
+            id: number;
+            prior_next_check_at: Date | string;
+            advanced_next_check_at: Date | string;
+        }>;
         if (claimedRows.length === 0) {
             return apiError(404, "Monitor not found or unauthorized");
         }
+        const { prior_next_check_at: priorNextCheckAt, advanced_next_check_at: advancedNextCheckAt } =
+            claimedRows[0];
 
         // D-05: queuedAt is captured BEFORE the enqueue call — the client's
         // poll completion test (lastChecked > queuedAt) must bound the job,
@@ -122,6 +142,62 @@ export async function POST(req: Request, { params }: RouteParams) {
             // FAST when Redis is unreachable instead of hanging the request
             // or silently no-op'ing.
             console.error("Check Monitor Error:", error);
+            // 06-06 gap 1 (VERIFICATION truth 12): the advance above already
+            // committed, and src/worker/claim.ts claims on
+            // `next_check_at IS NULL OR next_check_at <= now()` — leaving the
+            // advanced value standing would silently postpone the monitor's
+            // next scheduled check by up to one interval per failed attempt
+            // (the GREATEST form compounds on 503-invited retries).
+            // Compensate BEFORE answering 503: restore the captured
+            // pre-advance value, guarded so a concurrent writer that has
+            // since moved the row is NEVER clobbered — the WHERE restates
+            // ownership (id + userId) AND requires next_check_at to still
+            // equal THIS request's advanced value; a foreign, moved, or
+            // concurrently-written row matches zero rows and stands.
+            //
+            // Envelope alternatives considered and REJECTED (06-VERIFICATION
+            // gap 1 — both reopen the in-flight double-claim window the
+            // Pitfall 8 ordering closes):
+            //  (a) enqueue-before-advance reorder — breaks the pinned
+            //      advance-before-enqueue ordering, letting a scheduler tick
+            //      claim the monitor while the manual job is in flight;
+            //  (b) one Postgres transaction spanning the Redis enqueue — a
+            //      commit-after-enqueue failure leaves an enqueued job with
+            //      an UN-advanced next_check_at (the same double-claim
+            //      window, inverted) and holds a web-pool transaction across
+            //      Redis I/O. Compensation keeps the pinned ordering intact.
+            try {
+                const restored = await db.execute(sql`
+                    UPDATE monitors
+                       SET next_check_at = ${priorNextCheckAt}
+                     WHERE id = ${monitorId}
+                       AND "userId" = ${session.user.id}
+                       AND next_check_at = ${advancedNextCheckAt}
+                    RETURNING id
+                `);
+                const restoredCount = (restored.rows as Array<{ id: number }>).length;
+                const priorLabel =
+                    priorNextCheckAt instanceof Date
+                        ? priorNextCheckAt.toISOString()
+                        : String(priorNextCheckAt);
+                console.error(
+                    `[check-route-compensate] monitorId=${monitorId} ` +
+                        (restoredCount > 0
+                            ? `restored next_check_at to its pre-advance value (prior=${priorLabel})`
+                            : "guard miss — a concurrent writer moved the row; their value stands"),
+                );
+            } catch (restoreError) {
+                // The restore is compensation, never a NEW failure mode: log
+                // loudly with its own marker + message (never the Redis URL —
+                // message only, producer error-listener convention), and the
+                // 503 below still answers. A failed restore leaves the
+                // advanced slot in place — self-healing at that slot, never a
+                // silent success.
+                console.error(
+                    "[check-route-compensate] compensating restore itself failed:",
+                    restoreError instanceof Error ? restoreError.message : restoreError,
+                );
+            }
             return apiError(503, "Service temporarily unavailable — try again shortly");
         }
     } catch (error) {

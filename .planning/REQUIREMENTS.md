@@ -137,7 +137,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 
 ### UI Modernization (final phase only)
 
-- [ ] **UI-01**: shadcn/ui primitives adopted for dashboard feature components (replacing hand-rolled Tailwind where sensible)
+- [x] **UI-01**: shadcn/ui primitives adopted for dashboard feature components (replacing hand-rolled Tailwind where sensible)
 - [x] **UI-02**: Dialog consolidation (`sweetalert2`/`window.confirm` → shadcn alert-dialog) and icon consolidation to a single system
 - [ ] **UI-03**: Light palette refinement + light-safe brand assets (Lottie overlays, sidebar token reconciliation)
 - [x] **UI-04**: Client robustness fixes: AbortController on polling fetches, cleared timers, hydration-safe URL derivation, removed duplicate Toaster
@@ -283,7 +283,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | AI-04 | Phase 8 | Pending |
 | AI-05 | Phase 8 | Pending |
 | DAT-11 | Phase 8 | Pending |
-| UI-01 | Phase 8 | Pending |
+| UI-01 | Phase 8 | Complete |
 | UI-02 | Phase 8 | Complete |
 | UI-03 | Phase 8 | Pending |
 | UI-04 | Phase 8 | Complete |

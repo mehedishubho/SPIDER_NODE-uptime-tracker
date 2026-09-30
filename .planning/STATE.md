@@ -3,18 +3,18 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 8
 current_phase_name: Flagged Capabilities & UI Modernization
-current_plan: 4
+current_plan: 5
 status: executing
-stopped_at: Completed 08-03-PLAN.md
-last_updated: "2026-09-30T21:02:45.022Z"
+stopped_at: Completed 08-04-PLAN.md
+last_updated: "2026-09-30T21:55:22.328Z"
 last_activity: 2026-10-01
 last_activity_desc: Phase 8 execution started
-state_head: c676d907fb241f426378c2d5a97c7feb069cb487
+state_head: 680770859e5f85a290253a13e693991000d169af
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 73
-  completed_plans: 65
+  completed_plans: 67
 milestone_name: milestone
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 
 ## Current Position
 
-Current Plan: 4
+Current Plan: 5
 Total Plans in Phase: 10
 
 Phase: 8 (Flagged Capabilities & UI Modernization) — EXECUTING
-Plan: 4 of 10
+Plan: 5 of 10
 Status: Ready to execute
 Last activity: 2026-10-01 — Phase 8 execution started
 
@@ -135,6 +135,7 @@ Progress: [███████████████████████
 | Phase 08 P02 | 25 min | 3 tasks | 14 files |
 | Phase 08 P03 | 26 min | 3 tasks | 5 files |
 | Phase 06 P07 | ~15min close-out leg (Task 3 verification + SUMMARY; Tasks 1-2 + operator checkpoint prior sessions) | 3 tasks | 5 files |
+| Phase 08 P04 | 2 sessions (prior session Tasks 1 + partial 2, quota-terminated; resume leg Tasks 2-3 + closeout ~45 min) | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -349,6 +350,9 @@ Recent decisions affecting current work:
 - [Phase 08]: 08-03: every polling fetch on the four surfaces carries the 06-01 abort discipline (per-pass controller in a ref, signal, aborted re-check after each await, unmount abort); aborted rejections are silent — no toast, no console.error — pinned by a RED-proven robustness spec — Generalizes the proven check-now pattern (UI-04 must-have truth 1); the signal-on-every-fetch criterion pulled the mutation/check handlers into the same discipline via actionAbortRef
 - [Phase 08]: 08-03: the plan's 'forced check-now' e2e leg fulfills the check POST at the network layer with a faithful 202 — the T-02-09 no-real-check test-scope discipline wins over the literal click; real client poll machinery runs with zero enqueues — tests/api/monitors.core.spec.ts:16 forbids HTTP tests touching /api/monitors/{id}/check (real enqueue); the network fulfillment preserves both the plan's scenario and the discipline
 - [Phase 08]: 08-03: DashboardStatus publicUrl derives post-mount behind the 02-07 mounted guard (useSyncExternalStore no-op subscribe) — the in-render window read is gone; single-Toaster asserted in the spec via sonner's eager Notifications-section census (data-sonner-toaster lists only exist while toasts are active) — Pitfall 10 hydration-safety per the 02-07 precedent; the sonner 2.0.7 DOM census selector was verified against the installed package source
+- [Phase 08]: 08-04: two-monitor e2e seed (incident-free + ONGOING-incident) drives both detail legs from one spec; Task-1 aggregate assertions read the real fleet and the rows test filters by name (list is newest-first) — data-truth pins track the seed shape
+- [Phase 08]: 08-04: all three tier-1 spinner+text loaders retired (not just the named 'Fetching status records...') — UI-SPEC loading rows put every tier-1 loading state on skeleton compositions mirroring final layout via the same Card shells
+- [Phase 08]: 08-04: UI-01 complete (shadcn adoption on tier-1); UI-05 deliberately left Pending — its release clause spans 08-05 light-pass + 08-08 Release B (02-03 false-signal precedent)
 
 ### Pending Todos
 
@@ -373,6 +377,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-30T21:02:44.481Z
-Stopped at: Completed 08-03-PLAN.md
+Last session: 2026-09-30T21:55:21.649Z
+Stopped at: Completed 08-04-PLAN.md
 Resume file: None

@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 2
+open_count: 4
 waived_count: 0
 fixed_count: 3
-total_count: 5
-last_updated: 2026-09-29T16:03:12.088Z
+total_count: 7
+last_updated: 2026-09-30T21:55:41.538Z
 ---
 
 # Broken Windows Ledger
@@ -20,6 +20,8 @@ last_updated: 2026-09-29T16:03:12.088Z
 | 3 | 07 | unmet-truth | .planning/phases/07-better-auth-cutover-admin-gating-prisma-removal/07-DEPLOY-RECORD.md |  | 07-08 deletion deploy BLOCKED at runbook 4d step 2: the production DB (spidernode-dev-db container + volume) was destroyed by the machine-level event that also deleted git.exe (stack dark since 2026-09-25T23:02Z); newest surviving backup is the pre-flip pre-phase7-flip-20260924-2147.dump — restore-vs-wait is an irreversible production-data decision reserved to the operator (record section 16) | fixed |  | 2026-09-29T10:42:43.566Z | 2026-09-29T14:58:43.300Z |
 | 4 | 07 | deviation | src/app/api/user/profile/route.ts |  | Discovered during the 07-08 DRZ-07 conversion sweep: the profile PATCH password flow verifies/writes the legacy users.password copy while the Better Auth engine reads/writes account.password — a profile-set password never changes the login password (pre-existing since the flip, preserved behavior-neutral through the conversion); the real fix routes the flow through better-auth changePassword — Phase-8 scope, operator to prioritize | open |  | 2026-09-29T10:42:43.932Z |  |
 | 5 | 07 | skipped-test | tests/integration/cutover-migration.test.ts |  | Cutover-migration cases 2-3 (OAuth reshape + D-40 token-preservation) self-skip it.skip once 0003 is in the committed journal - the legacy accounts table they seed/read is physically gone from every migrated database BY DESIGN (07-09 drop release, D-27/D-32); their proof role is fulfilled and recorded (07-06 record s10 D-40 snapshot pass B incl. NULL-refresh propagation; production reshape s13.3/s16.6) | open |  | 2026-09-29T16:03:12.088Z |  |
+| 6 | 08 | unmet-truth | .planning/phases/08-flagged-capabilities-ui-modernization/deferred-items.md |  | zero-hex gate sanctioned-list staleness: Phase-7 src/lib/email/render.ts (email-HTML hexes, mail.ts rationale) not on the 02-08 exclusion list — deferred to 08-05 | open |  | 2026-09-30T21:55:36.915Z |  |
+| 7 | 08 | unmet-truth | src/lib/email/render.ts |  | zero-hex gate sanctioned-list staleness: Phase-7 email-HTML template carries inline hex (same mail.ts rationale) but is not on the 02-08 exclusion list — deferred to 08-05 | open |  | 2026-09-30T21:55:41.538Z |  |
 
 ````json
 [
@@ -85,6 +87,32 @@ last_updated: 2026-09-29T16:03:12.088Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-29T16:03:12.088Z",
+    "resolved_at": null,
+    "milestone": "v1.0"
+  },
+  {
+    "id": 6,
+    "kind": "unmet-truth",
+    "phase": "08",
+    "file": ".planning/phases/08-flagged-capabilities-ui-modernization/deferred-items.md",
+    "line": null,
+    "description": "zero-hex gate sanctioned-list staleness: Phase-7 src/lib/email/render.ts (email-HTML hexes, mail.ts rationale) not on the 02-08 exclusion list — deferred to 08-05",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-30T21:55:36.915Z",
+    "resolved_at": null,
+    "milestone": "v1.0"
+  },
+  {
+    "id": 7,
+    "kind": "unmet-truth",
+    "phase": "08",
+    "file": "src/lib/email/render.ts",
+    "line": null,
+    "description": "zero-hex gate sanctioned-list staleness: Phase-7 email-HTML template carries inline hex (same mail.ts rationale) but is not on the 02-08 exclusion list — deferred to 08-05",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-30T21:55:41.538Z",
     "resolved_at": null,
     "milestone": "v1.0"
   }

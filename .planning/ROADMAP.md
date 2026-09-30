@@ -368,7 +368,7 @@ Plans:
   4. Dashboard components use shadcn primitives with one dialog system and one icon system; every polling fetch is abortable (AbortController), timers clear on unmount, URL derivation is hydration-safe, and there is a single Toaster
   5. The visual redesign ships with light mode looking intentional (light-safe brand assets, sidebar token reconciliation) while monitoring behavior and public API shapes stay unchanged — characterization and contract tests still green
 
-**Plans**: 3/10 plans executed
+**Plans**: 4/10 plans executed
 
 Plans:
 **Wave 1** *(release-a tag after completion)*
@@ -385,7 +385,7 @@ Plans:
 
 **Wave 4** *(blocked on 08-03; parallel pair, no file overlap — sequence the two full-verify legs against the singleton test stack)*
 
-- [ ] 08-04-PLAN.md — Tier-1 redesign: dashboard stats header + denser list + cleaner monitor detail on shadcn primitives, typography scale, tier-1 token migration, motion micro-interactions, skeleton loaders (UI-01, UI-05)
+- [x] 08-04-PLAN.md — Tier-1 redesign: dashboard stats header + denser list + cleaner monitor detail on shadcn primitives, typography scale, tier-1 token migration, motion micro-interactions, skeleton loaders (UI-01, UI-05)
 - [ ] 08-05-PLAN.md — UI-03 light mode (part 1 of the revision split): WR-02 marketing surfaces, 11-token review + per-mode splits, --dialog-* retirement, light-safe Lottie + light contrast/toast aesthetics (UI-03)
 
 **Wave 5** *(blocked on 08-05 — release-b tag after completion)*
@@ -441,7 +441,7 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | 5. Worker Cutover & Operational Hardening | 9/9 | Complete — deletion release d55cad5 shipped (worker owns 100% of checks, legacy cron deleted); D-18 approved, D-21 resolved-by-absence, tier-2 rollback rehearsed | 2026-09-19 |
 | 6. Thin API Routes & Email Abstraction | 7/7 | In Progress|  |
 | 7. Better Auth Cutover, Admin Gating & Prisma Removal | 11/11 | Complete    | 2026-09-30 |
-| 8. Flagged Capabilities & UI Modernization | 3/10 | In Progress|  |
+| 8. Flagged Capabilities & UI Modernization | 4/10 | In Progress|  |
 
 ## Backlog
 

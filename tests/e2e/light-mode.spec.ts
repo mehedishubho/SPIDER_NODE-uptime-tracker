@@ -105,9 +105,9 @@ async function expectNoRetiredRawClasses(scope: Locator) {
   ).toEqual([]);
 }
 
-// WCAG contrast between two computed rgb()/rgba() strings, computed in-page —
-// proves the LIGHT token VALUES meet AA (the split's whole point), not just
-// that a token resolved.
+// WCAG relative-luminance contrast between two computed rgb()/rgba() strings,
+// computed in-page — proves the LIGHT token VALUES meet AA (the split's
+// whole point), not just that a token resolved.
 async function contrastRatio(
   page: Page,
   a: string,
@@ -294,5 +294,57 @@ test.describe("login page renders token-resolved in light", () => {
     const expectedBg = await tokenColor(page, "--background");
     await expect(page.locator("body")).toHaveCSS("background-color", expectedBg);
     await expectTokenTextColor(page, page.locator("body"), "--foreground");
+  });
+});
+
+test.describe("light AA contrast — the 08-05 per-mode token splits", () => {
+  test("cyan-as-text >= 4.5:1 vs card; card borders >= 3:1 vs surface (T-08-13)", async ({
+    page,
+  }) => {
+    await loginViaUi(page);
+
+    // The uptime stat's cyan emphasis (UI-SPEC reserved role) as TEXT on a
+    // card surface — the light --accent-cyan variant must clear AA against
+    // the card it renders on. #00E5FF stays valid only for non-text accents.
+    const uptime = page.getByTestId("stat-uptime");
+    await expect(uptime).toBeVisible();
+    const cyanColor = await uptime.evaluate((el) => getComputedStyle(el).color);
+    const cardBg = await uptime
+      .locator(
+        "xpath=ancestor::*[@data-slot='card'][1]",
+      )
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    const textContrast = await contrastRatio(page, cyanColor, cardBg);
+    expect(textContrast).toBeGreaterThanOrEqual(4.5);
+
+    // Light card borders meet 3:1 against their surface (02-UAT Test-4).
+    const firstCard = page.locator("[data-slot='card']").first();
+    const borderColor = await firstCard.evaluate((el) =>
+      getComputedStyle(el).borderColor,
+    );
+    const surfaceBg = await firstCard.evaluate((el) =>
+      getComputedStyle(el).backgroundColor,
+    );
+    const borderContrast = await contrastRatio(page, borderColor, surfaceBg);
+    expect(borderContrast).toBeGreaterThanOrEqual(3);
+  });
+});
+
+test.describe("brand assets — light-safe 404 (PageNotFound treatment)", () => {
+  test("not-found heading is token-driven; the Lottie sits on its dark illustration plate", async ({
+    page,
+  }) => {
+    await page.goto("/this-page-does-not-exist");
+
+    const heading = page.getByRole("heading", { name: "Page Not Found" });
+    await expect(heading).toBeVisible();
+    await expectTokenTextColor(page, heading, "--foreground");
+
+    // The 404 artwork's dark plate (bg-surface-deep) — the both-mode-safe
+    // surface that keeps the asset's white/slate strokes visible in light.
+    const plate = page.locator(".bg-surface-deep");
+    await expect(plate).toBeVisible();
+    const expectedPlate = await tokenColor(page, "--surface-deep");
+    await expect(plate).toHaveCSS("background-color", expectedPlate);
   });
 });

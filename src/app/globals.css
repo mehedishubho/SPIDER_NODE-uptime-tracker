@@ -54,7 +54,9 @@
 }
 
 :root {
-  /* light — neutral zinc mirror of the dark palette (D-22) */
+  /* light — neutral zinc mirror of the dark palette (D-22); 08-05 light
+     refinement: borders/inputs darkened to 3:1 WCAG non-text contrast
+     against their surfaces (02-UAT Test-4), same-value token splits below. */
   --radius: 0.75rem;
   --background: #fafafa;
   --foreground: #18181b;
@@ -71,8 +73,9 @@
   --accent: #f4f4f5;
   --accent-foreground: #ef4444;
   --destructive: #dc2626;
-  --border: #e4e4e7;
-  --input: #d4d4d8;
+  /* 3:1 vs card #ffffff (3.28) and background #fafafa (3.15) — 08-05 */
+  --border: #8b8e94;
+  --input: #8b8e94;
   --ring: #ef4444;
   --sidebar: #fafafa;
   --sidebar-foreground: #18181b;
@@ -80,32 +83,42 @@
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f4f4f5;
   --sidebar-accent-foreground: #18181b;
-  --sidebar-border: #e4e4e7;
+  --sidebar-border: #8b8e94;
   --sidebar-ring: #ef4444;
   /* status tokens — curated light variants (D-25) */
   --status-up: #16a34a;
   --status-down: #dc2626;
-  /* THM-03 same-value tokens — identical in :root and .dark (zero visual change);
-     orphan hexes given token form so every color routes through the token system.
-     UI-SPEC pair: --foreground-invert, --highlight-purple. The rest are Phase 8
-     UI-03 review candidates (sweetalert dialog, sidebar meta/badge, UnderConstruction). */
+  /* 08-05 11-token review (02-08 follow-up, UI-03): SPLIT per-mode where
+     light legibility requires — --accent-cyan darkened to >= 4.5:1 as text
+     on light surfaces (5.13:1 on #fafafa; #00E5FF stays valid for non-text
+     accents and remains the dark value), --muted-meta darkened to 5.53:1,
+     --danger-strong darkened to 6.20:1 (also clears AA on its /10 hover
+     wash, where #DE251F measured ~4.0). KEPT same-value (both modes already
+     work): --foreground-invert (near-black text + intentional dark panels),
+     --highlight-purple (bg-fill role; only consumer is the unreferenced
+     Pagination), --foreground-bright + --surface-* + --accent-gold*
+     (UnderConstruction paints an always-dark canvas in both modes).
+     The --dialog-* Swal trio RETIRED (alert-dialog uses --popover/--card
+     since 08-02). Dark default values unchanged (D-31). */
   --foreground-invert: #0f172a;
   --highlight-purple: #A141FE;
-  --accent-cyan: #00E5FF;
-  --muted-meta: #8A8D91;
-  --danger-strong: #DE251F;
+  --accent-cyan: #0e7490;
+  --muted-meta: #62666c;
+  --danger-strong: #b91c1c;
   --surface-deep: #0f0f0f;
   --surface-raised: #1e1e1e;
   --accent-gold: #E6B800;
   --accent-gold-deep: #c9a227;
   --foreground-bright: #f5f5f5;
-  --dialog-surface: #FFFFFF;
-  --dialog-foreground: #111827;
-  --dialog-muted: #6B7280;
 }
 
 .dark {
-  /* frozen — today's values, byte-identical (T-02-14 gate) */
+  /* freeze lifted (D-31, 08-05): both modes redesign on this same token
+     set — the migration-era byte-freeze gate no longer applies, but the
+     dark DEFAULT VALUES are unchanged: 08-05's per-mode splits edit :root
+     only, and every pre-existing dark value below is byte-identical to the
+     frozen T-02-14 state (only the Swal --dialog-* trio is deleted, with
+     its 08-02 retirement, and this note records the lift). */
   --radius: 0.75rem;
   --background: #121212;
   --foreground: #f8fafc;
@@ -136,7 +149,8 @@
   /* status tokens — today's UP green / DOWN red (D-25) */
   --status-up: #34d399;
   --status-down: #ef4444;
-  /* THM-03 same-value tokens — byte-identical to :root (frozen: dark must not change) */
+  /* 08-05 11-token review outcome: dark keeps today's values for every
+     token (the splits are :root-only per D-31); --dialog-* retired above. */
   --foreground-invert: #0f172a;
   --highlight-purple: #A141FE;
   --accent-cyan: #00E5FF;
@@ -147,9 +161,6 @@
   --accent-gold: #E6B800;
   --accent-gold-deep: #c9a227;
   --foreground-bright: #f5f5f5;
-  --dialog-surface: #FFFFFF;
-  --dialog-foreground: #111827;
-  --dialog-muted: #6B7280;
 }
 
 @layer base {
@@ -164,6 +175,17 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading), sans-serif;
   }
+}
+
+/* Sonner neutral-toast surface — token-driven in both modes (08-05, the
+   02-UAT Test-4 "light toast aesthetics" note). The selector outranks
+   sonner's own [data-sonner-theme=light|dark] var definitions, and typed
+   toasts (richColors) read their own --success-*/--error-* vars — untouched.
+   ThemedToaster itself keeps richColors/top-right + resolved-theme wiring. */
+ol[data-sonner-toaster] [data-sonner-toast] {
+  --normal-bg: var(--popover);
+  --normal-text: var(--popover-foreground);
+  --normal-border: var(--border);
 }
 
 /* Glassmorphism & Custom glow utilities */

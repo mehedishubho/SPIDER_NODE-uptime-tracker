@@ -134,6 +134,7 @@ Progress: [███████████████████████
 | Phase 08 P01 | split across 2 sessions (Tasks 1-3 + D-22 checkpoint prior session; Task 4 + closeout this leg ~10 min) | 4 tasks | 9 files |
 | Phase 08 P02 | 25 min | 3 tasks | 14 files |
 | Phase 08 P03 | 26 min | 3 tasks | 5 files |
+| Phase 06 P07 | ~15min close-out leg (Task 3 verification + SUMMARY; Tasks 1-2 + operator checkpoint prior sessions) | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -340,6 +341,8 @@ Recent decisions affecting current work:
 - [Phase 06]: 06-06: PRODUCER_DEADLINE_MS=3000 backstop wraps ping/check-route-enqueue/email-door add; above the 1s connect + 1s command budget so fast rejection stays primary; a late add() may run once — bounded by per-enqueue-unique jobId + Tier-1 dedup (DAT-04); fail-loud beats an indefinite hang
 - [Phase 06]: 06-06: THIS drizzle stores sql-template params RAW in queryChunks (StringChunk|Number|String|Date) — the tests/api paramValues() helper filters non-StringChunk chunks; the plan's Param-wrapped 'value property' parenthetical does not match this version
 - [Phase 06]: 06-06: @/lib/queue-producer test mocks must be async importOriginal spreads (override ONLY webQueueProducer) now that enqueueTransactionalEmail imports withProducerDeadline — Rule 1 fix applied to auth-email-hooks + better-auth-cutover factories
+- [Phase 06]: 06-07: manual non-transition persist reuses the exported §16.2 additive UPDATE in-job (D-01 synchronous contract; both envelope alternatives rejected in-code) — persist modules byte-untouched; engine-check tests 10-11 are the end-to-end pin
+- [Phase 06]: 06-07: G-06-7 closed operator-side (secret into the gitignored env contract + §4e web restart; live ladder 401/401/429 via the tracked probe) — live worker redeploy for the G-06-2 fix deferred to the next release; healthz posture hardening deferred to the backlog (deferred-items.md)
 - [Phase 08]: D-22 reversibility gate resolved: proceed — land the per-window columns via additive migration 0004 through the 03-05 rehearsal pipeline; production apply rides the Release A deploy in plan 08-08; nightly recompute runs unconditionally from ship (user mehedishubho, 2026-09-30). — The one-way migration is acceptable: columns persist harmlessly if the v2 display switch never reads them; revert path is a documented follow-up drop migration plus re-planning; DAT-11 ships complete and Release-A-ready.
 - [Phase 08]: 08-02: dialog+alert-dialog delivered as Radix-umbrella variants (two-trap verified, no Base-UI/lucide); registry cn-package import normalized to @/lib/utils with the cn dep removed; @radix-ui/react-alert-dialog added per plan T-08-SC legitimacy check
 - [Phase 08]: 08-02: PHASE8 remnant gate born ENFORCED (sweep-before-remove; lucide-react insurance leg covers the stale components.json iconLibrary) with the 06-05 RED spot-check discipline; e2e seed pool made multi-spec resilient (idempotent close + revival) as the e2e project grows past one spec file

@@ -274,7 +274,7 @@ Plans:
   3. No endpoint accepts a secret via query string and no `CRON_SECRET` reference remains in the codebase; error responses never leak stack traces or internals
   4. With SMTP down, account registration still completes and the verification email arrives once SMTP recovers (queued, bounded attempts, backoff); a permanently undeliverable address stops retrying via a typed unrecoverable error; the existing HTML template renders unchanged from its new location
 
-**Plans**: 6/7 plans executed + 2 gap-closure plans (06-VERIFICATION: 2 enqueue-failure-path gaps; 06-UAT: G-06-2 manual non-transition persist + G-06-7 webhook secret env posture)
+**Plans**: 7/7 plans executed + 2 gap-closure plans (06-VERIFICATION: 2 enqueue-failure-path gaps; 06-UAT: G-06-2 manual non-transition persist + G-06-7 webhook secret env posture)
 
 Plans:
 **Wave 1** *(no dependencies)*
@@ -300,7 +300,7 @@ Plans:
 
 **Wave 6** *(gap closure — blocked on 06-06: shared deferred-items.md; from 06-UAT G-06-2/G-06-7)*
 
-- [ ] 06-07-PLAN.md — UAT gap closure: manual non-transition check-now results persist in-job via the §16.2 additive follow-up UPDATE + the missing engine end-to-end repeat-check pin (G-06-2), and the TELEGRAM_WEBHOOK_SECRET operator env fix with a tracked 401/401/429 ladder probe (G-06-7) (API-01, SEC-03)
+- [x] 06-07-PLAN.md — UAT gap closure: manual non-transition check-now results persist in-job via the §16.2 additive follow-up UPDATE + the missing engine end-to-end repeat-check pin (G-06-2), and the TELEGRAM_WEBHOOK_SECRET operator env fix with a tracked 401/401/429 ladder probe (G-06-7) (API-01, SEC-03)
 
 ### Phase 7: Better Auth Cutover, Admin Gating & Prisma Removal
 
@@ -439,7 +439,7 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | 3. Redis & Drizzle Schema Ownership | 0/TBD | Not started | - |
 | 4. Monitoring Worker — Build & Dark Launch | 0/9 | Planned — research resolved, 9 plans across 6 waves | - |
 | 5. Worker Cutover & Operational Hardening | 9/9 | Complete — deletion release d55cad5 shipped (worker owns 100% of checks, legacy cron deleted); D-18 approved, D-21 resolved-by-absence, tier-2 rollback rehearsed | 2026-09-19 |
-| 6. Thin API Routes & Email Abstraction | 6/7 | In Progress|  |
+| 6. Thin API Routes & Email Abstraction | 7/7 | In Progress|  |
 | 7. Better Auth Cutover, Admin Gating & Prisma Removal | 11/11 | Complete    | 2026-09-30 |
 | 8. Flagged Capabilities & UI Modernization | 3/10 | In Progress|  |
 

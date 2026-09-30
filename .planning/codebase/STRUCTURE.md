@@ -20,7 +20,7 @@ devsroom-uptime-tracker/
 │   ├── assets/             # logo.png
 │   ├── components/
 │   │   ├── Auth/           # Auth form components (LoginForm, RegisterForm, ...)
-│   │   ├── common/         # Navbar, Footer, DeleteModal, Pagination, Spinner
+│   │   ├── common/         # Navbar, Footer, Pagination, Spinner
 │   │   ├── Dashboard/      # Feature components (Dashboard, Incidents, MonitorDetails,
 │   │   │                   #   TelegramSettings, ProfileComponent, FeedbackButton, ...)
 │   │   ├── dashboardLayout/ # App shell: AppHeader, AppSidebar, NavMain, NavUser, TeamSwitch

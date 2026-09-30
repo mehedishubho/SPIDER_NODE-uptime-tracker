@@ -368,7 +368,7 @@ Plans:
   4. Dashboard components use shadcn primitives with one dialog system and one icon system; every polling fetch is abortable (AbortController), timers clear on unmount, URL derivation is hydration-safe, and there is a single Toaster
   5. The visual redesign ships with light mode looking intentional (light-safe brand assets, sidebar token reconciliation) while monitoring behavior and public API shapes stay unchanged — characterization and contract tests still green
 
-**Plans**: 1/10 plans executed
+**Plans**: 2/10 plans executed
 
 Plans:
 **Wave 1** *(release-a tag after completion)*
@@ -377,7 +377,7 @@ Plans:
 
 **Wave 2** *(blocked on 08-01 — release-tag composition per D-37)*
 
-- [ ] 08-02-PLAN.md — UI-02 dialog + icon consolidation: shadcn dialog/alert-dialog (two-trap verified), 3 confirm-site + modal migrations, react-icons/sweetalert2 deletions with PHASE8 remnant gates, single Toaster (UI-02)
+- [x] 08-02-PLAN.md — UI-02 dialog + icon consolidation: shadcn dialog/alert-dialog (two-trap verified), 3 confirm-site + modal migrations, react-icons/sweetalert2 deletions with PHASE8 remnant gates, single Toaster (UI-02)
 
 **Wave 3** *(blocked on 08-02 — shared Dashboard.tsx)*
 
@@ -441,7 +441,7 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | 5. Worker Cutover & Operational Hardening | 9/9 | Complete — deletion release d55cad5 shipped (worker owns 100% of checks, legacy cron deleted); D-18 approved, D-21 resolved-by-absence, tier-2 rollback rehearsed | 2026-09-19 |
 | 6. Thin API Routes & Email Abstraction | 6/7 | In Progress|  |
 | 7. Better Auth Cutover, Admin Gating & Prisma Removal | 11/11 | Complete    | 2026-09-30 |
-| 8. Flagged Capabilities & UI Modernization | 1/10 | In Progress|  |
+| 8. Flagged Capabilities & UI Modernization | 2/10 | In Progress|  |
 
 ## Backlog
 

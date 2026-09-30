@@ -54,8 +54,8 @@
 
 **UI:**
 - Tailwind CSS v4 + `tailwind-merge` + `clsx` + `class-variance-authority` + `tw-animate-css` (shadcn-style setup, `components.json`)
-- Radix UI (`radix-ui` ^1.6.2, `@radix-ui/react-dialog`, `@radix-ui/react-slot`)
-- `motion` ^12 (animation), `sonner` (toasts), `sweetalert2`, `hugeicons-react`, `react-icons`, `@lottiefiles/dotlottie-react`
+- Radix UI (`radix-ui` ^1.6.2, `@radix-ui/react-dialog`, `@radix-ui/react-alert-dialog`, `@radix-ui/react-slot`)
+- `motion` ^12 (animation), `sonner` (toasts), `hugeicons-react` (the single icon system — react-icons/sweetalert2/lucide-react deleted and gate-banned at 08-02), `@lottiefiles/dotlottie-react`
 - `react-hook-form` ^7.71.1
 
 **Infrastructure:**

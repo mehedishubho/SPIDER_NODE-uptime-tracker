@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useAuthSession } from "@/lib/auth-client";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
@@ -47,6 +47,11 @@ export function MonitorDetails() {
   const [monitor, setMonitor] = useState<MonitorDetails | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // UI-04 abort seam: the ref holds the controller of the latest
+  // fetchDetails pass; unmount aborts it so no in-flight details fetch —
+  // and no post-abort error toast or console noise — outlives navigation.
+  const detailsPollAbortRef = useRef<AbortController | null>(null);
+
   // Protect route
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -55,8 +60,16 @@ export function MonitorDetails() {
   }, [status, router, id]);
 
   const fetchDetails = useCallback(async () => {
+    // New controller per pass (06-01 check-now abort pattern): signal on the
+    // fetch, aborted re-check after each await before setState, unmount
+    // aborts the latest pass via the ref.
+    const abort = new AbortController();
+    detailsPollAbortRef.current = abort;
     try {
-      const res = await fetch(`/api/monitors/${id}/details`);
+      const res = await fetch(`/api/monitors/${id}/details`, {
+        signal: abort.signal,
+      });
+      if (abort.signal.aborted) return;
       if (!res.ok) {
         if (res.status === 401) {
           router.push("/login");
@@ -70,24 +83,31 @@ export function MonitorDetails() {
         throw new Error("Failed to fetch monitor details");
       }
       const data = await res.json();
+      if (abort.signal.aborted) return;
       setMonitor(data.monitor);
     } catch (err) {
+      if (abort.signal.aborted) return;
       console.error(err);
       toast.error("Failed to load details.");
     } finally {
-      setLoading(false);
+      if (!abort.signal.aborted) setLoading(false);
     }
   }, [id, router]);
 
   useEffect(() => {
     if (status === "authenticated" && id) {
       fetchDetails();
-      
+
       const interval = setInterval(() => {
         fetchDetails();
       }, 30000); // 30s refresh
-      
-      return () => clearInterval(interval);
+
+      // UI-04: unmount aborts any in-flight details fetch — no late
+      // setState and no aborted-rejection noise outlives the component.
+      return () => {
+        clearInterval(interval);
+        detailsPollAbortRef.current?.abort();
+      };
     }
   }, [status, id, fetchDetails]);
 

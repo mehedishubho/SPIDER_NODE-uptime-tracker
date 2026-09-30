@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { Activity01Icon as Activity, Alert01Icon as AlertTriangle, CheckmarkCircle02Icon as CheckCircle2, Clock01Icon as Clock, LinkSquare01Icon as ExternalLink, GlobeIcon as Globe, Loading01Icon as Loader2, CancelCircleIcon as XCircle } from "hugeicons-react";
 
@@ -37,20 +37,38 @@ export function PublicStatus() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
+  // UI-04 abort seam: the ref holds the active read's controller; unmount
+  // (or an id change) aborts it so no in-flight fetch — and no post-abort
+  // state write — outlives navigation.
+  const publicStatusAbortRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
+    // New controller per pass (06-01 check-now abort pattern): signal on the
+    // fetch, aborted re-check after each await before setState, unmount
+    // aborts via the ref. This surface reads once per id (no interval) —
+    // the abort discipline still applies to the load fetch.
+    const abort = new AbortController();
+    publicStatusAbortRef.current = abort;
     const fetchData = async () => {
       try {
-        const res = await fetch(`/api/status/${id}`);
+        const res = await fetch(`/api/status/${id}`, {
+          signal: abort.signal,
+        });
+        if (abort.signal.aborted) return;
         if (res.status === 404) { setNotFound(true); return; }
         if (!res.ok) throw new Error("Failed to fetch");
-        setData(await res.json());
+        const data = await res.json();
+        if (abort.signal.aborted) return;
+        setData(data);
       } catch {
+        if (abort.signal.aborted) return;
         setNotFound(true);
       } finally {
-        setLoading(false);
+        if (!abort.signal.aborted) setLoading(false);
       }
     };
     if (id) fetchData();
+    return () => abort.abort();
   }, [id]);
 
   if (loading) {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -30,6 +30,26 @@ export function DashboardStatus() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
+  // UI-04 abort seam: the ref holds the controller of the latest
+  // fetchStatus pass; unmount aborts it so no in-flight fetch — and no
+  // post-abort error toast — outlives navigation.
+  const statusPollAbortRef = useRef<AbortController | null>(null);
+  // UI-04 timer discipline: the copied-reset timeout lives in a ref and is
+  // cleared on unmount (it previously leaked past navigation); overlapping
+  // clicks restart it.
+  const copiedResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  useEffect(() => {
+    return () => {
+      statusPollAbortRef.current?.abort();
+      if (copiedResetTimeoutRef.current) {
+        clearTimeout(copiedResetTimeoutRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/login?callbackUrl=/dashboard/status");
@@ -37,17 +57,26 @@ export function DashboardStatus() {
   }, [status, router]);
 
   const fetchStatus = useCallback(async () => {
+    // New controller per pass (06-01 check-now abort pattern): signal on the
+    // fetch, aborted re-check after each await before setState, unmount
+    // aborts the latest pass via the ref.
+    const abort = new AbortController();
+    statusPollAbortRef.current = abort;
     try {
-      const res = await fetch("/api/status");
+      const res = await fetch("/api/status", { signal: abort.signal });
+      if (abort.signal.aborted) return;
       if (!res.ok) {
         if (res.status === 401) { router.push("/login"); return; }
         throw new Error("Failed to fetch");
       }
-      setData(await res.json());
+      const data = await res.json();
+      if (abort.signal.aborted) return;
+      setData(data);
     } catch {
+      if (abort.signal.aborted) return;
       toast.error("Failed to load status data.");
     } finally {
-      setLoading(false);
+      if (!abort.signal.aborted) setLoading(false);
     }
   }, [router]);
 
@@ -64,7 +93,10 @@ export function DashboardStatus() {
     navigator.clipboard.writeText(publicUrl);
     setCopied(true);
     toast.success("Link copied to clipboard!");
-    setTimeout(() => setCopied(false), 2000);
+    if (copiedResetTimeoutRef.current) {
+      clearTimeout(copiedResetTimeoutRef.current);
+    }
+    copiedResetTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
   };
 
   if (status === "loading" || loading) {

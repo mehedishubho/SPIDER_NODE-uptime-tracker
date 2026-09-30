@@ -20,10 +20,13 @@ import {
 // deterministically (Playwright contexts start with no stored preference).
 test.use({ colorScheme: "light" });
 
+let userId: string;
+let monitorId: number;
+
 test.beforeAll(async () => {
   await resetE2EData();
-  const userId = await seedE2EUser();
-  await seedMonitor(userId, E2E_MONITOR_NAME);
+  userId = await seedE2EUser();
+  monitorId = await seedMonitor(userId, E2E_MONITOR_NAME);
 });
 
 test.afterAll(async () => {
@@ -133,6 +136,62 @@ test("dashboard: navigate-away with the check-now poll running records zero page
   await page.waitForTimeout(2400);
   await page.getByRole("link", { name: "Incidents" }).click();
   await expect(page).toHaveURL(/\/dashboard\/incidents/, { timeout: 15_000 });
+  await page.waitForTimeout(2500);
+
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+});
+
+test("monitor detail: navigate-away mid-fetch records zero pageerrors and console errors", async ({
+  page,
+}) => {
+  await loginViaUi(page);
+  await expect(page.getByText(E2E_MONITOR_NAME)).toBeVisible();
+
+  // Hold the details response so the detail surface's load read is reliably
+  // IN FLIGHT when we leave.
+  await page.route("**/details", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await route.continue();
+  });
+
+  const { pageErrors, consoleErrors } = attachRobustnessListeners(page);
+
+  // In (client-side): the monitor-name link swaps the React tree to the
+  // detail surface; its load read hangs on the route hold.
+  await page.getByText(E2E_MONITOR_NAME).click();
+  await expect(page).toHaveURL(new RegExp(`/dashboard/monitor/${monitorId}`), {
+    timeout: 15_000,
+  });
+  // Out (client-side): the history entries behind us are Next-router
+  // managed (same document), so back is a client-side swap — the detail
+  // surface unmounts under the in-flight fetch and the abort seam must
+  // silence it (30s interval cleared, controller aborted).
+  await page.goBack();
+  await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15_000 });
+  await page.waitForTimeout(2500);
+
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+});
+
+test("public status: navigate away mid-fetch records zero pageerrors and console errors", async ({
+  page,
+}) => {
+  // Public surface — no session needed.
+  await page.route("**/api/status/*", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await route.continue();
+  });
+
+  const { pageErrors, consoleErrors } = attachRobustnessListeners(page);
+  await page.goto(`/status/${userId}`);
+
+  // This surface renders no in-app links (bare root layout): leaving it is
+  // a real document navigation — the realistic exit path. The load fetch is
+  // held IN FLIGHT across the teardown; the shared abort-catch silence is
+  // pinned on the three authenticated surfaces above plus the source sweep.
+  await page.goto("/login");
   await page.waitForTimeout(2500);
 
   expect(pageErrors).toEqual([]);

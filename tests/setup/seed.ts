@@ -26,8 +26,21 @@ function resolveTestDatabaseUrl(): string {
   return url;
 }
 
-// Guarded at construction (connects lazily on first query).
-const pool = new Pool({ connectionString: resolveTestDatabaseUrl() });
+// Guarded at construction (connects lazily on first query). Multiple spec
+// files run sequentially inside ONE Playwright worker process and share this
+// module — so the pool must survive a closeSeedPool() from an earlier file:
+// close is idempotent and the next query revives a fresh pool (08-02: the
+// e2e project grew from one spec file to several).
+let pool = new Pool({ connectionString: resolveTestDatabaseUrl() });
+let poolClosed = false;
+
+function ensurePool(): Pool {
+  if (poolClosed) {
+    pool = new Pool({ connectionString: resolveTestDatabaseUrl() });
+    poolClosed = false;
+  }
+  return pool;
+}
 
 /** Wipes every table the app writes (users cascade to their children). */
 export async function resetE2EData(): Promise<void> {
@@ -38,7 +51,7 @@ export async function resetE2EData(): Promise<void> {
   // verification_tokens, password_reset_tokens) left this list in 07-09:
   // migration 0003 (D-27/D-32) dropped them physically, so a migrated
   // database no longer has them to truncate.
-  await pool.query(`
+  await ensurePool().query(`
     TRUNCATE TABLE users, monitors, pings, incidents, feedbacks,
       account, session, verification
     RESTART IDENTITY CASCADE
@@ -65,7 +78,7 @@ export async function seedE2EUser(
 ): Promise<string> {
   const passwordHash = await bcrypt.hash(password, 10);
   const id = randomUUID();
-  await pool.query(
+  await ensurePool().query(
     `INSERT INTO users (id, name, email, password, "emailVerified", "email_verified", "timezone", "createdAt", "updatedAt")
      VALUES ($1, $2, $3, $4, $5, TRUE, 'UTC', NOW(), NOW())`,
     [id, name, email, passwordHash, new Date()]
@@ -75,7 +88,7 @@ export async function seedE2EUser(
   // accounts.find(providerId === 'credential')) — a users.password seed alone
   // yields INVALID_EMAIL_OR_PASSWORD. This mirrors 0002's migrated row shape
   // (users.password copied into the credential account at cutover).
-  await pool.query(
+  await ensurePool().query(
     `INSERT INTO account ("id", "userId", "providerId", "accountId", "password", "createdAt", "updatedAt")
      VALUES (gen_random_uuid()::text, $1, 'credential', $1, $2, NOW(), NOW())`,
     [id, passwordHash]
@@ -91,7 +104,7 @@ export async function seedE2EUser(
  * and 06-05 deletion releases) and no spec drives a monitor check.
  */
 export async function seedMonitor(userId: string, name: string): Promise<number> {
-  const { rows } = await pool.query(
+  const { rows } = await ensurePool().query(
     `INSERT INTO monitors (url, name, status, "isActive", interval, "lastChecked",
         "responseTime", "uptimePercent", "totalChecks", "failedChecks", "userId",
         "createdAt", "updatedAt")
@@ -112,7 +125,7 @@ export async function seedOngoingIncident(
   description: string,
 ): Promise<string> {
   const id = randomUUID();
-  await pool.query(
+  await ensurePool().query(
     `INSERT INTO incidents (id, "monitorId", status, description, "startedAt")
      VALUES ($1, $2, 'ONGOING', $3, NOW())`,
     [id, monitorId, description]
@@ -120,7 +133,10 @@ export async function seedOngoingIncident(
   return id;
 }
 
-/** Closes the seed pool so worker processes can exit cleanly. */
+/** Closes the seed pool so worker processes can exit cleanly. Idempotent —
+ * a second spec file in the same worker re-opens the pool on demand. */
 export async function closeSeedPool(): Promise<void> {
+  if (poolClosed) return;
+  poolClosed = true;
   await pool.end();
 }

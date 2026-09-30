@@ -5,6 +5,16 @@ import { authClient, useAuthSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { pollMonitorCheckResult } from "@/lib/check-now-poll";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Activity01Icon as Activity, PlusSignIcon as Plus, RefreshIcon as RefreshCw, Delete02Icon as Trash2, LinkSquare01Icon as ExternalLink, Logout01Icon as LogOut, Shield01Icon as ShieldCheck, GlobeIcon as Globe, Clock01Icon as Clock, ArrowUpRight01Icon as TrendingUp, Loading01Icon as Loader2, Cancel01Icon as X, Edit02Icon as Edit2, EcoPowerIcon as Power } from "hugeicons-react";
 import Link from "next/link";
 
@@ -31,6 +41,13 @@ export function Dashboard() {
   const [checkingId, setCheckingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+  // Delete-confirm dialog: the pending monitor (id + name) the open
+  // alert-dialog targets — null = closed. The DELETE fetch fires only from
+  // the dialog's confirm action (UI-SPEC destructive-confirmation contract).
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
 
   // Add Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -270,10 +287,9 @@ export function Dashboard() {
     }
   };
 
-  // Delete monitor
+  // Delete monitor — invoked ONLY by the confirm action of the delete
+  // alert-dialog (the native confirm call retired with UI-02/D-34).
   const handleDeleteMonitor = async (id: number, name: string) => {
-    if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
-
     setDeletingId(id);
     try {
       const res = await fetch(`/api/monitors/${id}`, {
@@ -676,10 +692,14 @@ export function Dashboard() {
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
 
-                            {/* Delete */}
+                            {/* Delete — opens the confirm alert-dialog; the
+                                DELETE fetch fires only on its confirm action */}
                             <button
                               onClick={() =>
-                                handleDeleteMonitor(monitor.id, monitor.name)
+                                setDeleteTarget({
+                                  id: monitor.id,
+                                  name: monitor.name,
+                                })
                               }
                               disabled={deletingId === monitor.id}
                               className="p-2 rounded-lg bg-slate-900 hover:bg-rose-950/60 border border-slate-800 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer disabled:opacity-50"
@@ -702,6 +722,36 @@ export function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Delete Monitor confirm (UI-SPEC destructive-confirmation copy) */}
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete monitor</AlertDialogTitle>
+            <AlertDialogDescription>
+              {`This permanently deletes "${deleteTarget?.name}" and its check history. This can't be undone.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                const target = deleteTarget;
+                setDeleteTarget(null);
+                if (target) handleDeleteMonitor(target.id, target.name);
+              }}
+            >
+              Delete Monitor
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Add Monitor Modal */}
       {isAddModalOpen && (

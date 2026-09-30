@@ -52,6 +52,9 @@ import { disposeStagingRedis, stagingKey } from "@/worker/persist/tier2";
 //      (D-01 poll predicate) and counters by one, never staged
 //  11. G-06-2: repeat MANUAL check on a DOWN monitor persists the same way
 //      (failedChecks +1) with zero fabricated incidents/outbox rows
+//  12. WR-01: monitor deactivated mid-job — the manual non-transition
+//      follow-up is requireActive-gated, so the paused monitor records
+//      NOTHING beyond its evidence ping (matching tier1's transition guard)
 // ---------------------------------------------------------------------------
 
 const TEST_DENYLIST = DENYLIST.filter((token) => token !== "::1");
@@ -661,5 +664,49 @@ describe("check processor — WRK-01/WRK-05/RES-01 (§15.1 + §16 routing)", () 
       }
     },
     30_000
+  );
+
+  it(
+    "12. WR-01: monitor deactivated mid-job — the manual follow-up writes NOTHING beyond the evidence ping (requireActive guard)",
+    async () => {
+      const monitorId = await seedMonitor({ url: target.url("/ok"), status: "UP", totalChecks: 3 });
+      const result = await processCheckJob(
+        { id: `check-manual:${monitorId}:${Date.now()}`, name: "check", data: { monitorId } },
+        {
+          performCheck: testPerformCheck,
+          checkpoints: {
+            // Deactivate INSIDE the classification -> re-verify window: the
+            // step-1 row load saw an active monitor, the transition guard
+            // (AND "isActive") will not.
+            beforeReverify: async () => {
+              await pg.query(`UPDATE monitors SET "isActive" = false WHERE id = $1`, [monitorId]);
+            },
+          },
+        }
+      );
+      expect(result.outcome).toBe("tier1");
+      if (result.outcome !== "tier1") return;
+      expect(result.applied).toBe(false); // transition skipped by AND "isActive"
+      // The WR-01 contract: a deactivated monitor is fully inert beyond its
+      // evidence ping — the follow-up's requireActive tail matches zero rows,
+      // so manualFlushed stays unset (the no-write is observable, API-01).
+      expect(result).toEqual({
+        outcome: "tier1",
+        targetStatus: "UP",
+        applied: false,
+        eventType: null,
+        incidentId: null,
+      });
+
+      const monitor = (await fetchMonitor(monitorId))!;
+      expect(monitor.status).toBe("UP"); // never transitioned
+      expect(monitor.totalChecks).toBe(3); // counters untouched by the follow-up
+      expect(monitor.lastChecked).toBeNull(); // ...nor the stamp
+      // Statement-1 evidence ping still commits (01-01 pin) — the sole write.
+      const pings = await fetchPings(monitorId);
+      expect(pings).toHaveLength(1);
+      expect(pings[0].status).toBe("UP");
+    },
+    15_000
   );
 });

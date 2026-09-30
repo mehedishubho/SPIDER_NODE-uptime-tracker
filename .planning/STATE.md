@@ -1,21 +1,20 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 6
+current_phase: 06
 current_phase_name: Thin API Routes & Email Abstraction
-current_plan: Not started
-status: planning
-stopped_at: Phase 07 complete, ready to plan Phase 6
-last_updated: "2026-09-29T22:00:48.256Z"
+current_plan: 2
+status: executing
+stopped_at: "Completed 06-06-PLAN.md (enqueue-failure gap closure: compensating restore + producer deadline)"
+last_updated: "2026-09-30T16:05:59.489Z"
 last_activity: 2026-09-30
-last_activity_desc: Phase 07 complete, transitioned to Phase 6
-state_head: 70e2c303b27e15987ddcd0c6a6a1b88668aad0a3
+last_activity_desc: Phase 06 execution started
+state_head: a46a89093320b540c9fa5e050006c00c13a7a986
 progress:
   total_phases: 8
   completed_phases: 6
-  total_plans: 62
-  completed_plans: 61
-  percent: 13
+  total_plans: 63
+  completed_plans: 62
 milestone_name: milestone
 ---
 
@@ -26,17 +25,17 @@ milestone_name: milestone
 See: .planning/PROJECT.md (updated 2026-09-19)
 
 **Core value:** Modernize the infrastructure without breaking existing monitoring — never lose or corrupt uptime data, silently stop checking, or lock users out irrecoverably.
-**Current focus:** Phase 07 — Better Auth Cutover, Admin Gating & Prisma Removal
+**Current focus:** Phase 06 — Thin API Routes & Email Abstraction
 
 ## Current Position
 
-Current Plan: Not started
-Total Plans in Phase: 6
+Current Plan: 2
+Total Plans in Phase: 7
 
-Phase: 6 — Thin API Routes & Email Abstraction
-Plan: 07-11 of 07-11 (07-11 closed COMPLETE — WR-04 closed: armed remnant gate default perimeter extended to scripts/, deleted-module FILE-NAME check + three exact-filename token-only exemptions pinned RED→GREEN; real-repo scripts/ scan green at 466 files)
-Status: Ready to plan
-Last activity: 2026-09-30 — Phase 07 complete, transitioned to Phase 6
+Phase: 06 (Thin API Routes & Email Abstraction) — EXECUTING
+Plan: 2 of 7
+Status: Ready to execute
+Last activity: 2026-09-30 — Phase 06 execution started
 
 Progress: [████████████████████████] 61/61 plans ([█░░░░░░░░░] 13%)
 
@@ -130,6 +129,8 @@ Progress: [███████████████████████
 | Phase 07 P09 | ~17min (close-out session; Task 1 resumed prior-session work) | 3 tasks | 11 files |
 | Phase 07 P07-10 | 30 min | 3 tasks | 17 files |
 | Phase 07 P07-11 | 14 min | 3 tasks | 2 files |
+| Phase 06 P06 | 20min (continuation leg; Task 1 RED authoring prior session) | 3 tasks | 8 files |
+| Phase 06 P06 | 20min (continuation leg; Task 1 RED authoring prior session) | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -332,6 +333,10 @@ Recent decisions affecting current work:
 - [Phase 07]: 07-10: naive Postgres timestamp text normalized at ONE API seam (src/lib/serialize.ts iso/isoRow) instead of schema mode changes - schema:gate-protected file untouched; iso() canonicalizes before parsing (space-T, bare +HH) because the review draft failed ISO-Z passthrough
 - [Phase 07]: 07-11: the WR-04 token exemption covers BOTH token-count checks (CRON_MODE count + RETIRED_ENV_TOKENS loop) keyed by exact basename-with-extension — the plan's still-applies list (imports/file names/deps/route paths) omits CRON_MODE, the self-scan paradox names it, and the default run + real-repo scripts pin cannot green otherwise; renamed copies trip (pin 5h)
 - [Phase 07]: 07-11: deleted-module file-NAME findings use distinct wording from specifier findings so pins assert which check fired; DEFAULT_ROOTS gains scripts/ as an unconditional push (executable root, fail-loud from a cwd without it)
+- [Phase 06]: 06-06: gap 1 realized as a prior-CTE capture + guarded compensating restore (ownership id+userId AND next_check_at=this request's advanced value); enqueue-before-advance reorder and a Redis-spanning transaction documented in-code as rejected — both reopen the Pitfall 8 double-claim window
+- [Phase 06]: 06-06: PRODUCER_DEADLINE_MS=3000 backstop wraps ping/check-route-enqueue/email-door add; above the 1s connect + 1s command budget so fast rejection stays primary; a late add() may run once — bounded by per-enqueue-unique jobId + Tier-1 dedup (DAT-04); fail-loud beats an indefinite hang
+- [Phase 06]: 06-06: THIS drizzle stores sql-template params RAW in queryChunks (StringChunk|Number|String|Date) — the tests/api paramValues() helper filters non-StringChunk chunks; the plan's Param-wrapped 'value property' parenthetical does not match this version
+- [Phase 06]: 06-06: @/lib/queue-producer test mocks must be async importOriginal spreads (override ONLY webQueueProducer) now that enqueueTransactionalEmail imports withProducerDeadline — Rule 1 fix applied to auth-email-hooks + better-auth-cutover factories
 
 ### Pending Todos
 
@@ -356,6 +361,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-29T21:00:19.714Z
-Stopped at: Phase 07 complete, ready to plan Phase 6
+Last session: 2026-09-30T16:05:58.900Z
+Stopped at: Completed 06-06-PLAN.md (enqueue-failure gap closure: compensating restore + producer deadline)
 Resume file: None

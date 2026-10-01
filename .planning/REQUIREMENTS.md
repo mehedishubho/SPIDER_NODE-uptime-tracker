@@ -130,7 +130,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 ### AI Integration
 
 - [ ] **AI-01**: `AI_ENABLED` flag, off by default; the app runs fully without any AI keys
-- [ ] **AI-02**: AI endpoints are streaming, session-guarded, rate-limited (Redis limiter), input-size-capped, and timeout-bound; provider/model centralized in `lib/ai`
+- [x] **AI-02**: AI endpoints are streaming, session-guarded, rate-limited (Redis limiter), input-size-capped, and timeout-bound; provider/model centralized in `lib/ai`
 - [ ] **AI-03**: Incident summarization: post-mortem draft from an incident + pings window; output never auto-written to `incidents`
 - [ ] **AI-04**: Monitor-setup assistant: natural language → config JSON validated by the same schema as the manual form; never executed without user confirmation
 - [ ] **AI-05**: Zero AI calls in the check → transition → alert pipeline (rule 15)
@@ -278,7 +278,7 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | SEC-04 | Phase 7 | Complete |
 | OBS-04 | Phase 7 | Complete |
 | AI-01 | Phase 8 | Pending |
-| AI-02 | Phase 8 | Pending |
+| AI-02 | Phase 8 | Complete |
 | AI-03 | Phase 8 | Pending |
 | AI-04 | Phase 8 | Pending |
 | AI-05 | Phase 8 | Pending |

@@ -3,13 +3,13 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 08
 current_phase_name: Flagged Capabilities & UI Modernization
-current_plan: 8
+current_plan: 9
 status: executing
-stopped_at: "Phase 8 execution paused on provider quota (resets 2026-10-01T23:26:48Z): 7/10 plans complete, 08-10 in progress (RED commit 05fa973 + 3 uncommitted test files)"
-last_updated: "2026-10-01T11:31:16.586Z"
+stopped_at: Completed 08-10-PLAN.md
+last_updated: "2026-10-01T12:44:31.262Z"
 last_activity: 2026-10-01
 last_activity_desc: Phase 06 complete (gap-closure round + UAT + security verified) — advanced to Phase 08
-state_head: 05fa9738831417b69239d54b402db973215c1b15
+state_head: 9f1c1667d141f5adbbdd3c7b0cd3daa3c229f76d
 progress:
   total_phases: 8
   completed_phases: 6
@@ -29,12 +29,12 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 
 ## Current Position
 
-Current Plan: 8
+Current Plan: 9
 Total Plans in Phase: 10
 
 Phase: 08 — Flagged Capabilities & UI Modernization
-Plan: 8 of 10
-Status: Executing
+Plan: 9 of 10
+Status: Ready to execute
 Last activity: 2026-10-01 — Phase 06 complete, transitioned to Phase 08
 
 Progress: [████████████████████████] 61/61 plans ([███░░░░░░░] 25%)
@@ -140,6 +140,7 @@ Progress: [███████████████████████
 | Phase 08 P05 | 26min | 2 tasks | 8 files |
 | Phase 08 P09 | 15 min (resume leg; tier-2 work salvaged from usage-limit-terminated prior session) | 2 tasks | 8 files |
 | Phase 08 P06 | 11 min | 2 tasks | 9 files |
+| Phase 08 P10 | 44min (2 sessions: quota-terminated prior leg + 44min resume) | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -365,6 +366,10 @@ Recent decisions affecting current work:
 - [Phase 08]: 08-09: UI-03 COMPLETE across both parts (08-05 substrate + 08-09 tier-2/sidebar) — tier-1/2/sidebar surfaces all token-driven in both themes, dark values byte-preserved; NavUser/Navbar-rose-400/Pagination/app-wide emerald-rose survey logged to phase deferred-items.md as 08-08/08-10 inputs
 - [Phase 08]: 08-06: full env-value map ships with all five SDK packages installed at exact research-audit pins (OQ1) — provider swap is an env edit, never a code change (D-02); AI_BASE_URL required only for AI_PROVIDER=custom with the throw living in providers/custom.ts naming the var
 - [Phase 08]: 08-06: getAiModel() checks AI_ENABLED on every call BEFORE the cache (a flipped-off flag invalidates even a cached resolution) — the AI-01 flag-off default posture is authored in lib/ai; route-level 404 proof lands in 08-10; AI-01/AI-02 stay Pending (shared with 08-10/08-08, false-signal precedent)
+- [Phase 08]: 08-10: the shared runAiGuards chain (flag-off 404 pre-body-read -> session 401 -> per-user ai_drafts 10/h 429+Retry-After -> 2000-char cap pinned both sides) is the reusable /api/ai/* admission surface; the 08-07 assistant route reuses it with its own bucket — D-08/D-21/A4 order is load-bearing: identity before limiter, refusal before surface
+- [Phase 08]: 08-10: ai@7.0.123's createUIMessageStreamResponse takes consumeSseStream (callback, wired to the SDK's exported consumeStream helper) — the plan Pattern-2 'consumeStream: true' boolean does not exist in the installed SDK; the D-10 line rides streamText onEnd usage with the V4 token shapes — Pitfall-3 lineage (writing a pre-release SDK shape from docs); typecheck caught it, tests pin the v7 form
+- [Phase 08]: 08-10: test-fixture liveness contract — an undici Request built in a test must stay strongly referenced for the streaming scenario; GC reclaims it after the handler returns and severs the init.signal->req.signal abort forwarding (flaky dead abort); production is immune (the framework holds the in-flight request) — the abort-propagation pin is only deterministic with the liveness pin; documented on postWithSignal
+- [Phase 08]: 08-10: rule 15 (AI-05) is machine-enforced — remnant-gate leg 14 bans ai/@ai-sdk/*//@/lib/ai specifiers under src/worker (path-scoped, born ENFORCED, RED spot-checked); zero-key verify proves the flag-off posture — belt-and-braces beside worker:boundary per the 05 D-41 gate family
 
 ### Pending Todos
 
@@ -389,6 +394,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-01T11:31:16.038Z
-Stopped at: Phase 8 execution paused on provider quota (resets 2026-10-01T23:26:48Z): 7/10 plans complete, 08-10 in progress (RED commit 05fa973 + 3 uncommitted test files)
-Resume file: .planning/phases/08-flagged-capabilities-ui-modernization/08-10-PLAN.md
+Last session: 2026-10-01T12:44:30.589Z
+Stopped at: Completed 08-10-PLAN.md
+Resume file: None

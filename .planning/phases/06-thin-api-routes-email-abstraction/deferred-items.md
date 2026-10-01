@@ -25,6 +25,9 @@ at the 06-05 Task 1 blocking checkpoint, before the deletion release:
 
 ## Vitest forks-pool worker crash flake (pre-existing, environment-level)
 
+**ASSESSMENT 2026-10-02 (UAT audit serial sweep):** last observed 2026-09-22 (07-02-SUMMARY Issues, tied to the 05-07 0xC0000005 Windows transient family); ZERO recurrence since, across the dozens of full-suite runs of phases 07-03..08-10 (every recorded run green, the only recurring exception being the documented IN-01 EADDRINUSE :9090 port collision). vitest 4.1.11 is the CURRENT latest release — no upstream fix exists to pick up; no CI gates run on this project, so the follow-up candidates above have no gate to protect. Disposition: quiescent, not closed — the documented handling (re-run the suite) remains; re-open on recurrence or when CI is introduced.
+
+
 **Found during:** 06-01 plan-level verification (`pnpm test` full suite)
 
 **Symptom:** Intermittently (roughly 1 in 3 runs on this Windows machine) the full

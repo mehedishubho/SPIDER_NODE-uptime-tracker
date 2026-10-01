@@ -73,3 +73,8 @@ next-env.d.ts
 
 # Local project notes (not for version control)
 project_analysis.md
+
+# GSD planning toolchain scratch (02-01 hygiene nomination, actioned 2026-10-02):
+# research-fingerprint cache + orchestrator tmp files are generated, never committed
+.planning/research/.cache/
+.planning/tmp/

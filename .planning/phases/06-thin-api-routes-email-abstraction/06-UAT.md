@@ -3,12 +3,20 @@ status: partial
 phase: 06-thin-api-routes-email-abstraction
 source: [06-01-SUMMARY.md, 06-02-SUMMARY.md, 06-03-SUMMARY.md, 06-04-SUMMARY.md, 06-05-SUMMARY.md, 06-VERIFICATION.md]
 started: 2026-09-29T22:24:06Z
-updated: 2026-09-30T22:15:56Z
+updated: 2026-10-01T10:37:52Z
 ---
 
 ## Current Test
 
-[testing paused — 7 re-verification items outstanding]
+number: 20
+name: CR-01 correction-of-record acceptance
+expected: |
+  Operator acknowledges the record: the gap-closure review's "restore inert in
+  production" premise did NOT reproduce (drizzle's node-postgres session already
+  returns full-µs timestamptz text — fixer proved GREEN-before-fix on real PG);
+  the ::text/::timestamptz fix was retained as a strictly-safer explicit SQL
+  contract, honestly documented in 06-REVIEW-GAPCLOSURE-DISPOSITION.md.
+awaiting: user response
 
 ## Tests
 
@@ -115,7 +123,8 @@ coverage_id: 06-05/D4
 
 ### 19. Live re-run: repeat check-now persists (post-rebuild)
 expected: On the live stack, after the next release rebuild + worker restart carries the G-06-2 fix (dist/worker.js beyond sha f71cbdc): repeat check-now on an already-UP monitor → fresh lastChecked > queuedAt within the poll window (no timeout toast). Superseded as source-level proof by engine tests 10-12 (12/12); this is the live-worker confirmation.
-result: [pending]
+result: pass
+evidence: "Delegate-run 2026-10-01T10:37Z: worker rebuilt (pnpm build green, sanctioned 06-04 shell-only NEXT_PUBLIC overrides) and restarted through the operator's guarded script — healthz sha e9d557f (was f71cbdc). Probe account sign-in 200; monitor 5 (https://example.com) created; check-now #1 persisted sub-second (PENDING→UP tier1, lastChecked 36ms after jobId); check-now #2 on the UP monitor → 202 {jobId check-manual:5:1790851057065} → fresh lastChecked 10:37:37.096Z (31ms after queuedAt) with totalChecks=2 on the FIRST 2s poll — the exact scenario that stuck forever pre-fix. Monitor deleted (200). DEPLOY-SIDE NOTES recorded: (1) another Docker flap had killed web+worker before the test — both restored via the 0709 scripts; (2) the rebuilt artifact carries the Phase-8 windowed-uptime schema, so drizzle migration 0004 (PURELY ADDITIVE, three nullable columns, sanctioned drizzle-kit migrate runner) was applied to the dev-db AFTER a pg_dump backup (.snapshots/pre-0004-windowed-20261001-103519.dump); migrations 4→5; worker checks verified flowing before/after."
 
 ### 20. CR-01 correction-of-record acceptance
 expected: Operator acknowledges the record: the gap-closure review's "restore inert in production" premise did NOT reproduce (drizzle's node-postgres session already returns full-µs timestamptz text — fixer proved GREEN-before-fix on real PG); the ::text/::timestamptz fix was retained as a strictly-safer explicit SQL contract, honestly documented in 06-REVIEW-GAPCLOSURE-DISPOSITION.md.
@@ -144,9 +153,9 @@ result: [pending]
 ## Summary
 
 total: 25
-passed: 15
+passed: 16
 issues: 2
-pending: 7
+pending: 6
 skipped: 0
 blocked: 1
 

@@ -62,6 +62,12 @@
 - `cloudinary` ^2.10.0 - Profile image uploads (`src/app/api/user/profile/route.ts`)
 - `js-cookie`, `uuid`
 
+**AI (flagged off by default, Phase 8 — 08-06):**
+- `ai` 7.0.123 + `@ai-sdk/react` 4.0.126 - Vercel AI SDK v7 core + React streaming hooks (exact pins; routes/UI land in 08-10/08-07)
+- `@ai-sdk/openai-compatible` 3.0.60 - GLM day-1 default (`https://api.z.ai/api/paas/v4`) + custom endpoints via `src/lib/ai`
+- `@ai-sdk/openai` 4.0.82, `@ai-sdk/anthropic` 4.0.69 - the remaining env-swappable provider factories (full matrix; swap = edit env)
+- `zod` 4.6.5 - schema substrate for the SDK's structured output (assistant prefill, 08-10)
+
 ## Configuration
 
 **Environment:**

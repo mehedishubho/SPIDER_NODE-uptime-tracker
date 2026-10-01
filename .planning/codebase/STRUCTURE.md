@@ -54,7 +54,7 @@ devsroom-uptime-tracker/
 - `cron/*` — `check` (runs monitor checks), `cleanup`
 - `incidents/`, `status/[userId]`, `user/profile`, `feedback/`, `telegram/{connect,test,webhook}`
 
-**`src/lib/`:** Shared server logic — `prisma.ts`, `auth.ts`, `cron-logic.ts`, `db-batcher.ts`, `cleanup-logic.ts`, `telegram.ts`, `mail.ts`, `rate-limit.ts`, `tokens.ts`, `utils.ts` (cn helper)
+**`src/lib/`:** Shared server logic — `prisma.ts`, `auth.ts`, `cron-logic.ts`, `db-batcher.ts`, `cleanup-logic.ts`, `telegram.ts`, `mail.ts`, `rate-limit.ts`, `tokens.ts`, `utils.ts` (cn helper); provider-interface dirs: `email/` (env-selected SMTP/console transport, Phase 6) and `ai/` (env-gated AI provider layer — `index.ts` selection + `providers/{glm,openai,anthropic,custom}.ts`, Phase 8 08-06; GLM day-1 default, throw-early env triple, `AI_ENABLED` master flag)
 
 **`src/components/ui/`:** shadcn-generated primitives; safe to regenerate via `components.json` config
 

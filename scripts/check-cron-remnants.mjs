@@ -50,6 +50,12 @@
 //      can never silently re-introduce it via a registry add; Pitfall 1).
 //      Phase-8-set hits are phase8-marked; PHASE8_ENFORCED is true from the
 //      08-02 arming step (the deletions and the gate land in the same task).
+//  14. (Phase-8 AI leg, 08-10 — AI-05/rule 15, belt-and-braces beside
+//      worker:boundary) any ai / @ai-sdk/* / @/lib/ai import specifier under
+//      src/worker/** — AI is web-process only; the check → transition →
+//      alert pipeline must stay AI-free. PATH-SCOPED (the web AI surface
+//      legitimately imports these). phase8-marked; born ENFORCED beside its
+//      08-02 siblings.
 //
 // The Phase-7 extension (checks 8-11) ships in ADVISORY posture first — the
 // 06-05 pre-arm lifecycle: findings are REPORTED (exit 0) while the Phase-7
@@ -240,7 +246,9 @@ function usage() {
     "remnant by file name, import specifiers regardless). The Phase-8",
     "extension (08-02) flags react-icons / sweetalert2 specifiers and the",
     "lucide-react insurance leg, plus their dependency declarations",
-    "(UI-02, D-33/D-34). Default targets:",
+    "(UI-02, D-33/D-34), and flags any AI module specifier (ai, @ai-sdk/*,",
+    "@/lib/ai) under src/worker/** (08-10, AI-05/rule 15, path-scoped — the",
+    "web AI surface is exempt by design). Default targets:",
     "src/, scripts/ (07-11), dist/worker.js, .next/server, and the repo-root",
     "config files playwright.config.ts / next.config.ts / ecosystem.config.js",
     "(each when present) plus ./package.json. docs/, .planning/,",
@@ -319,6 +327,31 @@ function phase8BannedImport(specifier) {
   return false;
 }
 
+// Phase-8 AI-in-worker leg (08-10, AI-05 / rule 15 — belt-and-braces beside
+// worker:boundary): no AI module specifier may appear under src/worker/**.
+// Unlike every other specifier check in this gate this one is PATH-SCOPED —
+// the web AI surface (src/lib/ai/**, src/app/api/ai/**, tests) legitimately
+// imports these specifiers; only the worker tree may never. Findings are
+// phase8-marked (the leg is born ENFORCED beside its 08-02 siblings).
+// Gate-leg constants legitimately name the specifiers
+// (planner-discipline-allow: LIT).
+const PHASE8_AI_IN_WORKER_EXACT_SPECIFIERS = new Set(["ai"]);
+const PHASE8_AI_IN_WORKER_SPECIFIER_PREFIXES = ["@ai-sdk/", "@/lib/ai"];
+
+function isWorkerPath(file) {
+  const segments = file.split(/[\\/]/);
+  return segments[0] === "src" && segments[1] === "worker";
+}
+
+function phase8AiInWorkerImport(file, specifier) {
+  if (!isWorkerPath(file)) return false;
+  if (PHASE8_AI_IN_WORKER_EXACT_SPECIFIERS.has(specifier)) return true;
+  for (const prefix of PHASE8_AI_IN_WORKER_SPECIFIER_PREFIXES) {
+    if (specifier.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
 function isCommentLine(line) {
   const trimmed = line.trim();
   return trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith("*");
@@ -381,6 +414,12 @@ function scanCodeFile(file) {
         reasons.push({
           phase8: true,
           text: `imports a banned Phase-8 package ("${specifier}") at line ${index + 1} (UI-02, D-33/D-34)`,
+        });
+      }
+      if (phase8AiInWorkerImport(file, specifier)) {
+        reasons.push({
+          phase8: true,
+          text: `imports an AI module under src/worker ("${specifier}") at line ${index + 1} (AI-05, rule 15 — AI is web-process only)`,
         });
       }
     }
@@ -583,8 +622,9 @@ function main(argv) {
   console.log(
     `[cron-remnants] green — ${scannedCount} code file(s) scanned across ${roots.join(", ")}` +
       (packageJsonRelative ? ` (+ ${packageJsonRelative})` : "") +
-      ", no cron remnants (D-41/D-27), no Phase-7 auth/Prisma remnants, and " +
-      "no Phase-8 icon/dialog remnants"
+      ", no cron remnants (D-41/D-27), no Phase-7 auth/Prisma remnants, " +
+      "no Phase-8 icon/dialog remnants, and no AI imports under src/worker " +
+      "(AI-05/rule 15)"
   );
   return 0;
 }

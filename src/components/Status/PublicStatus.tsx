@@ -2,7 +2,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { Activity01Icon as Activity, Alert01Icon as AlertTriangle, CheckmarkCircle02Icon as CheckCircle2, Clock01Icon as Clock, LinkSquare01Icon as ExternalLink, GlobeIcon as Globe, Loading01Icon as Loader2, CancelCircleIcon as XCircle } from "hugeicons-react";
+import { Activity01Icon as Activity, Alert01Icon as AlertTriangle, CheckmarkCircle02Icon as CheckCircle2, Clock01Icon as Clock, LinkSquare01Icon as ExternalLink, GlobeIcon as Globe, CancelCircleIcon as XCircle } from "hugeicons-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Monitor {
   id: number;
@@ -72,11 +73,31 @@ export function PublicStatus() {
   }, [id]);
 
   if (loading) {
+    // Skeleton mirrors the loaded layout (D-28, UI-SPEC loading rows — the
+    // public status spinner+text loader retired with the 08-09 tier-2 sweep).
     return (
-      <div className="min-h-[80vh] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <span className="text-xs text-slate-400 font-mono">Loading status...</span>
+      <div
+        className="max-w-3xl mx-auto px-4 py-10 space-y-8 min-h-[80vh]"
+        data-testid="public-status-skeleton"
+      >
+        <div className="rounded-2xl border border-border bg-card p-6 text-center space-y-4">
+          <Skeleton className="size-16 rounded-full mx-auto" />
+          <Skeleton className="h-7 w-72 mx-auto" />
+          <Skeleton className="h-4 w-56 mx-auto" />
+        </div>
+        <div className="space-y-3">
+          <Skeleton className="h-4 w-24" />
+          <div className="rounded-2xl border border-border divide-y divide-border">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="p-4 sm:p-5 flex items-center justify-between gap-4">
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-3 w-56" />
+                </div>
+                <Skeleton className="h-6 w-24 rounded-full" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -86,9 +107,9 @@ export function PublicStatus() {
     return (
       <div className="min-h-[80vh] flex items-center justify-center text-center px-4">
         <div className="space-y-4">
-          <Globe className="w-12 h-12 text-slate-600 mx-auto" />
-          <h1 className="text-2xl font-bold text-white">Status Page Not Found</h1>
-          <p className="text-slate-400 text-sm">This status page does not exist or has been removed.</p>
+          <Globe className="w-12 h-12 text-muted-foreground mx-auto" />
+          <h1 className="text-[28px] font-semibold text-foreground">Status Page Not Found</h1>
+          <p className="text-muted-foreground text-sm">This status page does not exist or has been removed.</p>
         </div>
       </div>
     );
@@ -100,17 +121,17 @@ export function PublicStatus() {
   const ownerName = user.name ?? "SpiderNode User";
 
   return (
-    <div className="text-slate-100">
+    <div className="text-foreground">
       {/* Top nav bar (only if we want an extra header, but since this is in commonLayout, the main Navbar is already there. So let's just make it a clean header inside the content) */}
-      <div className="border-b border-slate-800 bg-black/40 backdrop-blur-sm">
+      <div className="border-b border-border bg-background/80 backdrop-blur-sm">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-black border border-primary/50 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-card border border-primary/50 flex items-center justify-center">
               <Activity className="w-4 h-4 text-primary" />
             </div>
-            <span className="font-bold text-white text-sm">SpiderNode</span>
+            <span className="font-semibold text-foreground text-sm">SpiderNode</span>
           </div>
-          <span className="text-xs text-slate-500 font-mono">{ownerName}&apos;s Status Page</span>
+          <span className="text-xs text-muted-meta font-mono">{ownerName}&apos;s Status Page</span>
         </div>
       </div>
 
@@ -120,20 +141,20 @@ export function PublicStatus() {
         <div
           className={`rounded-2xl border p-6 text-center ${
             anyDown
-              ? "border-rose-500/40 bg-rose-500/5"
-              : "border-emerald-500/30 bg-emerald-500/5"
+              ? "border-status-down/40 bg-status-down/5"
+              : "border-status-up/30 bg-status-up/5"
           }`}
         >
           <div
-            className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
-              anyDown ? "bg-rose-500/20 text-rose-400" : "bg-emerald-500/20 text-status-up"
+            className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors duration-200 ${
+              anyDown ? "bg-status-down/20 text-status-down" : "bg-status-up/20 text-status-up"
             }`}
           >
             {anyDown ? <XCircle className="w-8 h-8" /> : <CheckCircle2 className="w-8 h-8" />}
           </div>
           <h1
-            className={`text-2xl font-extrabold font-mono mb-1 ${
-              anyDown ? "text-rose-400" : "text-status-up"
+            className={`text-[28px] font-semibold font-mono leading-tight mb-1 transition-colors duration-200 ${
+              anyDown ? "text-status-down" : "text-status-up"
             }`}
           >
             {anyDown
@@ -142,12 +163,12 @@ export function PublicStatus() {
               ? "ALL SYSTEMS OPERATIONAL"
               : "MONITORING..."}
           </h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-muted-foreground">
             {monitors.length} service{monitors.length !== 1 ? "s" : ""} monitored ·{" "}
             {monitors.filter((m) => m.status === "UP").length} online ·{" "}
             {monitors.filter((m) => m.status === "DOWN").length} down
           </p>
-          <p className="text-[11px] text-slate-600 mt-3 font-mono">
+          <p className="text-xs text-muted-meta mt-3 font-mono">
             Last updated: {new Date().toLocaleString()}
           </p>
         </div>
@@ -155,20 +176,20 @@ export function PublicStatus() {
         {/* Active Incidents */}
         {recentIncidents.length > 0 && (
           <div className="space-y-3">
-            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-rose-400" />
+            <h2 className="font-mono text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-status-down" />
               Active Incidents
             </h2>
             {recentIncidents.map((incident) => (
               <div
                 key={incident.id}
-                className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-4 flex items-start gap-3"
+                className="rounded-xl border border-status-down/30 bg-status-down/5 p-4 flex items-start gap-3"
               >
-                <div className="w-2 h-2 rounded-full bg-rose-500 animate-ping mt-1.5 flex-shrink-0" />
+                <div className="w-2 h-2 rounded-full bg-status-down animate-ping mt-1.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-semibold text-rose-300">{incident.monitor.name} is down</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{incident.description || "Service is unreachable."}</p>
-                  <p className="text-[11px] text-slate-500 mt-1 font-mono flex items-center gap-1">
+                  <p className="text-sm font-semibold text-status-down">{incident.monitor.name} is down</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{incident.description || "Service is unreachable."}</p>
+                  <p className="text-xs text-muted-meta mt-1 font-mono flex items-center gap-1">
                     <Clock className="w-3 h-3" />
                     Since {new Date(incident.startedAt).toLocaleString()}
                   </p>
@@ -180,46 +201,53 @@ export function PublicStatus() {
 
         {/* Services */}
         <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-            <Globe className="w-4 h-4 text-slate-500" />
+          <h2 className="font-mono text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+            <Globe className="w-4 h-4 text-muted-foreground" />
             Services
           </h2>
           {monitors.length === 0 ? (
-            <div className="rounded-2xl border border-slate-800 p-8 text-center text-slate-500 text-sm">
+            <div className="rounded-2xl border border-border bg-card p-8 text-center text-muted-foreground text-sm">
               No services are currently being monitored.
             </div>
           ) : (
-            <div className="rounded-2xl border border-slate-800 overflow-hidden divide-y divide-slate-800/60">
+            <div className="rounded-2xl border border-border bg-card overflow-hidden divide-y divide-border">
               {monitors.map((monitor) => {
                 const isUp = monitor.status === "UP";
                 const isDown = monitor.status === "DOWN";
                 return (
                   <div
                     key={monitor.id}
-                    className="p-4 sm:p-5 flex items-center justify-between gap-4 bg-slate-900/30 hover:bg-slate-800/30 transition-colors"
+                    className="p-4 sm:p-5 flex items-center justify-between gap-4 hover:bg-accent/40 transition-colors"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm text-slate-100 truncate">
+                        <span className="font-semibold text-sm text-foreground truncate">
                           {monitor.name}
                         </span>
                         <a
                           href={monitor.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-slate-600 hover:text-slate-400"
+                          className="text-muted-foreground hover:text-foreground transition-colors"
                         >
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       </div>
-                      <div className="flex items-center gap-3 mt-1 text-[11px] font-mono text-slate-500">
+                      {/* Uptime/latency values carry the cyan emphasis (UI-SPEC
+                          reserved accent item 2) — the light-mode cyan text
+                          variant applies automatically through the token. */}
+                      <div className="flex items-center gap-3 mt-1 text-xs font-mono text-muted-meta">
                         <span className="flex items-center gap-1">
                           <Activity className="w-3 h-3" />
-                          {monitor.uptimePercent?.toFixed(2) ?? "100.00"}%
+                          <span className="text-accent-cyan" data-testid="public-uptime-value">
+                            {monitor.uptimePercent?.toFixed(2) ?? "100.00"}%
+                          </span>
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {monitor.responseTime ?? 0}ms
+                          <span className="text-accent-cyan" data-testid="public-latency-value">
+                            {monitor.responseTime ?? 0}ms
+                          </span>
                         </span>
                         {monitor.lastChecked && (
                           <span>
@@ -229,21 +257,22 @@ export function PublicStatus() {
                       </div>
                     </div>
                     <span
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border flex-shrink-0 ${
+                      data-testid="public-status-badge"
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border flex-shrink-0 transition-colors duration-200 ${
                         isUp
-                          ? "bg-emerald-500/10 text-status-up border-emerald-500/30"
+                          ? "bg-status-up/10 text-status-up border-status-up/30"
                           : isDown
-                          ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
-                          : "bg-slate-500/10 text-slate-400 border-slate-500/30"
+                          ? "bg-status-down/10 text-status-down border-status-down/30"
+                          : "border-border bg-muted text-muted-foreground"
                       }`}
                     >
                       <span
                         className={`w-1.5 h-1.5 rounded-full ${
                           isUp
-                            ? "bg-status-up animate-ping"
+                            ? "bg-status-up animate-status-pulse"
                             : isDown
-                            ? "bg-rose-500"
-                            : "bg-slate-400 animate-pulse"
+                            ? "bg-status-down animate-alert-pulse"
+                            : "bg-muted-foreground/50 animate-pulse"
                         }`}
                       />
                       {isUp ? "Operational" : isDown ? "Down" : "Pending"}
@@ -256,9 +285,9 @@ export function PublicStatus() {
         </div>
 
         {/* Footer */}
-        <div className="text-center text-[11px] text-slate-600 font-mono pb-4">
+        <div className="text-center text-xs text-muted-meta font-mono pb-4">
           Powered by{" "}
-          <span className="text-primary font-bold">SpiderNode</span> — Real-time Uptime Monitoring
+          <span className="text-primary font-semibold">SpiderNode</span> — Real-time Uptime Monitoring
         </div>
       </main>
     </div>

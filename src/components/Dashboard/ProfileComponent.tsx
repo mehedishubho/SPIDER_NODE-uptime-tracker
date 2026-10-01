@@ -5,6 +5,8 @@ import { authClient, useAuthSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { UserIcon, Mail01Icon as Mail, Shield01Icon as ShieldCheck, Key01Icon as KeyRound, SentIcon as Send, Calendar01Icon as Calendar, Clock01Icon as Clock, Copy01Icon as Copy, Tick01Icon as Check, RefreshIcon as RefreshCw, AlertCircleIcon as AlertCircle, SparklesIcon as Sparkles, LockIcon as Lock, CheckmarkCircle02Icon as CheckCircle2, CancelCircleIcon as XCircle, FingerPrintIcon as Fingerprint, Edit02Icon as Edit2, Delete02Icon as Trash2, FloppyDiskIcon as Save, Cancel01Icon as X, Camera01Icon as Camera } from "hugeicons-react";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import TelegramSettings from "./TelegramSettings";
 
 interface UserProfile {
@@ -230,15 +232,17 @@ export default function ProfileComponent() {
   };
 
   if (status === "loading" || loading) {
+    // Skeleton mirrors the loaded layout (D-28 — the shared loading pattern;
+    // the hand-rolled pulse divs retired with the 08-09 tier-2 sweep).
     return (
-      <div className="w-full max-w-6xl mx-auto space-y-6 animate-pulse p-4 sm:p-6 lg:p-8">
+      <div className="w-full max-w-6xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8" data-testid="profile-skeleton">
         {/* Banner Skeleton */}
-        <div className="h-44 rounded-2xl bg-slate-900/80 border border-slate-800 p-6 flex items-center justify-between">
+        <div className="h-44 rounded-2xl border border-border bg-card/60 p-6 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-20 h-20 rounded-full bg-slate-800" />
+            <Skeleton className="w-20 h-20 rounded-full" />
             <div className="space-y-2">
-              <div className="w-44 h-6 bg-slate-800 rounded-md" />
-              <div className="w-60 h-4 bg-slate-800/70 rounded-md" />
+              <Skeleton className="w-44 h-6 rounded-md" />
+              <Skeleton className="w-60 h-4 rounded-md" />
             </div>
           </div>
         </div>
@@ -248,19 +252,19 @@ export default function ProfileComponent() {
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="h-28 rounded-2xl bg-slate-900/60 border border-slate-800 p-5 space-y-3"
+              className="h-28 rounded-2xl border border-border bg-card/60 p-5 space-y-3"
             >
-              <div className="w-8 h-8 rounded-lg bg-slate-800" />
-              <div className="w-24 h-4 bg-slate-800 rounded-md" />
-              <div className="w-32 h-3 bg-slate-800/60 rounded-md" />
+              <Skeleton className="w-8 h-8 rounded-lg" />
+              <Skeleton className="w-24 h-4 rounded-md" />
+              <Skeleton className="w-32 h-3 rounded-md" />
             </div>
           ))}
         </div>
 
         {/* Details Skeleton */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="h-72 rounded-2xl bg-slate-900/60 border border-slate-800 p-6" />
-          <div className="h-72 rounded-2xl bg-slate-900/60 border border-slate-800 p-6" />
+          <Skeleton className="h-72 rounded-2xl" />
+          <Skeleton className="h-72 rounded-2xl" />
         </div>
       </div>
     );
@@ -268,19 +272,19 @@ export default function ProfileComponent() {
 
   if (error || !profile) {
     return (
-      <div className="w-full max-w-xl mx-auto p-8 rounded-2xl bg-slate-900/90 text-center">
-        <div className="inline-flex p-4 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
+      <div className="w-full max-w-xl mx-auto p-8 rounded-2xl bg-card text-center">
+        <div className="inline-flex p-4 rounded-full bg-destructive/10 text-destructive border border-destructive/20">
           <AlertCircle className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-bold text-white font-mono">
+        <h2 className="text-xl font-bold text-foreground font-mono">
           Failed to Load Profile
         </h2>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-muted-foreground">
           {error || "User information is unavailable."}
         </p>
         <button
           onClick={() => fetchProfile()}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-red-400 transition-all shadow-md shadow-red-500/20"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all shadow-md shadow-primary/20"
         >
           <RefreshCw className="w-4 h-4" />
           <span>Try Again</span>
@@ -292,9 +296,9 @@ export default function ProfileComponent() {
   return (
     <div className="w-full max-w-6xl mx-auto space-y-10 p-5 sm:p-8 lg:p-10 pb-24">
       {/* 1. Premium Header Profile Card */}
-      <div className="relative rounded-3xl border border-slate-800/80 bg-slate-900/60 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.4)] p-6 sm:p-10 overflow-hidden">
+      <div className="relative rounded-3xl border border-border bg-card/60 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.4)] p-6 sm:p-10 overflow-hidden">
         {/* Subtle Background Glows */}
-        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 rounded-full bg-red-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-64 h-64 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
 
         <div className="relative flex flex-col sm:flex-row items-center justify-between gap-8 w-full">
@@ -305,7 +309,9 @@ export default function ProfileComponent() {
               className="relative shrink-0 flex-none group"
               style={{ width: "120px", height: "120px" }}
             >
-              <div className="absolute inset-0 rounded-[2rem] border-[3px] border-slate-800/80 shadow-2xl bg-slate-950 overflow-hidden flex items-center justify-center transition-all duration-300 group-hover:border-red-500/50 group-hover:shadow-[0_0_25px_rgba(6,182,212,0.2)]">
+              {/* surface-deep plate: the avatar canvas stays intentionally
+                  dark in both modes (08-05 PageNotFound-plate rationale). */}
+              <div className="absolute inset-0 rounded-[2rem] border-[3px] border-border shadow-2xl bg-surface-deep overflow-hidden flex items-center justify-center transition-all duration-300 group-hover:border-primary/50 group-hover:shadow-[0_0_25px_rgba(6,182,212,0.2)]">
                 {editForm.image || profile.image ? (
                   <img
                     src={editForm.image || profile.image || ""}
@@ -313,15 +319,15 @@ export default function ProfileComponent() {
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-950 text-primary font-bold text-4xl font-mono">
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-secondary to-surface-deep text-primary font-bold text-4xl font-mono">
                     {getInitials(profile.name, profile.email)}
                   </div>
                 )}
 
                 {isEditing && (
                   <label className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 cursor-pointer opacity-0 hover:opacity-100 transition-opacity duration-300 z-10 m-0 backdrop-blur-sm">
-                    <Camera className="w-8 h-8 text-white mb-2 transform transition-transform group-hover:scale-110" />
-                    <span className="text-[10px] font-bold text-white uppercase tracking-widest">
+                    <Camera className="w-8 h-8 text-foreground-bright mb-2 transform transition-transform group-hover:scale-110" />
+                    <span className="text-[10px] font-bold text-foreground-bright uppercase tracking-widest">
                       Upload
                     </span>
                     <input
@@ -337,15 +343,15 @@ export default function ProfileComponent() {
 
             {/* Info Text */}
             <div className="space-y-3 text-center sm:text-left min-w-0">
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-300 tracking-tight truncate">
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-foreground to-muted-foreground tracking-tight truncate">
                 {profile.name || "Anonymous User"}
               </h1>
 
-              <div className="flex items-center justify-center sm:justify-start gap-2.5 text-slate-400 text-sm truncate">
-                <div className="p-1.5 rounded-lg bg-red-500/10 text-red-400 shrink-0">
+              <div className="flex items-center justify-center sm:justify-start gap-2.5 text-muted-foreground text-sm truncate">
+                <div className="p-1.5 rounded-lg bg-primary/10 text-primary shrink-0">
                   <Mail className="w-3.5 h-3.5" />
                 </div>
-                <span className="font-mono text-slate-300 font-medium truncate">
+                <span className="font-mono text-foreground font-medium truncate">
                   {profile.email || "No email attached"}
                 </span>
               </div>
@@ -353,17 +359,17 @@ export default function ProfileComponent() {
               <div className="pt-2 flex justify-center sm:justify-start">
                 <button
                   onClick={handleCopyId}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/50 hover:bg-slate-900 border border-slate-800/80 text-slate-300 text-xs font-mono transition-all cursor-pointer shadow-sm hover:border-slate-700 max-w-full group"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-secondary/50 hover:bg-secondary border border-border text-foreground text-xs font-mono transition-all cursor-pointer shadow-sm hover:border-muted-foreground/40 max-w-full group"
                   title="Click to copy User ID"
                 >
                   <Fingerprint className="w-4 h-4 text-primary shrink-0 group-hover:scale-110 transition-transform" />
-                  <span className="text-slate-200 font-medium truncate">
+                  <span className="text-foreground font-medium truncate">
                     {profile.id}
                   </span>
                   {copiedId ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <Check className="w-3.5 h-3.5 text-status-up shrink-0" />
                   ) : (
-                    <Copy className="w-3.5 h-3.5 text-slate-500 shrink-0 group-hover:text-slate-300 transition-colors" />
+                    <Copy className="w-3.5 h-3.5 text-muted-foreground shrink-0 group-hover:text-foreground transition-colors" />
                   )}
                 </button>
               </div>
@@ -372,7 +378,7 @@ export default function ProfileComponent() {
 
           {/* Action Buttons (Right Side) */}
           <div className="flex flex-row flex-wrap items-center justify-center sm:justify-end gap-3 w-full sm:w-auto sm:ml-auto self-center">
-            <span className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/80 border border-red-500/30 text-primary text-xs font-semibold font-mono shadow-sm">
+            <span className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary border border-primary/30 text-primary text-xs font-semibold font-mono shadow-sm">
               <Sparkles className="w-3.5 h-3.5" />
               <span>Pro Member</span>
             </span>
@@ -381,7 +387,7 @@ export default function ProfileComponent() {
               onClick={() =>
                 isEditing ? setIsEditing(false) : setIsEditing(true)
               }
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-950/80 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white text-sm font-medium transition-all cursor-pointer shadow-sm hover:shadow-md"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-secondary/80 hover:bg-accent border border-border text-foreground text-sm font-medium transition-all cursor-pointer shadow-sm hover:shadow-md"
             >
               {isEditing ? (
                 <X className="w-4 h-4" />
@@ -395,7 +401,7 @@ export default function ProfileComponent() {
               <button
                 onClick={handleUpdate}
                 disabled={isUpdating}
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-blue-500 hover:from-red-400 hover:to-blue-400 text-white text-sm font-bold transition-all cursor-pointer shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:shadow-[0_0_25px_rgba(6,182,212,0.5)] hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-bold transition-all cursor-pointer shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
               >
                 {isUpdating ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
@@ -408,7 +414,7 @@ export default function ProfileComponent() {
               <button
                 onClick={() => fetchProfile(true)}
                 disabled={refreshing}
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-950/80 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white text-sm font-medium transition-all cursor-pointer shadow-sm hover:shadow-md disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-secondary/80 hover:bg-accent border border-border text-foreground text-sm font-medium transition-all cursor-pointer shadow-sm hover:shadow-md disabled:opacity-50"
               >
                 <RefreshCw
                   className={`w-4 h-4 ${refreshing ? "animate-spin text-primary" : ""}`}
@@ -423,39 +429,39 @@ export default function ProfileComponent() {
       {/* 2. Key Metrics Highlights Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-6 mb-6">
         {/* Account Status Card */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md hover:border-slate-700/80 transition-all space-y-4 shadow-lg">
+        <div className="p-6 sm:p-8 rounded-3xl bg-card/60 border border-border backdrop-blur-md hover:border-muted-foreground/40 transition-all space-y-4 shadow-lg">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 tracking-wider uppercase">
+            <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
               Account Status
             </span>
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <div className="p-2.5 rounded-xl bg-status-up/10 text-status-up border border-status-up/20">
               <ShieldCheck className="w-4 h-4" />
             </div>
           </div>
           <div>
-            <p className="text-xl font-bold text-white flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <p className="text-xl font-bold text-foreground flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-status-up animate-pulse" />
               Active
             </p>
-            <p className="text-xs text-slate-400 mt-1">Verified System User</p>
+            <p className="text-xs text-muted-foreground mt-1">Verified System User</p>
           </div>
         </div>
 
         {/* Security / Auth Method Card */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md hover:border-slate-700/80 transition-all space-y-4 shadow-lg">
+        <div className="p-6 sm:p-8 rounded-3xl bg-card/60 border border-border backdrop-blur-md hover:border-muted-foreground/40 transition-all space-y-4 shadow-lg">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 tracking-wider uppercase">
+            <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
               Auth Method
             </span>
-            <div className="p-2.5 rounded-xl bg-red-500/10 text-primary border border-red-500/20">
+            <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20">
               <KeyRound className="w-4 h-4" />
             </div>
           </div>
           <div>
-            <p className="text-xl font-bold text-white truncate">
+            <p className="text-xl font-bold text-foreground truncate">
               {profile.hasPassword ? "Password Auth" : "OAuth Provider"}
             </p>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {profile.hasPassword
                 ? "Secured via Password"
                 : "Social Login Enabled"}
@@ -464,31 +470,31 @@ export default function ProfileComponent() {
         </div>
 
         {/* Telegram Alerts Card */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md hover:border-slate-700/80 transition-all space-y-4 shadow-lg">
+        <div className="p-6 sm:p-8 rounded-3xl bg-card/60 border border-border backdrop-blur-md hover:border-muted-foreground/40 transition-all space-y-4 shadow-lg">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 tracking-wider uppercase">
+            <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
               Telegram Alerts
             </span>
             <div
-              className={`p-2.5 rounded-xl border ${profile.telegramChatId ? "bg-sky-500/10 text-sky-400 border-sky-500/20" : "bg-slate-800/60 text-slate-500 border-slate-700/50"}`}
+              className={`p-2.5 rounded-xl border ${profile.telegramChatId ? "bg-sky-500/10 text-sky-400 border-sky-500/20" : "bg-secondary text-muted-foreground border-border"}`}
             >
               <Send className="w-4 h-4" />
             </div>
           </div>
           <div>
-            <p className="text-xl font-bold text-white flex items-center gap-2">
+            <p className="text-xl font-bold text-foreground flex items-center gap-2">
               {profile.telegramChatId ? (
                 <span className="text-sky-400 flex items-center gap-1.5">
                   <CheckCircle2 className="w-4.5 h-4.5" /> Connected
                 </span>
               ) : (
-                <span className="text-slate-400 flex items-center gap-1.5">
-                  <XCircle className="w-4.5 h-4.5 text-slate-500" />{" "}
+                <span className="text-muted-foreground flex items-center gap-1.5">
+                  <XCircle className="w-4.5 h-4.5 text-muted-foreground" />{" "}
                   Disconnected
                 </span>
               )}
             </p>
-            <p className="text-xs text-slate-400 mt-1 truncate">
+            <p className="text-xs text-muted-foreground mt-1 truncate">
               {profile.telegramChatId
                 ? `ID: ${profile.telegramChatId}`
                 : "No alert bot linked"}
@@ -500,24 +506,24 @@ export default function ProfileComponent() {
       {/* 3. Main Details Section (2 Columns) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Personal & Account Information */}
-        <div className="p-6 sm:p-10 rounded-3xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md space-y-8 shadow-xl">
+        <div className="p-6 sm:p-10 rounded-3xl bg-card/60 border border-border backdrop-blur-md space-y-8 shadow-xl">
           <div className="flex items-center gap-4 pb-5">
-            <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-primary">
+            <div className="p-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary">
               <UserIcon className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">
+              <h3 className="text-base font-bold text-foreground">
                 Account Information
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Personal metadata and account details
               </p>
             </div>
           </div>
 
           <div className="space-y-5">
-            <div className="p-5 sm:px-6 sm:py-5 rounded-2xl bg-slate-950/60 border border-slate-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <div className="p-5 sm:px-6 sm:py-5 rounded-2xl bg-background/60 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Full Name
               </span>
               {isEditing ? (
@@ -527,18 +533,18 @@ export default function ProfileComponent() {
                   onChange={(e) =>
                     setEditForm((prev) => ({ ...prev, name: e.target.value }))
                   }
-                  className="bg-slate-950/50 border border-slate-700 focus:border-red-500 focus:ring-1 focus:ring-red-500/50 rounded-xl px-4 py-2 text-sm text-white transition-all w-full sm:w-1/2 shadow-inner"
+                  className="bg-background/50 border border-input focus:border-ring focus:ring-1 focus:ring-ring/50 rounded-xl px-4 py-2 text-sm text-foreground transition-all w-full sm:w-1/2 shadow-inner"
                   placeholder="Enter your full name"
                 />
               ) : (
-                <span className="text-sm font-medium text-white">
+                <span className="text-sm font-medium text-foreground">
                   {profile.name || "Not provided"}
                 </span>
               )}
             </div>
 
-            <div className="p-5 sm:px-6 sm:py-5 rounded-2xl bg-slate-950/60 border border-slate-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <div className="p-5 sm:px-6 sm:py-5 rounded-2xl bg-background/60 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Timezone
               </span>
               {isEditing ? (
@@ -547,7 +553,7 @@ export default function ProfileComponent() {
                   onChange={(e) =>
                     setEditForm((prev) => ({ ...prev, timezone: e.target.value }))
                   }
-                  className="bg-slate-950/50 border border-slate-700 focus:border-red-500 focus:ring-1 focus:ring-red-500/50 rounded-xl px-4 py-2 text-sm text-white transition-all w-full sm:w-1/2 shadow-inner"
+                  className="bg-background/50 border border-input focus:border-ring focus:ring-1 focus:ring-ring/50 rounded-xl px-4 py-2 text-sm text-foreground transition-all w-full sm:w-1/2 shadow-inner"
                 >
                   <option value="UTC">UTC</option>
                   <option value="America/New_York">Eastern Time (US & Canada)</option>
@@ -563,39 +569,39 @@ export default function ProfileComponent() {
                   <option value="Australia/Sydney">Sydney</option>
                 </select>
               ) : (
-                <span className="text-sm font-medium text-white">
+                <span className="text-sm font-medium text-foreground">
                   {profile.timezone || "UTC"}
                 </span>
               )}
             </div>
 
-            <div className="p-5 sm:px-6 sm:py-5 rounded-2xl bg-slate-950/60 border border-slate-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <div className="p-5 sm:px-6 sm:py-5 rounded-2xl bg-background/60 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Email Address
               </span>
-              <span className="text-sm font-medium text-slate-400 font-mono">
+              <span className="text-sm font-medium text-muted-foreground font-mono">
                 {profile.email}{" "}
                 {isEditing && (
-                  <span className="text-xs text-slate-500 ml-2">
+                  <span className="text-xs text-muted-foreground ml-2">
                     (Cannot be changed)
                   </span>
                 )}
               </span>
             </div>
 
-            <div className="p-5 sm:px-6 sm:py-5 rounded-2xl bg-slate-950/60 border border-slate-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <div className="p-5 sm:px-6 sm:py-5 rounded-2xl bg-background/60 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Account ID
               </span>
-              <span className="text-xs font-mono text-primary bg-red-950/40 px-3 py-1.5 rounded-lg border border-red-800/40 truncate max-w-full">
+              <span className="text-xs font-mono text-primary bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/20 truncate max-w-full">
                 {profile.id}
               </span>
             </div>
 
             {/* Joined Date Card */}
-            <div className="p-5 sm:px-6 sm:py-5 rounded-2xl bg-slate-950/60 border border-slate-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="p-5 sm:px-6 sm:py-5 rounded-2xl bg-background/60 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex-col items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400 tracking-wider uppercase">
+                <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
                   Member Since
                 </span>
                 <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
@@ -603,13 +609,13 @@ export default function ProfileComponent() {
                 </div>
               </div>
               <div>
-                <p className="text-xl font-bold text-white truncate">
+                <p className="text-xl font-bold text-foreground truncate">
                   {new Date(profile.createdAt).toLocaleDateString("en-US", {
                     month: "short",
                     year: "numeric",
                   })}
                 </p>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Account Creation Date
                 </p>
               </div>
@@ -621,25 +627,25 @@ export default function ProfileComponent() {
         <div className="flex flex-col gap-8">
           <TelegramSettings />
 
-          <div className="p-6 sm:p-10 rounded-3xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md space-y-8 shadow-xl mb-6 flex-1">
+          <div className="p-6 sm:p-10 rounded-3xl bg-card/60 border border-border backdrop-blur-md space-y-8 shadow-xl mb-6 flex-1">
             <div className="flex items-center gap-4 pb-5">
-              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+              <div className="p-2.5 rounded-xl bg-status-up/10 border border-status-up/20 text-status-up">
                 <Lock className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Security</h3>
-                <p className="text-xs text-slate-400">Account access status</p>
+                <h3 className="text-base font-bold text-foreground">Security</h3>
+                <p className="text-xs text-muted-foreground">Account access status</p>
               </div>
             </div>
 
             <div className="space-y-5">
-              <div className="p-5 sm:px-6 sm:py-5 rounded-2xl bg-slate-950/60 border border-slate-800/60 flex flex-col gap-4">
+              <div className="p-5 sm:px-6 sm:py-5 rounded-2xl bg-background/60 border border-border flex flex-col gap-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Password Protection
                   </span>
-                  <span className="text-xs font-medium text-slate-200 flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-status-up" />
                     {profile.hasPassword
                       ? "Custom Password Set"
                       : "OAuth Managed Account"}
@@ -647,8 +653,9 @@ export default function ProfileComponent() {
                 </div>
 
                 {isEditing && (
-                  <div className="pt-5 mt-3 border-t border-slate-800/80 space-y-4">
-                    <p className="text-xs text-slate-400">
+                  <div className="pt-5 mt-3 space-y-4">
+                    <Separator />
+                    <p className="text-xs text-muted-foreground">
                       Change Password (leave blank to keep current)
                     </p>
                     {profile.hasPassword && (
@@ -662,7 +669,7 @@ export default function ProfileComponent() {
                             currentPassword: e.target.value,
                           }))
                         }
-                        className="bg-slate-950/50 border border-slate-700 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 rounded-xl px-4 py-2.5 text-sm text-white transition-all w-full shadow-inner"
+                        className="bg-background/50 border border-input focus:border-ring focus:ring-1 focus:ring-ring/50 rounded-xl px-4 py-2.5 text-sm text-foreground transition-all w-full shadow-inner"
                       />
                     )}
                     <input
@@ -675,7 +682,7 @@ export default function ProfileComponent() {
                           newPassword: e.target.value,
                         }))
                       }
-                      className="bg-slate-950/50 border border-slate-700 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 rounded-xl px-4 py-2.5 text-sm text-white transition-all w-full shadow-inner"
+                      className="bg-background/50 border border-input focus:border-ring focus:ring-1 focus:ring-ring/50 rounded-xl px-4 py-2.5 text-sm text-foreground transition-all w-full shadow-inner"
                     />
                   </div>
                 )}
@@ -691,7 +698,7 @@ export default function ProfileComponent() {
           <button
             onClick={handleUpdate}
             disabled={isUpdating}
-            className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-2xl bg-gradient-to-r from-red-500 to-blue-600 hover:from-red-400 hover:to-blue-500 text-white font-bold text-sm transition-all cursor-pointer shadow-[0_0_20px_rgba(6,182,212,0.4)] hover:shadow-[0_0_30px_rgba(6,182,212,0.6)] hover:-translate-y-1 disabled:opacity-50 disabled:hover:translate-y-0"
+            className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm transition-all cursor-pointer shadow-xl hover:-translate-y-1 disabled:opacity-50 disabled:hover:translate-y-0"
           >
             {isUpdating ? (
               <RefreshCw className="w-5 h-5 animate-spin" />
@@ -704,36 +711,36 @@ export default function ProfileComponent() {
       )}
 
       {/* 4. Timestamps & Metadata Card (Full Width) */}
-      <div className="p-6 sm:p-10 rounded-3xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md space-y-8 shadow-xl">
+      <div className="p-6 sm:p-10 rounded-3xl bg-card/60 border border-border backdrop-blur-md space-y-8 shadow-xl">
         <div className="flex items-center gap-4 pb-5">
           <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
             <Clock className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white">
+            <h3 className="text-base font-bold text-foreground">
               Account Timestamps
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-muted-foreground">
               Creation and modification history
             </p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <div className="p-5 sm:px-6 sm:py-5 rounded-2xl bg-slate-950/60 border border-slate-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          <div className="p-5 sm:px-6 sm:py-5 rounded-2xl bg-background/60 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Created At
             </span>
-            <span className="text-xs text-slate-200 font-mono font-medium">
+            <span className="text-xs text-foreground font-mono font-medium">
               {formatDate(profile.createdAt)}
             </span>
           </div>
 
-          <div className="p-5 sm:px-6 sm:py-5 rounded-2xl bg-slate-950/60 border border-slate-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          <div className="p-5 sm:px-6 sm:py-5 rounded-2xl bg-background/60 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Last Updated
             </span>
-            <span className="text-xs text-slate-200 font-mono font-medium">
+            <span className="text-xs text-foreground font-mono font-medium">
               {formatDate(profile.updatedAt)}
             </span>
           </div>
@@ -741,29 +748,29 @@ export default function ProfileComponent() {
       </div>
 
       {/* 5. Danger Zone */}
-      <div className="p-6 mt-6 sm:p-10 rounded-3xl bg-rose-950/20 border border-rose-900/30 backdrop-blur-md space-y-6 shadow-xl">
+      <div className="p-6 mt-6 sm:p-10 rounded-3xl bg-destructive/5 border border-destructive/20 backdrop-blur-md space-y-6 shadow-xl">
         <div className="flex items-center gap-4 pb-5">
-          <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500">
+          <div className="p-2.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive">
             <Trash2 className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-rose-500">Danger Zone</h3>
-            <p className="text-xs text-rose-400/80">
+            <h3 className="text-base font-bold text-destructive">Danger Zone</h3>
+            <p className="text-xs text-destructive/80">
               Irreversible account actions
             </p>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-6">
           <div>
-            <p className="text-sm font-medium text-slate-200">Delete Account</p>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-sm font-medium text-foreground">Delete Account</p>
+            <p className="text-xs text-muted-foreground mt-1">
               Permanently remove your account and all associated data.
             </p>
           </div>
           <button
             onClick={() => setShowDeleteModal(true)}
             disabled={isDeleting}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-500 text-sm font-bold transition-all disabled:opacity-50 cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-destructive/10 hover:bg-destructive/20 border border-destructive/30 text-destructive text-sm font-bold transition-all disabled:opacity-50 cursor-pointer"
           >
             {isDeleting ? (
               <RefreshCw className="w-4 h-4 animate-spin" />
@@ -777,16 +784,16 @@ export default function ProfileComponent() {
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md p-6 sm:p-8 rounded-3xl bg-slate-900 border border-rose-500/30 shadow-[0_0_40px_rgba(225,29,72,0.15)] space-y-6">
+          <div className="relative w-full max-w-md p-6 sm:p-8 rounded-3xl bg-card border border-destructive/30 shadow-xl space-y-6">
             <div className="flex flex-col items-center text-center space-y-4">
-              <div className="p-4 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20 mb-2">
+              <div className="p-4 rounded-full bg-destructive/10 text-destructive border border-destructive/20 mb-2">
                 <AlertCircle className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-bold text-white">Delete Account?</h3>
-              <p className="text-sm text-slate-400">
+              <h3 className="text-xl font-bold text-foreground">Delete Account?</h3>
+              <p className="text-sm text-muted-foreground">
                 Are you absolutely sure you want to delete your account? This
                 action is{" "}
-                <span className="font-bold text-rose-400">permanent</span> and
+                <span className="font-bold text-destructive">permanent</span> and
                 cannot be undone. All your data will be wiped immediately.
               </p>
             </div>
@@ -795,14 +802,14 @@ export default function ProfileComponent() {
               <button
                 onClick={() => setShowDeleteModal(false)}
                 disabled={isDeleting}
-                className="w-full sm:w-1/2 px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium transition-all"
+                className="w-full sm:w-1/2 px-5 py-3 rounded-xl bg-secondary hover:bg-accent text-foreground text-sm font-medium transition-all"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDelete}
                 disabled={isDeleting}
-                className="w-full sm:w-1/2 flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-bold transition-all disabled:opacity-50"
+                className="w-full sm:w-1/2 flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-destructive hover:bg-destructive/90 text-primary-foreground text-sm font-bold transition-all disabled:opacity-50"
               >
                 {isDeleting ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />

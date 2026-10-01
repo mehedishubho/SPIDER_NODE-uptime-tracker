@@ -5,6 +5,9 @@ import {
   E2E_PASSWORD,
   resetE2EData,
   seedE2EUser,
+  seedMonitor,
+  seedOngoingIncident,
+  seedResolvedIncident,
 } from "../setup/seed";
 
 // 08-05 light-mode pins (WR-02 discharge, D-26): every WR-02 surface renders
@@ -33,6 +36,16 @@ const RETIRED_RAW_CLASSES = [
 async function forceLightTheme(page: Page) {
   await page.addInitScript(() => {
     window.localStorage.setItem("theme", "light");
+  });
+}
+
+// 08-09 both-theme legs: init scripts run in registration order, so a
+// dark-setter registered inside a test overrides the beforeEach light-setter
+// for every navigation afterwards (the dark default resolves through the
+// same THM-01 class strategy — .dark on <html>).
+async function forceDarkTheme(page: Page) {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("theme", "dark");
   });
 }
 
@@ -102,6 +115,31 @@ async function expectNoRetiredRawClasses(scope: Locator) {
   expect(
     offenders,
     `retired raw utilities present: ${offenders.join(", ")}`,
+  ).toEqual([]);
+}
+
+// 08-09 tier-2 sweep vocabulary: on the migrated tier-2 surfaces NO element
+// carries a raw palette utility for status colors (emerald/rose) or the
+// slate/white hardcodes (UI-SPEC Token Migration Rules 2 + 4). Regex over
+// classList tokens so variant-prefixed forms (hover:bg-slate-800/50,
+// focus:text-slate-200...) are caught too — the exact-class helper above
+// stays scoped to the 08-05 WR-02 legs.
+async function expectNoRawPaletteClasses(scope: Locator) {
+  const offenders = await scope.evaluate((root) => {
+    const pattern =
+      /^(?:[a-z-]+:)?(?:bg|text|border|divide|ring|from|to|via|fill|stroke|shadow|outline|decoration|caret|accent)-(?:emerald|rose|slate)-/;
+    const hits: string[] = [];
+    for (const el of root.querySelectorAll("*")) {
+      for (const cls of el.classList) {
+        if (pattern.test(cls)) hits.push(`${el.tagName}.${cls}`);
+        if (cls === "text-white") hits.push(`${el.tagName}.text-white`);
+      }
+    }
+    return hits;
+  });
+  expect(
+    offenders,
+    `raw palette/white utilities present: ${offenders.join(", ")}`,
   ).toEqual([]);
 }
 
@@ -346,5 +384,182 @@ test.describe("brand assets — light-safe 404 (PageNotFound treatment)", () => 
     await expect(plate).toBeVisible();
     const expectedPlate = await tokenColor(page, "--surface-deep");
     await expect(plate).toHaveCSS("background-color", expectedPlate);
+  });
+});
+
+// 08-09 tier-2 legs (UI-03 part 2, D-27): the public status page — the only
+// surface visitors see — renders on the token substrate in BOTH themes, with
+// the emerald/rose ternaries migrated to status tokens and the cyan
+// emphasis on the uptime/latency values (reserved accent item 2).
+test.describe("public status page — tier-2 token substrate (both themes)", () => {
+  test("populated: badges + cyan values resolve from tokens in light AND dark; no raw palette utilities", async ({
+    page,
+  }) => {
+    // Dedicated visitor user so the primary e2e user's data stays clean for
+    // the incidents legs below (declaration order = execution order).
+    const statusUserId = await seedE2EUser(
+      "e2e-pubstatus@spidernode.test",
+      "E2E-PubStatus-Password-1",
+      "E2E Pub Status User",
+    );
+    await seedMonitor(statusUserId, "E2E Pub Status Monitor", "DOWN");
+
+    await page.goto(`/status/${statusUserId}`);
+
+    // DOWN monitor -> "Down" badge flows from --status-down (the migrated
+    // rose ternary), in the forced light theme first...
+    const badge = page.getByTestId("public-status-badge").first();
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveText("Down");
+    await expect(badge).toHaveCSS("color", await tokenColor(page, "--status-down"));
+
+    // ...and the banner headline carries the same token (PARTIAL OUTAGE).
+    await expectTokenTextColor(
+      page,
+      page.getByText("PARTIAL OUTAGE"),
+      "--status-down",
+    );
+
+    // Uptime value emphasis is cyan through the token (reserved item 2 —
+    // the light variant applies automatically; #00E5FF stays the dark value).
+    const uptimeValue = page.getByTestId("public-uptime-value").first();
+    await expect(uptimeValue).toHaveCSS(
+      "color",
+      await tokenColor(page, "--accent-cyan"),
+    );
+
+    // The page renders under the bare root layout (no marketing chrome), so
+    // a whole-page sweep proves the surface carries zero raw palette
+    // utilities in light.
+    await expectNoRawPaletteClasses(page.locator("body"));
+
+    // Dark leg: the same assertions hold with the .dark token values.
+    await forceDarkTheme(page);
+    await page.reload();
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveCSS("color", await tokenColor(page, "--status-down"));
+    await expect(uptimeValue).toHaveCSS(
+      "color",
+      await tokenColor(page, "--accent-cyan"),
+    );
+    await expectNoRawPaletteClasses(page.locator("body"));
+  });
+
+  test("404: contract heading + body render token-driven", async ({ page }) => {
+    await page.goto("/status/does-not-exist-user-id");
+
+    const heading = page.getByRole("heading", { name: "Status Page Not Found" });
+    await expect(heading).toBeVisible();
+    await expectTokenTextColor(page, heading, "--foreground");
+
+    // Copywriting Contract row, verbatim.
+    await expect(
+      page.getByText("This status page does not exist or has been removed."),
+    ).toBeVisible();
+    await expectNoRawPaletteClasses(page.locator("body"));
+  });
+
+  test("loading: stalled API keeps the public status skeleton on screen (D-28)", async ({
+    page,
+  }) => {
+    // Never-fulfilling route: the load fetch stays pending so the skeleton
+    // state is observed deterministically (UI-SPEC loading row for the
+    // public status surface).
+    await page.route("**/api/status/**", () => new Promise(() => {}));
+    await page.goto("/status/any-user-id");
+
+    await expect(page.getByTestId("public-status-skeleton")).toBeVisible();
+  });
+});
+
+// 08-09 tier-2 legs: /dashboard/incidents — skeleton loading (the plan's
+// named tier-2 target), the empty-state copy, and both-theme status-token
+// resolution on the ACTIVE/RESOLVED badges.
+test.describe("incidents page — tier-2 token substrate (both themes)", () => {
+  test("empty: All Clear state renders token-driven with zero raw palette utilities", async ({
+    page,
+  }) => {
+    await loginViaUi(page);
+    await page.goto("/dashboard/incidents");
+
+    await expect(page.getByText("All Clear!")).toBeVisible();
+    await expect(
+      page.getByText("No incidents recorded yet. Your monitors are healthy and running smoothly."),
+    ).toBeVisible();
+
+    // Scoped to the Incidents root (the sidebar/header chrome belongs to
+    // their own reconciliation legs).
+    const incidentsRoot = page
+      .getByRole("heading", { name: "Incident Log" })
+      .locator("xpath=ancestor::div[contains(@class, 'min-h-screen')][1]");
+    await expectNoRawPaletteClasses(incidentsRoot);
+
+    // Headline is token-driven in the forced light theme.
+    await expectTokenTextColor(
+      page,
+      page.getByRole("heading", { name: "Incident Log" }),
+      "--foreground",
+    );
+  });
+
+  test("populated: ACTIVE/RESOLVED badges resolve from status tokens in light AND dark", async ({
+    page,
+  }) => {
+    const email = "e2e-incidents@spidernode.test";
+    const password = "E2E-Incidents-Password-1";
+    const userId = await seedE2EUser(email, password, "E2E Incidents User");
+    const monitorId = await seedMonitor(userId, "E2E Incidents Monitor");
+    await seedOngoingIncident(monitorId, "Seeded ongoing outage for the both-theme leg");
+    await seedResolvedIncident(monitorId, "Seeded resolved incident for the both-theme leg");
+
+    await loginViaUi(page, email, password);
+    await page.goto("/dashboard/incidents");
+
+    const activeBadge = page.getByTestId("incident-badge").filter({
+      hasText: "ACTIVE",
+    });
+    const resolvedBadge = page.getByTestId("incident-badge").filter({
+      hasText: "RESOLVED",
+    });
+    await expect(activeBadge).toBeVisible();
+    await expect(resolvedBadge).toBeVisible();
+
+    // Light: ONGOING -> --status-down, RESOLVED -> --status-up (the
+    // migrated emerald/rose ternaries).
+    await expect(activeBadge).toHaveCSS(
+      "color",
+      await tokenColor(page, "--status-down"),
+    );
+    await expect(resolvedBadge).toHaveCSS(
+      "color",
+      await tokenColor(page, "--status-up"),
+    );
+
+    const incidentsRoot = page
+      .getByRole("heading", { name: "Incident Log" })
+      .locator("xpath=ancestor::div[contains(@class, 'min-h-screen')][1]");
+    await expectNoRawPaletteClasses(incidentsRoot);
+
+    // Dark leg: same resolutions through the .dark token values.
+    await forceDarkTheme(page);
+    await page.reload();
+    await expect(activeBadge).toHaveCSS(
+      "color",
+      await tokenColor(page, "--status-down"),
+    );
+    await expect(resolvedBadge).toHaveCSS(
+      "color",
+      await tokenColor(page, "--status-up"),
+    );
+  });
+
+  test("loading: stalled API keeps the incidents skeleton on screen (D-28)", async ({
+    page,
+  }) => {
+    await loginViaUi(page);
+    await page.route("**/api/incidents", () => new Promise(() => {}));
+    await page.goto("/dashboard/incidents");
+
+    await expect(page.getByTestId("incidents-skeleton")).toBeVisible();
   });
 });

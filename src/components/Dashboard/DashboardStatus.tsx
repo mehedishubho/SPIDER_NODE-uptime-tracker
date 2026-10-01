@@ -10,7 +10,8 @@ import React, {
 import { useAuthSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Activity01Icon as Activity, CheckmarkCircle02Icon as CheckCircle2, Clock01Icon as Clock, Copy01Icon as Copy, LinkSquare01Icon as ExternalLink, GlobeIcon as Globe, Loading01Icon as Loader2, RefreshIcon as RefreshCw, CancelCircleIcon as XCircle } from "hugeicons-react";
+import { Activity01Icon as Activity, CheckmarkCircle02Icon as CheckCircle2, Clock01Icon as Clock, Copy01Icon as Copy, LinkSquare01Icon as ExternalLink, GlobeIcon as Globe, RefreshIcon as RefreshCw, CancelCircleIcon as XCircle } from "hugeicons-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Monitor {
   id: number;
@@ -122,9 +123,32 @@ export function DashboardStatus() {
   };
 
   if (status === "loading" || loading) {
+    // Skeleton mirrors the loaded layout (D-28 — the shared tier-2 loading
+    // pattern; this page previews the public status surface).
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-background p-4 sm:p-6">
+        <div className="max-w-3xl mx-auto space-y-6" data-testid="dashboard-status-skeleton">
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-56" />
+            <Skeleton className="h-3 w-80" />
+          </div>
+          <Skeleton className="h-24 rounded-2xl" />
+          <Skeleton className="h-24 rounded-2xl" />
+          <div className="space-y-3">
+            <Skeleton className="h-4 w-44" />
+            <div className="rounded-2xl border border-border divide-y divide-border">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="p-4 flex items-center justify-between gap-4">
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-52" />
+                  </div>
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -139,11 +163,11 @@ export function DashboardStatus() {
 
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+          <h1 className="text-lg font-semibold text-foreground flex items-center gap-3">
             <Globe className="w-6 h-6 text-primary" />
             Your Status Page
           </h1>
-          <p className="text-xs text-slate-400 mt-1 font-mono">
+          <p className="text-xs text-muted-meta mt-1 font-mono">
             Share this public URL so others can view your service health — no login required.
           </p>
         </div>
@@ -154,12 +178,12 @@ export function DashboardStatus() {
             Your Public Status URL
           </p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 text-sm text-slate-200 bg-black/40 rounded-xl px-3 py-2.5 truncate border border-slate-800 font-mono">
+            <code className="flex-1 text-sm text-foreground bg-muted rounded-xl px-3 py-2.5 truncate border border-border font-mono">
               {publicUrl || "Loading..."}
             </code>
             <button
               onClick={copyLink}
-              className="p-2.5 rounded-xl bg-primary hover:bg-red-500 text-white transition-colors cursor-pointer flex-shrink-0"
+              className="p-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground transition-colors cursor-pointer flex-shrink-0"
               title="Copy link"
             >
               <Copy className="w-4 h-4" />
@@ -168,14 +192,14 @@ export function DashboardStatus() {
               href={publicUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-colors flex-shrink-0"
+              className="p-2.5 rounded-xl bg-secondary hover:bg-accent border border-border text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
               title="Open status page"
             >
               <ExternalLink className="w-4 h-4" />
             </a>
           </div>
           {copied && (
-            <p className="text-xs text-emerald-400 mt-2 flex items-center gap-1.5">
+            <p className="text-xs text-status-up mt-2 flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5" /> Copied!
             </p>
           )}
@@ -185,26 +209,26 @@ export function DashboardStatus() {
         <div
           className={`glass-panel rounded-2xl border p-5 flex items-center gap-4 ${
             anyDown
-              ? "border-rose-500/40 bg-rose-500/5"
-              : "border-emerald-500/30 bg-emerald-500/5"
+              ? "border-status-down/40 bg-status-down/5"
+              : "border-status-up/30 bg-status-up/5"
           }`}
         >
           <div
-            className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-              anyDown ? "bg-rose-500/20 text-rose-400" : "bg-emerald-500/20 text-status-up"
+            className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 transition-colors duration-200 ${
+              anyDown ? "bg-status-down/20 text-status-down" : "bg-status-up/20 text-status-up"
             }`}
           >
             {anyDown ? <XCircle className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
           </div>
           <div>
             <p
-              className={`text-lg font-extrabold font-mono ${
-                anyDown ? "text-rose-400" : "text-status-up"
+              className={`text-lg font-semibold font-mono transition-colors duration-200 ${
+                anyDown ? "text-status-down" : "text-status-up"
               }`}
             >
               {anyDown ? "PARTIAL OUTAGE" : allUp ? "ALL SYSTEMS OPERATIONAL" : "MONITORING..."}
             </p>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               {monitors.length} service{monitors.length !== 1 ? "s" : ""} monitored ·{" "}
               {monitors.filter((m) => m.status === "UP").length} online ·{" "}
               {monitors.filter((m) => m.status === "DOWN").length} down
@@ -212,7 +236,7 @@ export function DashboardStatus() {
           </div>
           <button
             onClick={fetchStatus}
-            className="ml-auto p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="ml-auto p-2 rounded-xl bg-secondary hover:bg-accent border border-border text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             title="Refresh"
           >
             <RefreshCw className="w-4 h-4" />
@@ -221,66 +245,74 @@ export function DashboardStatus() {
 
         {/* Monitor List Preview */}
         {monitors.length === 0 ? (
-          <div className="glass-panel rounded-2xl border border-slate-800 p-12 text-center space-y-3">
-            <Globe className="w-10 h-10 text-slate-600 mx-auto" />
-            <p className="text-sm text-slate-500">No active monitors to display.</p>
+          <div className="glass-panel rounded-2xl border border-border p-12 text-center space-y-3">
+            <Globe className="w-10 h-10 text-muted-foreground mx-auto" />
+            <p className="text-sm text-muted-foreground">No active monitors to display.</p>
           </div>
         ) : (
-          <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
-            <div className="p-4 border-b border-slate-800/80">
-              <h2 className="text-sm font-bold text-white">Live Status Preview</h2>
-              <p className="text-xs text-slate-500 mt-0.5">This is a preview of what visitors will see</p>
+          <div className="glass-panel rounded-2xl border border-border overflow-hidden">
+            <div className="p-4 border-b border-border">
+              <h2 className="text-sm font-semibold text-foreground">Live Status Preview</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">This is a preview of what visitors will see</p>
             </div>
-            <div className="divide-y divide-slate-800/60">
+            <div className="divide-y divide-border">
               {monitors.map((monitor) => {
                 const isUp = monitor.status === "UP";
                 const isDown = monitor.status === "DOWN";
                 return (
                   <div
                     key={monitor.id}
-                    className="p-4 flex items-center justify-between gap-4 hover:bg-slate-800/20 transition-colors"
+                    className="p-4 flex items-center justify-between gap-4 hover:bg-accent/40 transition-colors"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm text-slate-200 truncate">
+                        <span className="font-semibold text-sm text-foreground truncate">
                           {monitor.name}
                         </span>
                         <a
                           href={monitor.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-slate-500 hover:text-slate-300 flex-shrink-0"
+                          className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
                         >
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       </div>
-                      <div className="flex items-center gap-3 mt-1 text-[11px] font-mono text-slate-500">
+                      {/* Uptime/latency values carry the cyan emphasis — this
+                          preview mirrors the public status surface (UI-SPEC
+                          reserved accent item 2). */}
+                      <div className="flex items-center gap-3 mt-1 text-xs font-mono text-muted-meta">
                         <span className="flex items-center gap-1">
                           <Activity className="w-3 h-3" />
-                          {monitor.uptimePercent?.toFixed(2) ?? "100.00"}% uptime
+                          <span className="text-accent-cyan" data-testid="status-uptime-value">
+                            {monitor.uptimePercent?.toFixed(2) ?? "100.00"}% uptime
+                          </span>
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {monitor.responseTime ?? 0}ms
+                          <span className="text-accent-cyan" data-testid="status-latency-value">
+                            {monitor.responseTime ?? 0}ms
+                          </span>
                         </span>
                       </div>
                     </div>
                     <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border flex-shrink-0 ${
+                      data-testid="status-preview-badge"
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border flex-shrink-0 transition-colors duration-200 ${
                         isUp
-                          ? "bg-emerald-500/10 text-status-up border-emerald-500/30"
+                          ? "bg-status-up/10 text-status-up border-status-up/30"
                           : isDown
-                          ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
-                          : "bg-slate-500/10 text-slate-400 border-slate-500/30"
+                          ? "bg-status-down/10 text-status-down border-status-down/30"
+                          : "border-border bg-muted text-muted-foreground"
                       }`}
                     >
                       <span
                         className={`w-1.5 h-1.5 rounded-full ${
                           isUp
-                            ? "bg-status-up animate-ping"
+                            ? "bg-status-up animate-status-pulse"
                             : isDown
-                            ? "bg-rose-500"
-                            : "bg-slate-400 animate-pulse"
+                            ? "bg-status-down animate-alert-pulse"
+                            : "bg-muted-foreground/50 animate-pulse"
                         }`}
                       />
                       {isUp ? "ONLINE" : isDown ? "OFFLINE" : "PENDING"}

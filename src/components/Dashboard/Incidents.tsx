@@ -4,8 +4,10 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useAuthSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Alert01Icon as AlertTriangle, CheckmarkCircle02Icon as CheckCircle2, Clock01Icon as Clock, Loading01Icon as Loader2, RefreshIcon as RefreshCw, ServerStack01Icon as ServerCrash, Shield01Icon as ShieldCheck, CancelCircleIcon as XCircle, Activity01Icon as Activity, LinkSquare01Icon as ExternalLink } from "hugeicons-react";
+import { motion, useReducedMotion } from "motion/react";
+import { Alert01Icon as AlertTriangle, CheckmarkCircle02Icon as CheckCircle2, Clock01Icon as Clock, RefreshIcon as RefreshCw, ServerStack01Icon as ServerCrash, Shield01Icon as ShieldCheck, CancelCircleIcon as XCircle, Activity01Icon as Activity, LinkSquare01Icon as ExternalLink } from "hugeicons-react";
 import Link from "next/link";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Monitor {
   id: number;
@@ -27,6 +29,7 @@ export function Incidents() {
   const { data, isPending } = useAuthSession();
   const status = isPending ? "loading" : data ? "authenticated" : "unauthenticated";
   const router = useRouter();
+  const reduceMotion = useReducedMotion();
 
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,11 +70,24 @@ export function Incidents() {
   }, [status, fetchIncidents]);
 
   if (status === "loading" || loading) {
+    // Skeleton mirrors the loaded layout (D-28, UI-SPEC loading rows — the
+    // shared tier-2 treatment, same pattern as tier-1 in 08-04).
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <span className="text-xs text-slate-400 font-mono">Loading Incidents...</span>
+      <div className="min-h-screen bg-background p-4 sm:p-6">
+        <div className="max-w-5xl mx-auto space-y-6" data-testid="incidents-skeleton">
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-44" />
+              <Skeleton className="h-3 w-72" />
+            </div>
+            <Skeleton className="size-9 rounded-xl" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-32 rounded-2xl" />
+            ))}
+          </div>
+          <Skeleton className="h-48 rounded-2xl" />
         </div>
       </div>
     );
@@ -100,18 +116,18 @@ export function Incidents() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+            <h1 className="text-lg font-semibold text-foreground flex items-center gap-3">
               <ServerCrash className="w-6 h-6 text-primary" />
               Incident Log
             </h1>
-            <p className="text-xs text-slate-400 mt-1 font-mono">
+            <p className="text-xs text-muted-meta mt-1 font-mono">
               Downtime events and resolutions across all your monitors
             </p>
           </div>
           <button
             onClick={() => fetchIncidents(true)}
             disabled={refreshing}
-            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer self-start sm:self-auto"
+            className="p-2 rounded-xl bg-secondary hover:bg-accent border border-border text-muted-foreground hover:text-foreground transition-colors cursor-pointer self-start sm:self-auto"
             title="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin text-primary" : ""}`} />
@@ -120,44 +136,44 @@ export function Incidents() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="glass-panel p-5 rounded-2xl border border-slate-800">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
+          <div className="glass-panel p-5 rounded-2xl border border-border">
+            <div className="flex items-center justify-between text-muted-foreground mb-2">
               <span className="text-xs font-mono">TOTAL INCIDENTS</span>
-              <AlertTriangle className="w-4 h-4 text-amber-400" />
+              <AlertTriangle className="w-4 h-4 text-accent-gold" />
             </div>
-            <div className="text-3xl font-extrabold font-mono text-white">{incidents.length}</div>
-            <p className="text-[11px] text-slate-500 mt-1">All time</p>
+            <div className="font-mono text-[28px] font-semibold leading-tight text-foreground">{incidents.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">All time</p>
           </div>
 
-          <div className="glass-panel p-5 rounded-2xl border border-rose-500/20">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
+          <div className="glass-panel p-5 rounded-2xl border border-status-down/20">
+            <div className="flex items-center justify-between text-muted-foreground mb-2">
               <span className="text-xs font-mono">ACTIVE NOW</span>
-              <XCircle className="w-4 h-4 text-rose-400" />
+              <XCircle className="w-4 h-4 text-status-down" />
             </div>
-            <div className="text-3xl font-extrabold font-mono text-rose-400">
+            <div className="font-mono text-[28px] font-semibold leading-tight text-status-down">
               {ongoingIncidents.length}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">Ongoing outages</p>
+            <p className="text-xs text-muted-foreground mt-1">Ongoing outages</p>
           </div>
 
-          <div className="glass-panel p-5 rounded-2xl border border-slate-800">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
+          <div className="glass-panel p-5 rounded-2xl border border-border">
+            <div className="flex items-center justify-between text-muted-foreground mb-2">
               <span className="text-xs font-mono">RESOLVED</span>
               <ShieldCheck className="w-4 h-4 text-status-up" />
             </div>
-            <div className="text-3xl font-extrabold font-mono text-status-up">
+            <div className="font-mono text-[28px] font-semibold leading-tight text-status-up">
               {resolvedIncidents.length}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">Successfully recovered</p>
+            <p className="text-xs text-muted-foreground mt-1">Successfully recovered</p>
           </div>
         </div>
 
         {/* Active Incidents Alert Banner */}
         {ongoingIncidents.length > 0 && (
-          <div className="glass-panel rounded-2xl border border-rose-500/40 p-4 flex items-center gap-3 bg-rose-500/5">
-            <div className="w-2 h-2 rounded-full bg-rose-500 animate-ping flex-shrink-0" />
-            <p className="text-sm text-rose-300 font-medium">
-              <span className="font-bold">{ongoingIncidents.length} active incident{ongoingIncidents.length > 1 ? "s" : ""}</span>
+          <div className="glass-panel rounded-2xl border border-status-down/40 p-4 flex items-center gap-3 bg-status-down/5">
+            <div className="w-2 h-2 rounded-full bg-status-down animate-ping flex-shrink-0" />
+            <p className="text-sm text-status-down font-medium">
+              <span className="font-semibold">{ongoingIncidents.length} active incident{ongoingIncidents.length > 1 ? "s" : ""}</span>
               {" "}— your team has been notified via Telegram if configured.
             </p>
           </div>
@@ -165,42 +181,51 @@ export function Incidents() {
 
         {/* Incidents List */}
         {incidents.length === 0 ? (
-          <div className="glass-panel rounded-2xl border border-slate-800 p-16 text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-status-up flex items-center justify-center mx-auto">
+          <div className="glass-panel rounded-2xl border border-border p-16 text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-status-up/10 border border-status-up/30 text-status-up flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-8 h-8" />
             </div>
-            <h3 className="text-lg font-bold text-slate-200">All Clear!</h3>
-            <p className="text-sm text-slate-500 max-w-sm mx-auto">
+            <h3 className="text-lg font-semibold text-foreground">All Clear!</h3>
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
               No incidents recorded yet. Your monitors are healthy and running smoothly.
             </p>
             <Link
               href="/dashboard"
-              className="inline-flex items-center gap-2 mt-2 px-4 py-2 rounded-xl bg-primary hover:bg-red-400 text-white text-xs font-bold transition-all"
+              className="inline-flex items-center gap-2 mt-2 px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold transition-all"
             >
               <Activity className="w-3.5 h-3.5" />
               View Monitors
             </Link>
           </div>
         ) : (
-          <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
-            <div className="p-4 sm:p-6 border-b border-slate-800/80">
-              <h2 className="text-base font-bold text-white">Incident Timeline</h2>
+          <div className="glass-panel rounded-2xl border border-border overflow-hidden">
+            <div className="p-4 sm:p-6 border-b border-border">
+              <h2 className="text-sm font-semibold text-foreground">Incident Timeline</h2>
             </div>
-            <div className="divide-y divide-slate-800/60">
-              {incidents.map((incident) => {
+            <div className="divide-y divide-border">
+              {incidents.map((incident, index) => {
                 const isOngoing = incident.status === "ONGOING";
                 return (
-                  <div
+                  <motion.div
                     key={incident.id}
-                    className="p-4 sm:p-6 hover:bg-slate-800/20 transition-colors"
+                    className="p-4 sm:p-6 hover:bg-accent/40 transition-colors"
+                    initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: 0.25,
+                      ease: "easeOut",
+                      // 50ms stagger per item, capped at 8 (D-28 tier-2
+                      // micro-interaction — same discipline as tier-1 08-04).
+                      delay: reduceMotion ? 0 : Math.min(index, 8) * 0.05,
+                    }}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-4 min-w-0">
                         <div
-                          className={`mt-0.5 w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          className={`mt-0.5 w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors duration-200 ${
                             isOngoing
-                              ? "bg-rose-500/10 text-rose-400"
-                              : "bg-emerald-500/10 text-status-up"
+                              ? "bg-status-down/10 text-status-down"
+                              : "bg-status-up/10 text-status-up"
                           }`}
                         >
                           {isOngoing ? (
@@ -210,11 +235,12 @@ export function Incidents() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          {/* Monitor name + link */}
+                          {/* Monitor name + link — hover carries the cyan
+                              emphasis (UI-SPEC reserved accent item 3). */}
                           <div className="flex items-center gap-2 flex-wrap">
                             <Link
                               href={`/dashboard/monitor/${incident.monitor.id}`}
-                              className="text-sm font-bold text-slate-200 hover:text-primary transition-colors truncate"
+                              className="text-sm font-semibold text-foreground hover:text-accent-cyan transition-colors truncate"
                             >
                               {incident.monitor.name}
                             </Link>
@@ -222,28 +248,28 @@ export function Incidents() {
                               href={incident.monitor.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0"
+                              className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
                             >
                               <ExternalLink className="w-3 h-3" />
                             </a>
                           </div>
 
-                          <p className="text-xs text-slate-400 mt-1">
+                          <p className="text-xs text-muted-foreground mt-1">
                             {incident.description || "Connection timeout or invalid status code."}
                           </p>
 
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[11px] font-mono text-slate-500">
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs font-mono text-muted-meta">
                             <span className="flex items-center gap-1.5">
-                              <Clock className="w-3 h-3 text-slate-600" />
+                              <Clock className="w-3 h-3 text-muted-meta" />
                               Started: {new Date(incident.startedAt).toLocaleString()}
                             </span>
                             {!isOngoing && incident.resolvedAt && (
-                              <span className="flex items-center gap-1.5 text-emerald-500/80">
+                              <span className="flex items-center gap-1.5 text-status-up/80">
                                 <CheckCircle2 className="w-3 h-3" />
                                 Resolved: {new Date(incident.resolvedAt).toLocaleString()}
                               </span>
                             )}
-                            <span className="flex items-center gap-1.5 text-amber-500/80">
+                            <span className="flex items-center gap-1.5 text-accent-gold/80">
                               <AlertTriangle className="w-3 h-3" />
                               Duration: {formatDuration(incident.startedAt, incident.resolvedAt)}
                             </span>
@@ -253,16 +279,17 @@ export function Incidents() {
 
                       {/* Status badge */}
                       <span
-                        className={`px-2.5 py-1 rounded border text-[10px] font-bold tracking-wider flex-shrink-0 ${
+                        data-testid="incident-badge"
+                        className={`px-2.5 py-1 rounded-full border text-xs font-semibold tracking-wider flex-shrink-0 transition-colors duration-200 ${
                           isOngoing
-                            ? "bg-rose-500/10 border-rose-500/30 text-rose-400 animate-pulse"
-                            : "bg-emerald-500/10 border-emerald-500/30 text-status-up"
+                            ? "bg-status-down/10 border-status-down/30 text-status-down animate-pulse"
+                            : "bg-status-up/10 border-status-up/30 text-status-up"
                         }`}
                       >
                         {isOngoing ? "ACTIVE" : "RESOLVED"}
                       </span>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>

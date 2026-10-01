@@ -117,14 +117,18 @@ export async function seedTelegramChatId(
  * CRON_MODE suppression writer and the /api/cron routes are gone — Phase-5
  * and 06-05 deletion releases) and no spec drives a monitor check.
  */
-export async function seedMonitor(userId: string, name: string): Promise<number> {
+export async function seedMonitor(
+  userId: string,
+  name: string,
+  status: "UP" | "DOWN" = "UP",
+): Promise<number> {
   const { rows } = await ensurePool().query(
     `INSERT INTO monitors (url, name, status, "isActive", interval, "lastChecked",
         "responseTime", "uptimePercent", "totalChecks", "failedChecks", "userId",
         "createdAt", "updatedAt")
-     VALUES ($1, $2, 'UP', true, 5, $3, 42, 100.0, 1, 0, $4, NOW(), NOW())
+     VALUES ($1, $2, $5, true, 5, $3, 42, 100.0, 1, 0, $4, NOW(), NOW())
      RETURNING id`,
-    ["https://example.com/spidernode-e2e-seed", name, new Date(Date.now() - 60_000), userId]
+    ["https://example.com/spidernode-e2e-seed", name, new Date(Date.now() - 60_000), userId, status]
   );
   return rows[0].id as number;
 }
@@ -142,6 +146,24 @@ export async function seedOngoingIncident(
   await ensurePool().query(
     `INSERT INTO incidents (id, "monitorId", status, description, "startedAt")
      VALUES ($1, $2, 'ONGOING', $3, NOW())`,
+    [id, monitorId, description]
+  );
+  return id;
+}
+
+/**
+ * Creates one RESOLVED incident for a monitor (08-09: the incidents-page
+ * both-theme legs need the RESOLVED badge alongside the ONGOING one —
+ * seedOngoingIncident only covers the ONGOING half).
+ */
+export async function seedResolvedIncident(
+  monitorId: number,
+  description: string,
+): Promise<string> {
+  const id = randomUUID();
+  await ensurePool().query(
+    `INSERT INTO incidents (id, "monitorId", status, description, "startedAt", "resolvedAt")
+     VALUES ($1, $2, 'RESOLVED', $3, NOW() - INTERVAL '2 hours', NOW() - INTERVAL '1 hour')`,
     [id, monitorId, description]
   );
   return id;

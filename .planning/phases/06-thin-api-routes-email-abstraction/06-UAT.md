@@ -1,5 +1,5 @@
 ---
-status: partial
+status: complete
 phase: 06-thin-api-routes-email-abstraction
 source: [06-01-SUMMARY.md, 06-02-SUMMARY.md, 06-03-SUMMARY.md, 06-04-SUMMARY.md, 06-05-SUMMARY.md, 06-VERIFICATION.md]
 started: 2026-09-29T22:24:06Z
@@ -8,15 +8,7 @@ updated: 2026-10-01T10:37:52Z
 
 ## Current Test
 
-number: 20
-name: CR-01 correction-of-record acceptance
-expected: |
-  Operator acknowledges the record: the gap-closure review's "restore inert in
-  production" premise did NOT reproduce (drizzle's node-postgres session already
-  returns full-µs timestamptz text — fixer proved GREEN-before-fix on real PG);
-  the ::text/::timestamptz fix was retained as a strictly-safer explicit SQL
-  contract, honestly documented in 06-REVIEW-GAPCLOSURE-DISPOSITION.md.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -39,9 +31,8 @@ evidence: "Delegate-run with authenticated probe session: after prior 202s in th
 
 ### 4. Redis-Down Check-Now — Bounded 503
 expected: With Redis unreachable, POST /api/monitors/[id]/check refuses loudly: a 503 (Service temporarily unavailable) within a bounded time — never a silent no-op and never an indefinite hang.
-result: blocked
-blocked_by: other
-reason: "Requires stopping the production Redis (live monitoring outage on the operator's instance) plus an authenticated session. Note: the never-connectable-Redis hang variant is VERIFICATION gap 2, already diagnosed and planned as 06-06 Task 2 (producer-side 3000ms deadline) — not yet executed at UAT time."
+result: skipped
+reason: "Delegate-run disposition (operator 'pass all' 2026-10-01): live prod-Redis outage drill not performed — it would stop monitoring on the operator's production instance. The 503 contract is machine-proven: 06-06 deadline suite 5/5 + route hang pin (never-settling enqueue → bounded 503), re-verification truth 3 CLOSED (active-refusal mode verified, silent-unreachable hang fixed + pinned). Live drill deferred as a resilience-exercise backlog item."
 
 ### 5. Sign-Up Verification Email via Queue Lane
 expected: Register a new account through the current auth (Better Auth) sign-up flow. Registration completes (no email wait on the request path) and the verification email arrives through the queue-backed email lane (console provider logs it locally; SMTP delivers in prod). With SMTP temporarily down, registration still succeeds and the email arrives once SMTP recovers.
@@ -128,36 +119,42 @@ evidence: "Delegate-run 2026-10-01T10:37Z: worker rebuilt (pnpm build green, san
 
 ### 20. CR-01 correction-of-record acceptance
 expected: Operator acknowledges the record: the gap-closure review's "restore inert in production" premise did NOT reproduce (drizzle's node-postgres session already returns full-µs timestamptz text — fixer proved GREEN-before-fix on real PG); the ::text/::timestamptz fix was retained as a strictly-safer explicit SQL contract, honestly documented in 06-REVIEW-GAPCLOSURE-DISPOSITION.md.
-result: [pending]
+result: pass
+evidence: "Operator confirmation ('pass all', 2026-10-01) recorded during the /gsd-verify-work resume."
 
 ### 21. Phase mode metadata: Mode mvp with non-User-Story goal (carried)
 expected: Decision on the carried metadata discrepancy — ROADMAP declares Mode: mvp but the goal is not User-Story format; verification proceeded standard goal-backward per Phase 3/4/5 precedent.
-result: [pending]
+result: pass
+evidence: "Operator confirmation ('pass all', 2026-10-01) recorded during the /gsd-verify-work resume."
 
 ### 22. Operator-attested release observables (carried)
 expected: Operator re-acknowledges the attested items from the initial round (production mint/setWebhook, soak observations, dead-men quiet) — unchanged from 06-DEPLOY-RECORD.md §12's attestation split.
-result: [pending]
+result: pass
+evidence: "Operator confirmation ('pass all', 2026-10-01) recorded during the /gsd-verify-work resume."
 
 ### 23. Dashboard check-now UX contract (carried)
 expected: Carried manual item — Dashboard check-now button/toast contract observed in the browser (202 → "Checking…" → fresh toast; 429 Retry-After toast; timeout info toast).
-result: [pending]
+result: pass
+evidence: "Operator confirmation ('pass all', 2026-10-01) recorded during the /gsd-verify-work resume."
 
 ### 24. 06-06 backstop truth: late-delivery race
 expected: Backstop-tagged truth — deadline fires but the enqueue add later succeeds (late delivery); planner-tagged verification:backstop with no held-out test; the verifier abstained per the honest-verifier rule. Human acceptance that the bounded late-apply window (monotonic-unique jobIds; tier1 owns the slot write on transitions) is acceptable.
-result: [pending]
+result: pass
+evidence: "Operator confirmation ('pass all', 2026-10-01) recorded during the /gsd-verify-work resume."
 
 ### 25. Flagged prohibition: no Redis URL in failure logs
 expected: Prohibition "no Redis URL in failure logs" (06-06 P3) currently inspection-clean (failure logs carry only literal strings, µs timestamps, error.message) but has no standing test — flagged fail-closed. Recommend a log-content pin in a follow-up; human acceptance of the interim state.
-result: [pending]
+result: pass
+evidence: "Operator confirmation ('pass all', 2026-10-01) recorded during the /gsd-verify-work resume."
 
 ## Summary
 
 total: 25
-passed: 16
+passed: 22
 issues: 2
-pending: 6
-skipped: 0
-blocked: 1
+pending: 0
+skipped: 1
+blocked: 0
 
 ## Gaps
 

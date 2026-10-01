@@ -172,6 +172,17 @@ Tag `release-c` created this leg (annotated → `3372424`, "docs(08-07): complet
 - Final dark re-probe at close: `POST /api/ai/post-mortem` still **404** (flag-off refusal holds after the soak).
 - D-38 gate: the dark soak is clean — the app is one env flip away from the AI-on leg, which is Task 5's blocking operator gate.
 
-## 4. THE FLIP — AI_ENABLED=true (D-38; blocking operator gate)
+## 4. THE FLIP — AI_ENABLED (D-38; blocking operator gate) — DISPOSITIONED STAY-DARK
 
-*(pending Task 5)*
+**Gate:** Task 5 checkpoint:decision (blocking-human): *"Flip AI_ENABLED=true with live GLM credentials and smoke both AI features in production, completing Phase 8?"* — presented to the operator with both options (flip / stay-dark); **no response received. Disposition: STAY-DARK** (orchestrator judgment under non-response, 2026-10-01) — the requirement-default posture, not a failure.
+
+| Field | Value |
+|---|---|
+| Decision | **stay-dark** — AI_ENABLED stays UNSET; the phase closes dark |
+| Basis | Requirement default (AI-01 verbatim: "`AI_ENABLED` flag, off by default"; CONTEXT D-04 single-flag governance, D-38 dark-then-flip) — zero provider dependency in production until the operator chooses |
+| Off-leg proof (live, machine) | Release C dark soak §3.3/§3.4: zero `AI_*` keys on the box; `POST /api/ai/post-mortem` and `POST /api/ai/monitor-assistant` both **404 pre-body-read** (runAiGuards flag-off refusal); zero AI trace on served pages; dark soak window CLEAN |
+| Deferred clause | AI-01's production **ON-leg** (flag proven true live + both features smoke-tested with real GLM credentials) — tracked OPEN in deferred-items.md (08-08 session, 2026-10-01), mirroring the Phase-999.1 deferred-live-proof precedent |
+| Reversibility | The flip remains a ~2-minute operator action: set `AI_PROVIDER=glm` + `AI_MODEL` (id confirmed at flip, research A1) + `AI_API_KEY` on the stack env, restart web, run the §4f flip smoke legs; first rollback lever `AI_ENABLED=false` (runbook §4f) — reversible by env + restart, no code or artifact change |
+| State at close | AI_ENABLED unset; zero AI keys on the stack; both `/api/ai/*` routes refusing 404; zero provider spend |
+
+Every other AI-01 clause is live-proven: off-by-default (this section), zero-key operation (§3.3), no AI in the check → transition → alert pipeline (cron:remnants leg 14, §3.1). DAT-11 and UI-05 are fully live-proven (§1.4, §2).

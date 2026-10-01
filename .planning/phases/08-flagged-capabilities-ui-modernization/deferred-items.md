@@ -1,4 +1,8 @@
 
+## 08-08 session (2026-10-01)
+
+- **AI_ENABLED production flip (AI-01 ON-leg, D-38) — status: OPEN.** Phase 8 closed dark at the requirement-default posture (AI-01: "`AI_ENABLED` flag, off by default"). The dark soak machine-proved the OFF-leg live (zero `AI_*` keys on the box, both `/api/ai/*` routes 404 pre-body-read, zero AI trace on served pages — 08-DEPLOY-RECORD §3.3/§3.4/§4). The ON-leg live smoke — streaming post-mortem on a real incident + assistant prefill through a real Add Monitor submit with real GLM credentials — is deferred as a ~2-minute operator action: set `AI_PROVIDER=glm` + `AI_MODEL` (id confirmed at flip) + `AI_API_KEY` on the stack env, restart web, run the runbook §4f flip smoke legs; rollback lever `AI_ENABLED=false` first. Mechanics fully documented in 08-DEPLOY-RECORD §4 + runbook §4f. Mirrors the Phase-999.1 deferred-live-proof precedent (operator-gated live proof tracked past phase close).
+
 ## 08-09 session (2026-10-01)
 
 - **NavUser.tsx raw utilities (sidebar chrome, out of plan scope):** `src/components/dashboardLayout/NavUser.tsx` still carries `hover:bg-slate-800/50`, `border-slate-700`, `bg-slate-900` dropdown, `text-white`, `text-slate-400`, `bg-slate-800` separators/items. 08-09's plan file list names only AppSidebar.tsx + NavMain.tsx for the sidebar reconciliation, so NavUser was deliberately not touched; its dark dropdown plate renders acceptably in light mode but is not token-driven. Disposition for 08-08 (Release B UI-05 sweep) or the phase close: migrate to sidebar/popover tokens.

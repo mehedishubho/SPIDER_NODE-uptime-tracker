@@ -92,6 +92,46 @@
       "timestamp": "2026-10-01T10:47:07.418Z",
       "status": "completed",
       "completion_timestamp": "2026-10-01T11:02:07.093Z"
+    },
+    {
+      "agent_id": "08-10",
+      "task_description": "Execute 08-10 AI route leg (guarded streaming post-mortem route + AI-in-worker gate)",
+      "phase": "08",
+      "plan": "10",
+      "segment": null,
+      "timestamp": "2026-10-01T11:04:09.416Z",
+      "status": "spawned",
+      "completion_timestamp": null
+    },
+    {
+      "agent_id": "08-10-resume",
+      "task_description": "resume 08-10 (usage-limit-terminated session salvage + full plan execution)",
+      "phase": "08",
+      "plan": "10",
+      "segment": "resume",
+      "timestamp": "2026-10-01T12:28:03.653Z",
+      "status": "completed",
+      "completion_timestamp": "2026-10-01T12:46:48.051Z"
+    },
+    {
+      "agent_id": "agent-08-07-executor",
+      "task_description": "Execute 08-07 PLAN (AI UX leg: PostMortemCard, monitor-assistant route, flag-prop, stub e2e)",
+      "phase": "08",
+      "plan": "07",
+      "segment": null,
+      "timestamp": "2026-10-01T13:34:55.343Z",
+      "status": "completed",
+      "completion_timestamp": "2026-10-01T13:34:55.343Z"
+    },
+    {
+      "agent_id": "agent-08-08-executor",
+      "task_description": "Execute 08-08 PLAN (release choreography: runbook 4f, Release A/B/C deploys, AI flip, deploy record)",
+      "phase": "08",
+      "plan": "08",
+      "segment": null,
+      "timestamp": "2026-10-01T13:51:11.859Z",
+      "status": "spawned",
+      "completion_timestamp": null
     }
   ]
 }

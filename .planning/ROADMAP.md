@@ -460,3 +460,11 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 **Deferred at:** 2026-10-01 during /gsd-verify-work 6 session completion
 **Follow-ups:**
 - [ ] Test 4: Auth-layer Redis-down degradation: map session-storage outage to the enqueue-endpoint 503 contract (or make getSession serve cache-only when secondaryStorage is down) — Better Auth config work, Phase-07 domain (deferred 2026-10-01)
+
+### Phase 999.3: Follow-up — Phase 08 deferred UAT follow-up: Tests 1+4 (BACKLOG)
+
+**Goal:** Execute the AI ON-leg production smoke (flip AI_ENABLED=true with operator Z.ai GLM credentials per runbook §4f; stream a post-mortem on a real incident and prefill Add Monitor) and judge streaming polish at real provider pacing
+**Source phase:** 08
+**Deferred at:** 2026-10-01 during /gsd-verify-work 8 session completion
+**Follow-ups:**
+- [ ] Tests 1+4: AI ON-leg production smoke + streaming-polish judgment (deferred 2026-10-01 — stay-dark disposition, deploy record §4)

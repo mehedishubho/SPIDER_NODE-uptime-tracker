@@ -41,6 +41,38 @@ vi.mock("@ai-sdk/openai-compatible", () => ({
   createOpenAICompatible: openAICompatibleMocks.createOpenAICompatible,
 }));
 
+// Task 2 seams — the openai/anthropic package factories, mocked identically
+// so the full-matrix cases pin the arguments our factories pass.
+const openAISdkMocks = vi.hoisted(() => ({
+  createOpenAI: vi.fn((options: Record<string, unknown>) => {
+    const provider = (modelId: string) => ({
+      provider: "openai",
+      modelId,
+      factoryConfig: options,
+    });
+    return provider;
+  }),
+}));
+
+vi.mock("@ai-sdk/openai", () => ({
+  createOpenAI: openAISdkMocks.createOpenAI,
+}));
+
+const anthropicSdkMocks = vi.hoisted(() => ({
+  createAnthropic: vi.fn((options: Record<string, unknown>) => {
+    const provider = (modelId: string) => ({
+      provider: "anthropic",
+      modelId,
+      factoryConfig: options,
+    });
+    return provider;
+  }),
+}));
+
+vi.mock("@ai-sdk/anthropic", () => ({
+  createAnthropic: anthropicSdkMocks.createAnthropic,
+}));
+
 const AI_ENV_KEYS = [
   "AI_ENABLED",
   "AI_PROVIDER",
@@ -66,6 +98,8 @@ beforeEach(() => {
   vi.resetModules();
   clearAiEnv();
   openAICompatibleMocks.createOpenAICompatible.mockClear();
+  openAISdkMocks.createOpenAI.mockClear();
+  anthropicSdkMocks.createAnthropic.mockClear();
 });
 
 describe("aiEnabled — the D-04 master-flag boolean", () => {
@@ -178,5 +212,97 @@ describe("getAiModel — lazy cached resolution (email-pattern discipline)", () 
   it("importing with NO AI env at all never throws (module import is inert)", async () => {
     await expect(import("@/lib/ai")).resolves.toBeDefined();
     expect(openAICompatibleMocks.createOpenAICompatible).not.toHaveBeenCalled();
+  });
+});
+
+describe("getAiModel — openai / anthropic factories (full matrix, D-02)", () => {
+  it("provider=openai -> resolves through @ai-sdk/openai with the env apiKey + model id", async () => {
+    process.env.AI_ENABLED = "true";
+    process.env.AI_PROVIDER = "openai";
+    process.env.AI_MODEL = "gpt-test-model";
+    process.env.AI_API_KEY = "sk-openai-test";
+    const { getAiModel } = await import("@/lib/ai");
+    const model = getAiModel() as unknown as { provider: string; modelId: string };
+
+    expect(openAISdkMocks.createOpenAI).toHaveBeenCalledTimes(1);
+    const config = openAISdkMocks.createOpenAI.mock.calls[0][0] as Record<string, unknown>;
+    expect(config).toMatchObject({ apiKey: "sk-openai-test" });
+    expect(model.provider).toBe("openai");
+    expect(model.modelId).toBe("gpt-test-model");
+  });
+
+  it("provider=anthropic -> resolves through @ai-sdk/anthropic with the env apiKey + model id", async () => {
+    process.env.AI_ENABLED = "true";
+    process.env.AI_PROVIDER = "anthropic";
+    process.env.AI_MODEL = "claude-test-model";
+    process.env.AI_API_KEY = "sk-ant-test";
+    const { getAiModel } = await import("@/lib/ai");
+    const model = getAiModel() as unknown as { provider: string; modelId: string };
+
+    expect(anthropicSdkMocks.createAnthropic).toHaveBeenCalledTimes(1);
+    const config = anthropicSdkMocks.createAnthropic.mock.calls[0][0] as Record<string, unknown>;
+    expect(config).toMatchObject({ apiKey: "sk-ant-test" });
+    expect(model.provider).toBe("anthropic");
+    expect(model.modelId).toBe("claude-test-model");
+  });
+});
+
+describe("getAiModel — custom OpenAI-compatible endpoint (D-02)", () => {
+  it("AI_PROVIDER=custom WITHOUT AI_BASE_URL -> THROWS naming AI_BASE_URL", async () => {
+    process.env.AI_ENABLED = "true";
+    process.env.AI_PROVIDER = "custom";
+    process.env.AI_MODEL = "any-model";
+    process.env.AI_API_KEY = "custom-key";
+    const { getAiModel } = await import("@/lib/ai");
+    let message = "";
+    try {
+      getAiModel();
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain("AI_BASE_URL");
+    expect(openAICompatibleMocks.createOpenAICompatible).not.toHaveBeenCalled();
+  });
+
+  it("AI_PROVIDER=custom WITH AI_BASE_URL -> a createOpenAICompatible model over that base URL", async () => {
+    process.env.AI_ENABLED = "true";
+    process.env.AI_PROVIDER = "custom";
+    process.env.AI_MODEL = "custom-endpoint-model";
+    process.env.AI_API_KEY = "custom-key";
+    process.env.AI_BASE_URL = "https://ai-gateway.example.test/v1";
+    const { getAiModel } = await import("@/lib/ai");
+    const model = getAiModel() as unknown as { provider: string; modelId: string };
+
+    expect(openAICompatibleMocks.createOpenAICompatible).toHaveBeenCalledTimes(1);
+    const config = openAICompatibleMocks.createOpenAICompatible.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(config).toMatchObject({
+      baseURL: "https://ai-gateway.example.test/v1",
+      apiKey: "custom-key",
+    });
+    expect(model.modelId).toBe("custom-endpoint-model");
+  });
+});
+
+describe("getAiModel — unknown provider value (D-02 throw-early)", () => {
+  it("'openrouter' -> THROWS listing the accepted set glm/openai/anthropic/custom", async () => {
+    process.env.AI_ENABLED = "true";
+    process.env.AI_PROVIDER = "openrouter";
+    process.env.AI_MODEL = "any-model";
+    process.env.AI_API_KEY = "any-key";
+    const { getAiModel } = await import("@/lib/ai");
+    let message = "";
+    try {
+      getAiModel();
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain("openrouter");
+    expect(message).toContain("glm");
+    expect(message).toContain("openai");
+    expect(message).toContain("anthropic");
+    expect(message).toContain("custom");
   });
 });

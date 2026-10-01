@@ -144,6 +144,11 @@ test.describe("AI surfaces — flag ON (stub provider)", () => {
     const stop = page.getByRole("button", { name: "Stop", exact: true });
     await expect(stop).toBeVisible();
 
+    // Wait for the FIRST streamed delta (the card mounts on it) so Stop
+    // interrupts a genuinely in-flight stream with partial text retained —
+    // stopping before any text would legitimately return to the idle state.
+    await expect(page.getByTestId("post-mortem-card")).toBeVisible();
+
     // Press Stop while the stub is still streaming (90ms/chunk cadence).
     await stop.click();
 

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PostMortemCard } from "./PostMortemCard";
 
 interface Ping {
   id: string;
@@ -49,7 +50,19 @@ interface MonitorDetails {
   incidents: Incident[];
 }
 
-export function MonitorDetails() {
+interface MonitorDetailsProps {
+  /**
+   * Server-rendered AI flag (08-07, Pattern 6): the dashboard monitor-detail
+   * server page reads the enabled env via aiEnabled() and passes the boolean
+   * down — never an env read here, never key material. With false the
+   * post-mortem card and its trigger do not render at all (D-21 zero trace);
+   * the default (false) keeps the flag-off posture safe if the prop is
+   * absent.
+   */
+  aiEnabled?: boolean;
+}
+
+export function MonitorDetails({ aiEnabled = false }: MonitorDetailsProps) {
   const { data: session, isPending } = useAuthSession();
   const status = isPending ? "loading" : session ? "authenticated" : "unauthenticated";
   const router = useRouter();
@@ -444,6 +457,15 @@ export function MonitorDetails() {
                           </span>
                         )}
                       </CardContent>
+                      {/* AI-03 (08-07): the inline post-mortem card mounts
+                          under EVERY incident row — never a modal (D-12).
+                          The card itself renders null when the flag is off
+                          (D-21), so the flag-off DOM carries zero AI trace. */}
+                      <PostMortemCard
+                        monitorId={monitor.id}
+                        incidentId={incident.id}
+                        aiEnabled={aiEnabled}
+                      />
                     </Card>
                   );
                 })}

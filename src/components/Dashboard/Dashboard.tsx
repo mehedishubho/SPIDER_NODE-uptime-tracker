@@ -1,10 +1,17 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useObject } from "@ai-sdk/react";
 import { authClient, useAuthSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { pollMonitorCheckResult } from "@/lib/check-now-poll";
+import {
+  ASSISTANT_SCHEMA,
+  isFieldValid,
+  type AssistantFields,
+} from "@/lib/ai/assistant-schema";
+import type { DeepPartial } from "ai";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -64,7 +71,19 @@ interface Monitor {
   uptimePercent: number;
 }
 
-export function Dashboard() {
+interface DashboardProps {
+  /**
+   * Server-rendered AI flag (08-07, Pattern 6): the dashboard server page
+   * reads the enabled env via aiEnabled() and passes the boolean down —
+   * never an env read here, never key material. With false the assistant
+   * panel does not render at all (D-21 zero trace) and the plain three-field
+   * form is the base state; the default (false) keeps the flag-off posture
+   * safe if the prop is absent.
+   */
+  aiEnabled?: boolean;
+}
+
+export function Dashboard({ aiEnabled = false }: DashboardProps) {
   const { data: session, isPending } = useAuthSession();
   const status = isPending ? "loading" : session ? "authenticated" : "unauthenticated";
   const router = useRouter();
@@ -99,6 +118,139 @@ export function Dashboard() {
   const [editMonitorUrl, setEditMonitorUrl] = useState("");
   const [editMonitorInterval, setEditMonitorInterval] = useState(5);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // -------------------------------------------------------------------------
+  // Monitor-setup assistant (08-07, AI-04 — create dialog ONLY; D-18: edit
+  // flows keep the plain form). The "Describe it in plain words" input sits
+  // above the three fields; the streamed PARTIAL object drives guarded
+  // setState calls on the same three useState fields (Pitfall 9 — this form
+  // is useState, never react-hook-form). D-19: fields fill one-by-one as
+  // their schema-valid values arrive; a value that never validates earns the
+  // inline "{field} needs manual entry" hint. The form's normal submit stays
+  // the ONLY validation gate — the suggestion is prefill, never a write.
+  // -------------------------------------------------------------------------
+  const [assistantInput, setAssistantInput] = useState("");
+  const [assistantCompleted, setAssistantCompleted] = useState(false);
+  const [assistantError, setAssistantError] = useState(false);
+  const [assistantHints, setAssistantHints] = useState({
+    name: false,
+    url: false,
+    interval: false,
+  });
+
+  // D-16 dirty-field guard: a field the user manually edited is never
+  // auto-overwritten by a (re-)fill. Flags set on user input, cleared per
+  // prefill — and deliberately NOT reset when a re-run starts, so edits made
+  // before clicking Regenerate survive it.
+  const assistantDirtyRef = useRef({ name: false, url: false, interval: false });
+  // The latest streamed partial, mirrored for the onFinish callback (whose
+  // closure would otherwise see a stale object) when computing the hints.
+  const assistantObjectRef = useRef<DeepPartial<AssistantFields> | undefined>(
+    undefined,
+  );
+
+  const retryAfterRef = useRef<number | null>(null);
+  const {
+    object: assistantObject,
+    submit,
+    isLoading: assistantLoading,
+    stop: stopAssistant,
+  } = useObject({
+    api: "/api/ai/monitor-assistant",
+    schema: ASSISTANT_SCHEMA,
+    fetch: useCallback(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        retryAfterRef.current = null;
+        const response = await fetch(input, init);
+        if (response.status === 429) {
+          const raw = Number(response.headers.get("Retry-After"));
+          if (Number.isFinite(raw) && raw > 0) retryAfterRef.current = raw;
+          // D-08: the 429 toast carries the Retry-After seconds (the hook's
+          // plain Error from the JSON body has no status/header surface).
+          toast.error(
+            `Too many AI requests — try again in ${retryAfterRef.current ?? 60}s`,
+          );
+        }
+        return response;
+      },
+      [],
+    ),
+    onError: useCallback(() => {
+      if (retryAfterRef.current !== null) return; // the 429 toast already fired
+      setAssistantError(true); // D-09: clean inline error; Retry = the re-run control
+    }, []),
+    onFinish: useCallback(
+      ({
+        error,
+      }: {
+        object: AssistantFields | undefined;
+        error: Error | undefined;
+      }) => {
+        if (!error) {
+          // A schema-valid completed run: hints clear, the control relabels
+          // to Regenerate (D-16).
+          setAssistantCompleted(true);
+          setAssistantError(false);
+          setAssistantHints({ name: false, url: false, interval: false });
+          return;
+        }
+        // Schema-invalid final object (e.g. interval 7 — D-19): the fields
+        // WITHOUT a valid prefilled value earn the manual-entry hint; the
+        // valid ones keep their prefills (never all-or-nothing).
+        const partial = assistantObjectRef.current;
+        setAssistantCompleted(true);
+        setAssistantError(false);
+        setAssistantHints({
+          name: !isFieldValid("name", partial?.name),
+          url: !isFieldValid("url", partial?.url),
+          interval: !isFieldValid("interval", partial?.interval),
+        });
+      },
+      [],
+    ),
+  });
+
+  // The streamed PARTIAL object drives the guarded per-field setState calls:
+  // each field fills independently the moment its schema-valid value arrives
+  // (D-19 — never all-or-nothing), unless the user edited it (dirty guard).
+  useEffect(() => {
+    assistantObjectRef.current = assistantObject;
+    if (!assistantObject) return;
+    const streamedName = assistantObject.name;
+    if (!assistantDirtyRef.current.name && isFieldValid("name", streamedName)) {
+      setNewMonitorName(streamedName);
+      assistantDirtyRef.current.name = false; // cleared on each prefill
+    }
+    const streamedUrl = assistantObject.url;
+    if (!assistantDirtyRef.current.url && isFieldValid("url", streamedUrl)) {
+      setNewMonitorUrl(streamedUrl);
+      assistantDirtyRef.current.url = false;
+    }
+    const streamedInterval = assistantObject.interval;
+    if (
+      !assistantDirtyRef.current.interval &&
+      isFieldValid("interval", streamedInterval)
+    ) {
+      setNewMonitorInterval(streamedInterval);
+      assistantDirtyRef.current.interval = false;
+    }
+  }, [assistantObject]);
+
+  const runAssistant = useCallback(() => {
+    const description = assistantInput.trim();
+    if (!description) return;
+    setAssistantError(false);
+    setAssistantHints({ name: false, url: false, interval: false });
+    submit({ description });
+  }, [assistantInput, submit]);
+
+  const resetAssistant = useCallback(() => {
+    setAssistantInput("");
+    setAssistantCompleted(false);
+    setAssistantError(false);
+    setAssistantHints({ name: false, url: false, interval: false });
+    assistantDirtyRef.current = { name: false, url: false, interval: false };
+  }, []);
 
   // Protect route
   useEffect(() => {
@@ -208,6 +360,7 @@ export function Dashboard() {
       setNewMonitorName("");
       setNewMonitorUrl("");
       setNewMonitorInterval(5);
+      resetAssistant();
       setIsAddModalOpen(false);
       fetchMonitors();
     } catch (err) {
@@ -849,6 +1002,70 @@ export function Dashboard() {
           </DialogHeader>
 
           <form onSubmit={handleCreateMonitor} className="flex flex-col gap-4">
+            {/* Monitor-setup assistant (AI-04) — create dialog only (D-18),
+                visible only when the server-rendered flag is true (D-21: with
+                the flag off this panel does not exist in the DOM at all). */}
+            {aiEnabled && (
+              <div
+                className="flex flex-col gap-2 rounded-lg border border-border bg-secondary/40 p-3"
+                data-testid="assistant-panel"
+              >
+                <label
+                  htmlFor="assistant-description"
+                  className="text-xs text-muted-foreground"
+                >
+                  Describe it in plain words
+                </label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="assistant-description"
+                    type="text"
+                    value={assistantInput}
+                    onChange={(e) => setAssistantInput(e.target.value)}
+                    placeholder="e.g. Watch my portfolio site every 5 minutes"
+                    data-testid="assistant-description"
+                    className={
+                      assistantLoading ? "border-accent-cyan/60" : undefined
+                    }
+                  />
+                  {assistantLoading ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={stopAssistant}
+                      data-testid="assistant-stop"
+                    >
+                      Stop
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={runAssistant}
+                      disabled={!assistantInput.trim()}
+                      data-testid={
+                        assistantCompleted
+                          ? "assistant-regenerate"
+                          : "assistant-generate"
+                      }
+                    >
+                      {/* D-16: the describe-input submit control relabels to
+                          "Regenerate" after a completed run — re-running the
+                          suggestion from the current description text. */}
+                      {assistantCompleted ? "Regenerate" : "Generate"}
+                    </Button>
+                  )}
+                </div>
+                {assistantError && (
+                  <p className="text-xs text-status-down" data-testid="assistant-error">
+                    Couldn&apos;t generate the suggestion.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div>
               <label
                 htmlFor="new-monitor-name"
@@ -860,10 +1077,21 @@ export function Dashboard() {
                 id="new-monitor-name"
                 type="text"
                 value={newMonitorName}
-                onChange={(e) => setNewMonitorName(e.target.value)}
+                onChange={(e) => {
+                  // D-16 dirty flag: manual edits are never overwritten by a
+                  // (re-)fill.
+                  assistantDirtyRef.current.name = true;
+                  setNewMonitorName(e.target.value);
+                }}
                 placeholder="e.g. Primary API Gateway"
                 required
               />
+              {aiEnabled && assistantHints.name && (
+                <p className="mt-1 text-xs text-muted-foreground" data-testid="hint-name">
+                  Monitor name needs manual entry — the description didn&apos;t
+                  include a valid value.
+                </p>
+              )}
             </div>
 
             <div>
@@ -877,10 +1105,19 @@ export function Dashboard() {
                 id="new-monitor-url"
                 type="url"
                 value={newMonitorUrl}
-                onChange={(e) => setNewMonitorUrl(e.target.value)}
+                onChange={(e) => {
+                  assistantDirtyRef.current.url = true;
+                  setNewMonitorUrl(e.target.value);
+                }}
                 placeholder="https://api.example.com/health"
                 required
               />
+              {aiEnabled && assistantHints.url && (
+                <p className="mt-1 text-xs text-muted-foreground" data-testid="hint-url">
+                  Target URL needs manual entry — the description didn&apos;t
+                  include a valid value.
+                </p>
+              )}
             </div>
 
             <div>
@@ -893,9 +1130,10 @@ export function Dashboard() {
               <select
                 id="new-monitor-interval"
                 value={newMonitorInterval}
-                onChange={(e) =>
-                  setNewMonitorInterval(Number(e.target.value))
-                }
+                onChange={(e) => {
+                  assistantDirtyRef.current.interval = true;
+                  setNewMonitorInterval(Number(e.target.value));
+                }}
                 className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
               >
                 <option value={1}>Every 1 minute</option>
@@ -904,6 +1142,12 @@ export function Dashboard() {
                 <option value={30}>Every 30 minutes</option>
                 <option value={60}>Every 60 minutes</option>
               </select>
+              {aiEnabled && assistantHints.interval && (
+                <p className="mt-1 text-xs text-muted-foreground" data-testid="hint-interval">
+                  Check interval needs manual entry — the description
+                  didn&apos;t include a valid value.
+                </p>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2">

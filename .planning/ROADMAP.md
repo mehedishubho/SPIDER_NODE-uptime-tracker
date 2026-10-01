@@ -368,7 +368,7 @@ Plans:
   4. Dashboard components use shadcn primitives with one dialog system and one icon system; every polling fetch is abortable (AbortController), timers clear on unmount, URL derivation is hydration-safe, and there is a single Toaster
   5. The visual redesign ships with light mode looking intentional (light-safe brand assets, sidebar token reconciliation) while monitoring behavior and public API shapes stay unchanged — characterization and contract tests still green
 
-**Plans**: 7/10 plans executed
+**Plans**: 9/10 plans executed
 
 Plans:
 **Wave 1** *(release-a tag after completion)*
@@ -398,11 +398,11 @@ Plans:
 
 **Wave 7** *(blocked on 08-06)*
 
-- [ ] 08-10-PLAN.md — AI post-mortem route (part 2 of the revision split): shared guard chain (flag-off 404 / 401 / 429 Retry-After / input cap both sides), ownership-scoped evidence with the D-14 report sections, UIMessage streaming + D-10 log + zero DB writes, AI-in-worker gate leg, zero-key verify (AI-01, AI-02)
+- [x] 08-10-PLAN.md — AI post-mortem route (part 2 of the revision split): shared guard chain (flag-off 404 / 401 / 429 Retry-After / input cap both sides), ownership-scoped evidence with the D-14 report sections, UIMessage streaming + D-10 log + zero DB writes, AI-in-worker gate leg, zero-key verify (AI-01, AI-02)
 
 **Wave 8** *(blocked on 08-10)*
 
-- [ ] 08-07-PLAN.md — AI feature UX: post-mortem inline streaming card (D-14 sections rendered) + monitor-assistant route/prefill (partial fill, submit-as-confirmation, D-16 regenerate on both features), server-side flag propagation, stub-provider e2e + D-21 zero-trace spec (AI-03, AI-04, AI-05)
+- [x] 08-07-PLAN.md — AI feature UX: post-mortem inline streaming card (D-14 sections rendered) + monitor-assistant route/prefill (partial fill, submit-as-confirmation, D-16 regenerate on both features), server-side flag propagation, stub-provider e2e + D-21 zero-trace spec (AI-03, AI-04, AI-05)
 
 **Wave 9** *(final — blocked on 08-07 — release-c tag; release-b cuts at post-08-09)*
 
@@ -441,7 +441,7 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | 5. Worker Cutover & Operational Hardening | 9/9 | Complete — deletion release d55cad5 shipped (worker owns 100% of checks, legacy cron deleted); D-18 approved, D-21 resolved-by-absence, tier-2 rollback rehearsed | 2026-09-19 |
 | 6. Thin API Routes & Email Abstraction | 7/7 | Complete    | 2026-10-01 |
 | 7. Better Auth Cutover, Admin Gating & Prisma Removal | 11/11 | Complete    | 2026-09-30 |
-| 8. Flagged Capabilities & UI Modernization | 7/10 | In Progress|  |
+| 8. Flagged Capabilities & UI Modernization | 9/10 | In Progress|  |
 
 ## Backlog
 

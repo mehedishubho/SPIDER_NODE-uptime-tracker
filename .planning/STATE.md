@@ -3,18 +3,18 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 08
 current_phase_name: Flagged Capabilities & UI Modernization
-current_plan: 9
+current_plan: 10
 status: executing
-stopped_at: Completed 08-10-PLAN.md
-last_updated: "2026-10-01T12:44:31.262Z"
+stopped_at: Completed 08-07-PLAN.md
+last_updated: "2026-10-01T13:34:28.844Z"
 last_activity: 2026-10-01
 last_activity_desc: Phase 06 complete (gap-closure round + UAT + security verified) — advanced to Phase 08
-state_head: 9f1c1667d141f5adbbdd3c7b0cd3daa3c229f76d
+state_head: d27e48814a12986a866512b93d3e24eb571b2ec0
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 73
-  completed_plans: 70
+  completed_plans: 72
 milestone_name: milestone
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 
 ## Current Position
 
-Current Plan: 9
+Current Plan: 10
 Total Plans in Phase: 10
 
 Phase: 08 — Flagged Capabilities & UI Modernization
-Plan: 9 of 10
+Plan: 10 of 10
 Status: Ready to execute
 Last activity: 2026-10-01 — Phase 06 complete, transitioned to Phase 08
 
@@ -141,6 +141,7 @@ Progress: [███████████████████████
 | Phase 08 P09 | 15 min (resume leg; tier-2 work salvaged from usage-limit-terminated prior session) | 2 tasks | 8 files |
 | Phase 08 P06 | 11 min | 2 tasks | 9 files |
 | Phase 08 P10 | 44min (2 sessions: quota-terminated prior leg + 44min resume) | 2 tasks | 10 files |
+| Phase 08 P07 | 40 min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -370,6 +371,9 @@ Recent decisions affecting current work:
 - [Phase 08]: 08-10: ai@7.0.123's createUIMessageStreamResponse takes consumeSseStream (callback, wired to the SDK's exported consumeStream helper) — the plan Pattern-2 'consumeStream: true' boolean does not exist in the installed SDK; the D-10 line rides streamText onEnd usage with the V4 token shapes — Pitfall-3 lineage (writing a pre-release SDK shape from docs); typecheck caught it, tests pin the v7 form
 - [Phase 08]: 08-10: test-fixture liveness contract — an undici Request built in a test must stay strongly referenced for the streaming scenario; GC reclaims it after the handler returns and severs the init.signal->req.signal abort forwarding (flaky dead abort); production is immune (the framework holds the in-flight request) — the abort-propagation pin is only deterministic with the liveness pin; documented on postWithSignal
 - [Phase 08]: 08-10: rule 15 (AI-05) is machine-enforced — remnant-gate leg 14 bans ai/@ai-sdk/*//@/lib/ai specifiers under src/worker (path-scoped, born ENFORCED, RED spot-checked); zero-key verify proves the flag-off posture — belt-and-braces beside worker:boundary per the 05 D-41 gate family
+- [Phase 08]: AI UX mounts on server-rendered flag seams: force-dynamic dashboard + monitor-detail pages read aiEnabled() per REQUEST so the D-38 flip is a restart, never a rebuild; only the boolean crosses to client trees (AI_ENABLED's read stays in lib/ai) — Pattern-6 flag propagation with build-time baking would strand the flag at build values; force-dynamic makes D-21 zero-trace and D-38 flip choreography both hold without a rebuild
+- [Phase 08]: AI e2e is a two-config runner: playwright.ai.config.ts boots the network-layer stub (:4599) + app (:3110) with the AI_* env triple for flag-ON legs; the default project runs flag-OFF zero-trace legs; inverted AI_E2E_STUB skips keep the default verify stub-free (5 skipped, exit 0) — Stub the provider at the network layer (research A3/OQ4) so the real lib/ai selection + guard chain + SDK hooks are exercised; the inverted gates are Task-3's degrade-safely posture
+- [Phase 08]: SDK hook errors carry no headers: Retry-After seconds for the D-08 429 toasts are captured by fetch-wrapper header reads in PostMortemCard (APICallError has statusCode only) and Dashboard's useObject wrapper (plain Error) — header reads, never chunk parsing (D-07 intact) — The hooks' error surfaces omit response headers; the response-boundary wrapper is the only seam that sees them
 
 ### Pending Todos
 
@@ -394,6 +398,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-01T12:44:30.589Z
-Stopped at: Completed 08-10-PLAN.md
+Last session: 2026-10-01T13:34:28.204Z
+Stopped at: Completed 08-07-PLAN.md
 Resume file: None

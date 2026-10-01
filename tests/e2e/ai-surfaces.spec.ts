@@ -11,8 +11,8 @@ import {
 } from "../setup/seed";
 
 // ---------------------------------------------------------------------------
-// AI-surface e2e legs (08-07 — AI-03 UX + D-21 zero-trace; Task 2 extends
-// this file with the monitor-assistant legs).
+// AI-surface e2e legs (08-07 — AI-03 post-mortem UX + AI-04 monitor-setup
+// assistant + D-21 zero-trace).
 //
 // Two flag postures, two runners (the 07-03 webServer env precedent):
 //   - Flag-ON legs (stub provider): run ONLY under playwright.ai.config.ts —
@@ -161,6 +161,137 @@ test.describe("AI surfaces — flag ON (stub provider)", () => {
     await expect(
       page.getByRole("button", { name: "Regenerate" }),
     ).toBeVisible();
+  });
+
+  // -------------------------------------------------------------------------
+  // Monitor-setup assistant legs (Task 2, AI-04): prefill inside the Add
+  // Monitor dialog (D-17), partial fill + manual-entry hints (D-19), the
+  // D-20 placeholder, and the D-16 Regenerate + dirty-field guard.
+  // -------------------------------------------------------------------------
+
+  async function openAddDialog(page: Page) {
+    await loginViaUi(page);
+    await page.getByRole("button", { name: "Add Monitor" }).first().click();
+    await expect(
+      page.getByRole("heading", { name: "Add New Monitor" }),
+    ).toBeVisible();
+    await expect(page.getByTestId("assistant-panel")).toBeVisible();
+  }
+
+  test("assistant prefills the dialog and the submitted form creates the monitor (partial-fill backstop)", async ({
+    page,
+  }) => {
+    await openAddDialog(page);
+
+    // The D-20 placeholder guides the input; the label is the contract copy.
+    const description = page.getByTestId("assistant-description");
+    await expect(description).toHaveAttribute(
+      "placeholder",
+      "e.g. Watch my portfolio site every 5 minutes",
+    );
+    await expect(
+      page.getByText("Describe it in plain words"),
+    ).toBeVisible();
+
+    // Run the suggestion — the stub streams a schema-valid object.
+    await description.fill("Watch my portfolio site every 5 minutes");
+    await page.getByTestId("assistant-generate").click();
+
+    // Partial fill: valid fields prefill (never all-or-nothing — D-19).
+    await expect(page.locator("#new-monitor-name")).toHaveValue(
+      "My Portfolio Site",
+      { timeout: 20_000 },
+    );
+    await expect(page.locator("#new-monitor-url")).toHaveValue(
+      "https://example.com/portfolio",
+    );
+    await expect(page.locator("#new-monitor-interval")).toHaveValue("5");
+
+    // A completed run relabels the control to Regenerate (D-16).
+    await expect(page.getByTestId("assistant-regenerate")).toBeVisible();
+
+    // The form's normal submit is the ONLY confirmation (AI-04/D-17): the
+    // prefilled values go through the REAL create route (trim + URL + SSRF
+    // admission re-run server-side; T-08-24).
+    await page.getByRole("button", { name: "Create Monitor" }).click();
+    await expect(
+      page.getByText("Monitor added successfully!"),
+    ).toBeVisible();
+    await expect(page.getByTestId("assistant-panel")).toHaveCount(0);
+
+    // The created monitor appears in the list (data truth, not just toast).
+    const row = page
+      .getByTestId("monitor-row")
+      .filter({ hasText: "My Portfolio Site" });
+    await expect(row).toBeVisible();
+  });
+
+  test("schema-invalid suggestion prefills valid fields and hints the invalid one (D-19)", async ({
+    page,
+  }) => {
+    await openAddDialog(page);
+
+    // "unreliable" is the stub's marker for the schema-invalid variant
+    // (interval 7 — outside the form's 1/5/10/30/60 option values).
+    const description = page.getByTestId("assistant-description");
+    await description.fill(
+      "Set up an unreliable endpoint check for my partial config site",
+    );
+    await page.getByTestId("assistant-generate").click();
+
+    // Valid fields prefill; the invalid interval NEVER lands (the select
+    // keeps its value — 7 is not an option) and earns the inline hint.
+    await expect(page.getByTestId("hint-interval")).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByTestId("hint-interval")).toHaveText(
+      "Check interval needs manual entry — the description didn't include a valid value.",
+    );
+    await expect(page.getByTestId("hint-name")).toHaveCount(0);
+    await expect(page.getByTestId("hint-url")).toHaveCount(0);
+    await expect(page.locator("#new-monitor-name")).toHaveValue(
+      "Partial Config Site",
+    );
+    await expect(page.locator("#new-monitor-url")).toHaveValue(
+      "https://example.com/partial",
+    );
+    await expect(page.locator("#new-monitor-interval")).toHaveValue("5");
+  });
+
+  test("Regenerate re-streams and never overwrites a field the user edited (D-16 dirty-field guard)", async ({
+    page,
+  }) => {
+    await openAddDialog(page);
+
+    const description = page.getByTestId("assistant-description");
+    await description.fill("Watch my portfolio site every 5 minutes");
+    await page.getByTestId("assistant-generate").click();
+    await expect(page.getByTestId("assistant-regenerate")).toBeVisible({
+      timeout: 20_000,
+    });
+
+    // The user edits the suggested name — the input handler sets that
+    // field's dirty flag.
+    const nameInput = page.locator("#new-monitor-name");
+    await nameInput.fill("My Edited Name");
+
+    // Regenerate re-runs the suggestion from the CURRENT description text.
+    await page.getByTestId("assistant-regenerate").click();
+
+    // The re-run actually streams (Stop flashes mid-flight), then the
+    // completed-state control returns.
+    await expect(page.getByTestId("assistant-stop")).toBeVisible();
+    await expect(page.getByTestId("assistant-regenerate")).toBeVisible({
+      timeout: 20_000,
+    });
+
+    // The manually edited field kept the user's value; the untouched URL
+    // re-prefilled from the fresh suggestion.
+    await expect(nameInput).toHaveValue("My Edited Name");
+    await expect(page.locator("#new-monitor-url")).toHaveValue(
+      "https://example.com/portfolio",
+      { timeout: 20_000 },
+    );
   });
 });
 

@@ -2,6 +2,10 @@
 
 ## Open operator confirmations riding into 06-05 Task 1 (from the 06-04 approval)
 
+Closed by the 2026-10-01 UAT audit — both dispositions are on the record (06-DEPLOY-RECORD §8: no contradicting evidence for the A3 webhook state and Vercel-cron absence) and the 06-05 Task 1 checkpoint they rode on completed with the deletion release; phase 06 is closed and re-verified.
+
+status: resolved
+
 **Found during:** 06-04 Task 3 continuation (approval recorded 2026-09-20T20:00Z)
 
 The operator's bare "approved" closed the release approval (D-30) but did not restate

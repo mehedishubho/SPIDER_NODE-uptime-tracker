@@ -12,6 +12,10 @@ Out-of-scope discoveries logged during execution. Not fixed per the scope bounda
 
 ## 2026-09-16 (05-07): Playwright browser specs blocked by machine-local Chromium spawn denial
 
+Closed by the 2026-10-01 UAT audit — the entry's own RE-VERIFIED record stands (2026-09-16 ~15:05Z: browser 6/6 + API 12/12 GREEN at the release commit, no remediation applied). The hc.io sibling note remains open via the 05-08 closeout entry below.
+
+status: resolved
+
 - **Found during:** 05-07 Task 3 pre-flight (`pnpm verify` at the release commit `7b5a997`).
 - **Issue:** Every browser-project spec fails at launch with `browserType.launch: spawn UNKNOWN`; executing the downloaded `chromium_headless_shell-1243` binary directly returns `Permission denied` deterministically (fresh re-download reproduces; identical ACLs on working revision 1228's binary; no Mark-of-the-Web; valid PE; full `chrome.exe` from the same cache spawns fine). Appeared after the 2026-09-16 machine outage/reboot that also killed the rehearsal containers. The identical suite was green on 04-09.
 - **Blast radius:** e2e API project still 18/18 GREEN; all non-browser verify stages green. Only browser-headed specs are affected, on this machine, at the OS level.
@@ -30,6 +34,10 @@ Out-of-scope discoveries logged during execution. Not fixed per the scope bounda
 - **Handling here:** recorded in 05-DEPLOY-RECORD.md Task-5 closeout; `.snapshots/0508-induce/` and the window evidence directories are retained (gitignored) as the D-42/D-48 evidence set.
 
 ## 2026-09-19 (05-09 closeout): residual writer + stand-in env notes
+
+Closed by the 2026-10-01 UAT audit — CRON_MODE now has zero readers and zero writers in the repo (consumed by the Phase-6 SEC-06 route removal and later playwright-config churn); the stand-in CRON_SECRET retired with SEC-06 (armed cron:remnants gate green); the tier-2 junction guidance above remains as restore reference, not an open action.
+
+status: resolved
 
 - **`playwright.config.ts` still writes `CRON_MODE=vercel` into the e2e web env (stale writer, inert):** the deletion release removed every `src/` READER of `CRON_MODE` (D-46 reader-driven removal), but the e2e harness sets it when spawning the test web — a writer to a variable nothing reads. Inert post-deletion; it is outside D-03's deletion-commit file list so it was NOT touched in 05-09. Clean up with the Phase-6 `/api/cron/*` route removal (SEC-06) or the next playwright-config-touching change.
 - **Stand-in web CRON_SECRET mint (`.snapshots/standin-web-env.sh`, gitignored):** the stand-in web never carried `CRON_SECRET` (the §9 lever was never callable on the stand-in — surfaced as the 18:3xZ HTTP 500 during the 05-09 flush-first attempt). A fresh 64-hex secret was minted into the gitignored env file so the deletion-release web can exercise the lever; the value is never logged or committed. Production carries its own `CRON_SECRET`; retire both with SEC-06 in Phase 6.

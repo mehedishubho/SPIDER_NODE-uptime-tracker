@@ -373,13 +373,37 @@ source: delegate-run (evidence adjudication against 07-DEPLOY-RECORD.md sections
 evidence: §16.4 — runbook §4d steps 2-6 executed 2026-09-29 (deploy SHA eaa5a4d; pre-deploy dump pre-0708-deletion-20260929-1449.dump 151,617 B restore-verified; readyz 200; /login 200 with no strip; smoke legs green: sign-in 200, /api/monitors 200 live, feedback 401/200/403, Bull Board 403, pings 4037→4038) — §4d verdict PASS. Preceded by operator decision A restore + replay (§16.6, chosen interactively, superseding §16.5 decision C). The follow-on drop release §4e is also PASS (§17.3) with the post-drop canary green (§17.3 step 7b).
 
 
+### 61. [07-07 D-38/D-40] Live Google/GitHub OAuth round-trip
+expected: Google and GitHub login complete WITHOUT a re-consent screen post-cutover (D-40 verbatim assertion) — the production proof that live refresh tokens survived the reshape.
+result: skipped
+reason: 'Deferred follow-up: operator defers the live Google/GitHub no-re-consent proof to the live server deploy (zero OAuth credentials exist on this topology; D-40 assertion verbatim-recorded in deploy record sec 13.3; data-layer token preservation proven by the 07-06 snapshot pass)'
+restored: 2026-10-02 — this test + 62-63 were dropped by the 2026-10-01 UAT regeneration (5eb06df); restored verbatim from the a13aa80 record per the re-verification advisory
+
+### 62. [07-08] Operator password change after DB restore
+expected: the operator logs in with the machine-minted credential and changes it via the auth flow (not the profile route - WINDOWS #4).
+result: pass
+evidence: OPERATOR-AUTHORIZED CHANGE 2026-09-30 via the Better Auth auth flow (change-password API with revokeOtherSessions=true): sign-in with the minted credential 200 -> change-password 200 -> old credential now 401 and new credential 200 (both verified live against the deployed stack); the WINDOWS #4 profile-route path was deliberately NOT used.
+restored: 2026-10-02 — restored verbatim from the a13aa80 record per the re-verification advisory
+
+### 63. [CR-01] Check-now poll + timestamps in a non-UTC environment
+expected: after a check-now enqueue completes, the manual-check poll resolves (never times out) and dashboard timestamps render at the correct instant regardless of server/browser UTC offset.
+result: pass
+evidence: RESOLVED by gap-closure wave - 07-10 (66b13a2) restored the ISO-8601 UTC wire contract at the iso() seam on all 8 response routes and hardened the poll comparison (src/lib/check-now-poll.ts); the unmocked real-DB wire suite tests/integration/wire-timestamps.test.ts runs RED 4/4 against the defect and GREEN 4/4 on the fix; verifier re-proved it independently 2026-09-29 and REMOVED the human item.
+restored: 2026-10-02 — restored from the a13aa80 record per the re-verification advisory
+
 ## Summary
 
-total: 60
-passed: 60
+total: 63
+passed: 62
 issues: 0
 pending: 0
-skipped: 0
+skipped: 1
+
+## Deferred Follow-Ups
+
+- test: 61
+  idea: "Live Google/GitHub OAuth no-re-consent proof (D-40) at the live server deploy"
+  deferred_at: 2026-09-30
 
 ## Gaps
 

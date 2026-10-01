@@ -452,3 +452,11 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 **Deferred at:** 2026-09-30 during /gsd-verify-work 07 session completion
 **Follow-ups:**
 - [ ] Test 61: Live Google/GitHub OAuth no-re-consent proof (D-40) at the live server deploy (deferred 2026-09-30)
+
+### Phase 999.2: Follow-up — Phase 06 deferred UAT follow-up: Test 4 (BACKLOG)
+
+**Goal:** Resolve the UAT checkpoint deferred during Phase 06 verification
+**Source phase:** 06
+**Deferred at:** 2026-10-01 during /gsd-verify-work 6 session completion
+**Follow-ups:**
+- [ ] Test 4: Auth-layer Redis-down degradation: map session-storage outage to the enqueue-endpoint 503 contract (or make getSession serve cache-only when secondaryStorage is down) — Better Auth config work, Phase-07 domain (deferred 2026-10-01)

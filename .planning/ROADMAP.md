@@ -368,7 +368,7 @@ Plans:
   4. Dashboard components use shadcn primitives with one dialog system and one icon system; every polling fetch is abortable (AbortController), timers clear on unmount, URL derivation is hydration-safe, and there is a single Toaster
   5. The visual redesign ships with light mode looking intentional (light-safe brand assets, sidebar token reconciliation) while monitoring behavior and public API shapes stay unchanged — characterization and contract tests still green
 
-**Plans**: 9/10 plans executed
+**Plans**: 10/10 plans executed
 
 Plans:
 **Wave 1** *(release-a tag after completion)*
@@ -406,7 +406,7 @@ Plans:
 
 **Wave 9** *(final — blocked on 08-07 — release-c tag; release-b cuts at post-08-09)*
 
-- [ ] 08-08-PLAN.md — D-37/D-38 release choreography: runbook Phase-8 section, three soaked releases from pinned tags (windowed backend / redesign post-08-09 / AI dark), AI flip with live smoke, 08-DEPLOY-RECORD (AI-01, DAT-11, UI-05 production proof legs)
+- [x] 08-08-PLAN.md — D-37/D-38 release choreography: runbook Phase-8 section, three soaked releases from pinned tags (windowed backend / redesign post-08-09 / AI dark), AI flip with live smoke, 08-DEPLOY-RECORD (AI-01, DAT-11, UI-05 production proof legs)
 
 **UI hint**: yes
 
@@ -441,7 +441,7 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | 5. Worker Cutover & Operational Hardening | 9/9 | Complete — deletion release d55cad5 shipped (worker owns 100% of checks, legacy cron deleted); D-18 approved, D-21 resolved-by-absence, tier-2 rollback rehearsed | 2026-09-19 |
 | 6. Thin API Routes & Email Abstraction | 7/7 | Complete    | 2026-10-01 |
 | 7. Better Auth Cutover, Admin Gating & Prisma Removal | 11/11 | Complete    | 2026-09-30 |
-| 8. Flagged Capabilities & UI Modernization | 9/10 | In Progress|  |
+| 8. Flagged Capabilities & UI Modernization | 10/10 | In Progress|  |
 
 ## Backlog
 

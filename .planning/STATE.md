@@ -4,17 +4,17 @@ milestone: v1.0
 current_phase: 08
 current_phase_name: Flagged Capabilities & UI Modernization
 current_plan: 10
-status: executing
-stopped_at: Completed 08-07-PLAN.md
-last_updated: "2026-10-01T13:34:28.844Z"
+status: verifying
+stopped_at: Completed 08-08-PLAN.md
+last_updated: "2026-10-01T16:08:56.422Z"
 last_activity: 2026-10-01
 last_activity_desc: Phase 06 complete (gap-closure round + UAT + security verified) — advanced to Phase 08
-state_head: d27e48814a12986a866512b93d3e24eb571b2ec0
+state_head: 74918466fa0511fdd10ceef5a492828389895914
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 73
-  completed_plans: 72
+  completed_plans: 73
 milestone_name: milestone
 ---
 
@@ -34,7 +34,7 @@ Total Plans in Phase: 10
 
 Phase: 08 — Flagged Capabilities & UI Modernization
 Plan: 10 of 10
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-01 — Phase 06 complete, transitioned to Phase 08
 
 Progress: [████████████████████████] 61/61 plans ([███░░░░░░░] 25%)
@@ -142,6 +142,7 @@ Progress: [███████████████████████
 | Phase 08 P06 | 11 min | 2 tasks | 9 files |
 | Phase 08 P10 | 44min (2 sessions: quota-terminated prior leg + 44min resume) | 2 tasks | 10 files |
 | Phase 08 P07 | 40 min | 3 tasks | 12 files |
+| Phase 08 P08 | ~2h 13m elapsed (3 sessions; closeout leg ~20 min) | 5 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -374,6 +375,10 @@ Recent decisions affecting current work:
 - [Phase 08]: AI UX mounts on server-rendered flag seams: force-dynamic dashboard + monitor-detail pages read aiEnabled() per REQUEST so the D-38 flip is a restart, never a rebuild; only the boolean crosses to client trees (AI_ENABLED's read stays in lib/ai) — Pattern-6 flag propagation with build-time baking would strand the flag at build values; force-dynamic makes D-21 zero-trace and D-38 flip choreography both hold without a rebuild
 - [Phase 08]: AI e2e is a two-config runner: playwright.ai.config.ts boots the network-layer stub (:4599) + app (:3110) with the AI_* env triple for flag-ON legs; the default project runs flag-OFF zero-trace legs; inverted AI_E2E_STUB skips keep the default verify stub-free (5 skipped, exit 0) — Stub the provider at the network layer (research A3/OQ4) so the real lib/ai selection + guard chain + SDK hooks are exercised; the inverted gates are Task-3's degrade-safely posture
 - [Phase 08]: SDK hook errors carry no headers: Retry-After seconds for the D-08 429 toasts are captured by fetch-wrapper header reads in PostMortemCard (APICallError has statusCode only) and Dashboard's useObject wrapper (plain Error) — header reads, never chunk parsing (D-07 intact) — The hooks' error surfaces omit response headers; the response-boundary wrapper is the only seam that sees them
+- [Phase 08]: [Phase 08]: 08-08: Task-3 operator gate RESOLVED proceed-b (operator mehedishubho, 2026-10-01, verbatim "use recommand") — Release A soak ACCEPTED; Release B (redesign + D-37 dep deletions) deployed
+- [Phase 08]: [Phase 08]: 08-08: Task-5 AI-flip gate dispositioned STAY-DARK (orchestrator judgment under operator non-response, 2026-10-01) — phase closes at the AI-01 requirement-default posture (AI_ENABLED unset, zero keys); OFF-leg live-proven in the Release C dark soak; ON-leg deferred OPEN in deferred-items.md; flip stays a ~2-min operator action (env triple + web restart, record §4 + runbook §4f), reversible by AI_ENABLED=false
+- [Phase 08]: [Phase 08]: 08-08: §1.6 topology provenance — Release A's worker/web restart legs satisfied by the already-live post-08-05 stack (deploying release-a's older bundles would have reverted the live 06-07 WR-01 fix and visibly downgraded surfaces); all other legs executed fresh; end state after Release C identical to plan intent (HEAD deployed, tag-proven 9372b26/3372424)
+- [Phase 08]: [Phase 08]: 08-08: §1.8 Rule-3 stack restoration — Docker Desktop bounce killed the process-hosted stack (~15-min monitoring gap, 14:47-14:55Z); worker+web restored from main-tree bundles (src/worker byte-identical to release-b/c proven via git diff) before Release B's deploy legs restored clean tag provenance
 
 ### Pending Todos
 
@@ -398,6 +403,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-01T13:34:28.204Z
-Stopped at: Completed 08-07-PLAN.md
+Last session: 2026-10-01T16:08:55.671Z
+Stopped at: Completed 08-08-PLAN.md
 Resume file: None

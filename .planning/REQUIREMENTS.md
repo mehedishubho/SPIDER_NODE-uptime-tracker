@@ -75,7 +75,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [x] **DAT-08**: Retention deletes batched (looped `LIMIT ~5000`) in the maintenance queue only (D-7)
 - [x] **DAT-09**: Connection budget enforced: web 10 / worker 20 / migration runner 1; shared pool during ORM transition; statement + idle timeouts set; pooled string for web reads, direct for migrations (D-8)
 - [x] **DAT-10**: `error_class` + status code metadata recorded on pings/incidents (N-5)
-- [ ] **DAT-11**: Windowed uptime backend behind a flag: per-window columns + nightly recompute from pings; lifetime counters remain the displayed numbers
+- [x] **DAT-11**: Windowed uptime backend behind a flag: per-window columns + nightly recompute from pings; lifetime counters remain the displayed numbers
 
 ### Resilience
 
@@ -129,7 +129,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 
 ### AI Integration
 
-- [ ] **AI-01**: `AI_ENABLED` flag, off by default; the app runs fully without any AI keys
+- [x] **AI-01**: `AI_ENABLED` flag, off by default; the app runs fully without any AI keys
 - [x] **AI-02**: AI endpoints are streaming, session-guarded, rate-limited (Redis limiter), input-size-capped, and timeout-bound; provider/model centralized in `lib/ai`
 - [x] **AI-03**: Incident summarization: post-mortem draft from an incident + pings window; output never auto-written to `incidents`
 - [x] **AI-04**: Monitor-setup assistant: natural language → config JSON validated by the same schema as the manual form; never executed without user confirmation
@@ -141,7 +141,7 @@ Requirements for this milestone. Each maps to roadmap phases. Review-issue trace
 - [x] **UI-02**: Dialog consolidation (`sweetalert2`/`window.confirm` → shadcn alert-dialog) and icon consolidation to a single system
 - [x] **UI-03**: Light palette refinement + light-safe brand assets (Lottie overlays, sidebar token reconciliation)
 - [x] **UI-04**: Client robustness fixes: AbortController on polling fetches, cleared timers, hydration-safe URL derivation, removed duplicate Toaster
-- [ ] **UI-05**: Full visual redesign executed only on stable tokens + stable APIs after backend migration completes
+- [x] **UI-05**: Full visual redesign executed only on stable tokens + stable APIs after backend migration completes
 
 ### Deployment
 
@@ -277,17 +277,17 @@ Which phases cover which requirements. Updated during roadmap creation (2026-09-
 | EML-04 | Phase 7 | Complete |
 | SEC-04 | Phase 7 | Complete |
 | OBS-04 | Phase 7 | Complete |
-| AI-01 | Phase 8 | Pending |
+| AI-01 | Phase 8 | Complete |
 | AI-02 | Phase 8 | Complete |
 | AI-03 | Phase 8 | Complete |
 | AI-04 | Phase 8 | Complete |
 | AI-05 | Phase 8 | Complete |
-| DAT-11 | Phase 8 | Pending |
+| DAT-11 | Phase 8 | Complete |
 | UI-01 | Phase 8 | Complete |
 | UI-02 | Phase 8 | Complete |
 | UI-03 | Phase 8 | Complete |
 | UI-04 | Phase 8 | Complete |
-| UI-05 | Phase 8 | Pending |
+| UI-05 | Phase 8 | Complete |
 
 **Coverage:**
 

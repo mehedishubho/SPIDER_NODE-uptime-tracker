@@ -1,5 +1,5 @@
 ---
-status: partial
+status: complete
 phase: 06-thin-api-routes-email-abstraction
 source: [06-01-SUMMARY.md, 06-02-SUMMARY.md, 06-03-SUMMARY.md, 06-04-SUMMARY.md, 06-05-SUMMARY.md, 06-VERIFICATION.md]
 started: 2026-09-29T22:24:06Z
@@ -8,12 +8,7 @@ updated: 2026-10-01T10:37:52Z
 
 ## Current Test
 
-number: 4
-name: Redis-Down Check-Now — Bounded 503
-expected: |
-  Bounded loud 503 under Redis outage — LIVE DRILL observed bounded 500 from the auth layer
-  (Better Auth secondaryStorage) before the enqueue path; awaiting operator accept-or-gap decision.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -37,9 +32,8 @@ evidence: "Delegate-run with authenticated probe session: after prior 202s in th
 
 ### 4. Redis-Down Check-Now — Bounded 503
 expected: With Redis unreachable, POST /api/monitors/[id]/check refuses loudly: a 503 (Service temporarily unavailable) within a bounded time — never a silent no-op and never an indefinite hang.
-result: issue
-reported: "Delegate-run live drill 2026-10-01T10:46Z (controlled prod-redis stop, ~10s): check-now answered 500 {'error':'Failed to check monitor'} in ~240ms (two requests) — LOUD and BOUNDED, never a hang, never a silent no-op, zero scheduling corruption (web log: Better Auth 'Failed to get session' — the AUTH layer's secondaryStorage (Redis) threw before the route reached the limiter/advance/enqueue ladder, so the enqueue-path 503+restore (API-02, pinned at handler level with mocked auth + real deadline) was never reached live). Redis restarted, stack healthy (readyz green)."
-severity: minor
+result: skipped
+reason: "Deferred follow-up (operator accepted option (a), 2026-10-01): live drill observed bounded ~240ms loud 500 from the Better Auth session layer (secondaryStorage=Redis down) BEFORE the enqueue path — the API-02 enqueue-path 503+restore is implemented and handler-pinned but unreachable live while sessions need Redis. Loud, bounded, fail-closed, zero corruption. Hardening (session-layer degradation → 503 mapping or cache-only session reads) deferred to backlog; Phase-07-domain auth work."
 
 ### 5. Sign-Up Verification Email via Queue Lane
 expected: Register a new account through the current auth (Better Auth) sign-up flow. Registration completes (no email wait on the request path) and the verification email arrives through the queue-backed email lane (console provider logs it locally; SMTP delivers in prod). With SMTP temporarily down, registration still succeeds and the email arrives once SMTP recovers.
@@ -159,10 +153,17 @@ evidence: "Operator confirmation ('pass all', 2026-10-01) recorded during the /g
 
 total: 25
 passed: 24
-issues: 1
+issues: 0
 pending: 0
-skipped: 0
+skipped: 1
 blocked: 0
+
+
+## Deferred Follow-Ups
+
+- test: 4
+  idea: "Auth-layer Redis-down degradation: map session-storage outage to the enqueue-endpoint 503 contract (or make getSession serve cache-only when secondaryStorage is down) — Better Auth config work, Phase-07 domain"
+  deferred_at: 2026-10-01
 
 ## Gaps
 

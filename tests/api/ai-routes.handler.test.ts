@@ -88,20 +88,28 @@ function postRaw(raw: string): NextRequest {
 }
 
 /**
- * POST whose body is a pull-tracking ReadableStream — proves the flag-off
- * 404 is issued BEFORE the body is read (D-21): `wasRead()` stays false
- * unless something consumed the body.
+ * POST whose body is a read-tracking ReadableStream — proves the flag-off
+ * 404 is issued BEFORE the body is read (D-21). Node's webstreams PRIME the
+ * queue with one pull below the high-water mark at construction (no reader
+ * involved), so only the SECOND pull — the one that happens because a
+ * consumer actually took the chunk out — counts as a read.
  */
-function postWithTrackingBody(): { req: NextRequest; wasRead: () => boolean } {
+function postWithTrackingBody(): { req: Request; wasRead: () => boolean } {
+  let pulls = 0;
   let read = false;
+  const chunk = new TextEncoder().encode(JSON.stringify(aiBody()));
   const stream = new ReadableStream<Uint8Array>({
     pull(controller) {
-      read = true;
-      controller.enqueue(new TextEncoder().encode(JSON.stringify(aiBody())));
+      pulls += 1;
+      if (pulls === 1) {
+        controller.enqueue(chunk); // the priming pull — fills HWM, no consumer
+        return;
+      }
+      read = true; // only reachable after a real consumer drained the chunk
       controller.close();
     },
   });
-  const req = new NextRequest(`http://localhost${PATH}`, {
+  const req = new Request(`http://localhost${PATH}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: stream,

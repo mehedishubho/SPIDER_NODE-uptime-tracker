@@ -114,8 +114,11 @@ function makeStubModel() {
           controller.enqueue({ type: "text-end", id: "t1" });
           controller.enqueue({
             type: "finish",
-            finishReason: "stop",
-            usage: { inputTokens: { total: 12 }, outputTokens: { total: 34 }, totalTokens: 46 },
+            finishReason: { unified: "stop", raw: "stop" },
+            usage: {
+              inputTokens: { total: 12, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
+              outputTokens: { total: 34, text: 34, reasoning: undefined },
+            },
           });
           controller.close();
         },
@@ -125,9 +128,10 @@ function makeStubModel() {
 }
 
 /**
- * Recursively collects the RAW leaf values of a drizzle SQL object (params
- * are stored raw beside StringChunk template text — 06-06 finding), so a
- * WHERE clause's bound values are assertable: toContain(userId) etc.
+ * Recursively collects the BOUND VALUES of a drizzle SQL tree: eq() stores
+ * each bound value inside a Param wrapper's `.value` (verified against the
+ * installed drizzle — Column descriptors and StringChunk template text are
+ * skipped), so a WHERE clause's values are assertable: toContain(userId).
  */
 function deepSqlValues(node: unknown, out: unknown[] = []): unknown[] {
   if (Array.isArray(node)) {
@@ -135,7 +139,12 @@ function deepSqlValues(node: unknown, out: unknown[] = []): unknown[] {
     return out;
   }
   if (node !== null && typeof node === "object") {
-    if (node.constructor?.name === "StringChunk") return out; // template text, not a value
+    const name = (node as object).constructor?.name;
+    if (name === "StringChunk") return out; // template text, not a value
+    if (name === "Param") {
+      out.push((node as { value: unknown }).value);
+      return out;
+    }
     const chunks = (node as { queryChunks?: unknown[] }).queryChunks;
     if (Array.isArray(chunks)) deepSqlValues(chunks, out);
     return out; // Column descriptors and SQL wrappers carry no bound values themselves
@@ -181,7 +190,9 @@ async function loadRoute() {
 
 /** Queues the happy-path evidence fixtures (monitor, incident, pings). */
 function queueHappyPath() {
-  dbState.results = [[monitorRow], [incidentRow], [pingRows]];
+  // Each queue entry is ONE query's ROW array — pingRows already is that
+  // array (double-wrapping would serve a single array-valued "row").
+  dbState.results = [[monitorRow], [incidentRow], pingRows];
 }
 
 describe("POST /api/ai/post-mortem — ownership + evidence assembly", () => {
@@ -222,9 +233,15 @@ describe("POST /api/ai/post-mortem — ownership + evidence assembly", () => {
     expect(res.status).toBe(200);
     await res.text(); // drain the stream so callbacks flush
 
-    // Three reads, all selects, in the ownership-first order.
+    // Three reads, all selects, in the ownership-first order — identified
+    // structurally (drizzle tables expose their columns as enumerable
+    // keys; identity would not survive the per-case module registry swap).
     expect(dbLog.map((e) => e.op)).toEqual(["select", "select", "select"]);
-    expect(dbLog[0].calls[0].args[0]).toHaveProperty("name", "monitors"); // monitor identity read first
+    const fromKeys = (index: number) =>
+      Object.keys(dbLog[index].calls[0].args[0] as Record<string, unknown>);
+    expect(fromKeys(0)).toContain("uptimePercent"); // monitors
+    expect(fromKeys(1)).toContain("resolvedAt"); // incidents
+    expect(fromKeys(2)).toContain("errorClass"); // pings
 
     // The incident read is scoped by BOTH the requested incidentId AND the
     // ownership-verified monitorId — never by incidentId alone.

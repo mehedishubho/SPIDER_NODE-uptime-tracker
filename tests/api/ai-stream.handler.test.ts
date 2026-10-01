@@ -15,7 +15,8 @@ import { MockLanguageModelV4 } from "ai/test";
 // AI streaming suite (08-10 Task 1 — the D-07 route contract over the REAL
 // ai package):
 //   1. The response IS a UIMessage stream built with the v7 stateless
-//      helpers — SSE frames, text deltas, consumeStream: true (Pitfall 5).
+//      helpers — SSE frames, text deltas, and the consumeSseStream drain
+//      (Pitfall 5: a client Stop cannot hang the connection).
 //   2. D-09 — maxRetries: 0 (never the silent-retry default 2) and a
 //      composed abortSignal on the streamText call.
 //   3. Pitfall 5 — aborting req.signal aborts the UPSTREAM provider call
@@ -103,8 +104,11 @@ function makeCompletingModel() {
           controller.enqueue({ type: "text-end", id: "t1" });
           controller.enqueue({
             type: "finish",
-            finishReason: "stop",
-            usage: { inputTokens: { total: 12 }, outputTokens: { total: 34 }, totalTokens: 46 },
+            finishReason: { unified: "stop", raw: "stop" },
+            usage: {
+              inputTokens: { total: 12, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
+              outputTokens: { total: 34, text: 34, reasoning: undefined },
+            },
           });
           controller.close();
         },
@@ -145,7 +149,17 @@ function makeHangingModel() {
   return { model, seen };
 }
 
-/** POST Request with a wired AbortSignal (plain Request — verified wiring). */
+/**
+ * POST Request with a wired AbortSignal (plain Request — undici wires
+ * init.signal to req.signal via an internal forwarding listener, so
+ * req.signal !== init.signal by identity). The RETURNED REQUEST MUST BE KEPT
+ * ALIVE for the duration of the streaming scenario: once the handler returns
+ * the Response, nothing else holds the Request, and a GC pass reclaims it —
+ * severing the undici forwarding listener so controller.abort() never reaches
+ * req.signal (observed as a flaky dead abort under vitest). Production is
+ * immune (the framework holds the in-flight Request), but the fixture must
+ * mirror that liveness contract explicitly.
+ */
 function postWithSignal(body: unknown, signal?: AbortSignal): Request {
   const init: RequestInit = {
     method: "POST",
@@ -155,6 +169,12 @@ function postWithSignal(body: unknown, signal?: AbortSignal): Request {
   if (signal) init.signal = signal;
   return new Request(`http://localhost${PATH}`, init);
 }
+
+/**
+ * Liveness registry for in-flight scenario Requests (see postWithSignal) —
+ * cleared per test so entries never leak across cases.
+ */
+const inflightRequests: Request[] = [];
 
 const AI_ENV_UNDER_TEST = ["AI_ENABLED", "AI_TIMEOUT_MS", "AI_MODEL"] as const;
 
@@ -168,7 +188,9 @@ beforeEach(() => {
   process.env.AI_MODEL = "glm-4.6-test";
   mockSession(sessionA);
   resetDbMocks();
-  dbState.results = [[monitorRow], [incidentRow], [pingRows]];
+  // Each queue entry is ONE query's ROW array — pingRows already is that
+  // array (double-wrapping would serve a single array-valued "row").
+  dbState.results = [[monitorRow], [incidentRow], pingRows];
   seams.rateLimit.mockReset();
   seams.rateLimit.mockResolvedValue({ success: true, remaining: 9, resetSeconds: 30 });
   seams.getAiModel.mockReset();
@@ -182,6 +204,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  inflightRequests.length = 0; // release the per-test liveness pins
   consoleInfo?.mockRestore();
   consoleError?.mockRestore();
   for (const key of AI_ENV_UNDER_TEST) delete process.env[key];
@@ -206,10 +229,11 @@ describe("POST /api/ai/post-mortem — streaming contract (D-07/D-09/Pitfall 5)"
     expect(text).toContain("text-delta");
     expect(text).toContain("Generated post-mortem text.");
 
-    // The response was built by createUIMessageStreamResponse with
-    // consumeStream: true — client Stop drains instead of hanging (Pitfall 5).
+    // The response was built by createUIMessageStreamResponse with the v7
+    // consumeSseStream drain wired — a client Stop cannot hang the
+    // connection on an undrained stream (Pitfall 5).
     expect(seams.responseCalls).toHaveLength(1);
-    expect(seams.responseCalls[0].consumeStream).toBe(true);
+    expect(typeof seams.responseCalls[0].consumeSseStream).toBe("function");
     expect(seams.responseCalls[0].stream).toBeDefined();
   });
 
@@ -231,7 +255,11 @@ describe("POST /api/ai/post-mortem — streaming contract (D-07/D-09/Pitfall 5)"
     const controller = new AbortController();
     const { POST } = await loadRoute();
 
-    const res = await POST(postWithSignal(aiBody(), controller.signal));
+    // The Request stays strongly referenced for the whole scenario — the GC
+    // liveness contract documented on postWithSignal.
+    const req = postWithSignal(aiBody(), controller.signal);
+    inflightRequests.push(req);
+    const res = await POST(req);
     const drained = res.text();
     await new Promise((resolve) => setTimeout(resolve, 40)); // let the upstream call start
     controller.abort(); // the client presses Stop

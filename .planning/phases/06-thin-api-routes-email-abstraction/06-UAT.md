@@ -1,5 +1,5 @@
 ---
-status: complete
+status: partial
 phase: 06-thin-api-routes-email-abstraction
 source: [06-01-SUMMARY.md, 06-02-SUMMARY.md, 06-03-SUMMARY.md, 06-04-SUMMARY.md, 06-05-SUMMARY.md, 06-VERIFICATION.md]
 started: 2026-09-29T22:24:06Z
@@ -8,7 +8,12 @@ updated: 2026-10-01T10:37:52Z
 
 ## Current Test
 
-[testing complete]
+number: 4
+name: Redis-Down Check-Now — Bounded 503
+expected: |
+  Bounded loud 503 under Redis outage — LIVE DRILL observed bounded 500 from the auth layer
+  (Better Auth secondaryStorage) before the enqueue path; awaiting operator accept-or-gap decision.
+awaiting: user response
 
 ## Tests
 
@@ -19,7 +24,8 @@ evidence: "Delegate-run 2026-09-29T22:33Z via the operator's own guarded restart
 
 ### 2. Check Now — 202 + Poll + Toast
 expected: On the Dashboard, click Check now on an active monitor. The button swaps to "Checking…" and control returns immediately (202 enqueue, never a synchronous check). Within ~2-30s the fresh result appears via polling: UP → green success toast, DOWN → red error toast. On timeout an info toast appears (never an error, never an auto re-enqueue).
-result: issue
+result: pass
+evidence: "RE-VERIFIED LIVE 2026-10-01 (Test 19): repeat check-now on an UP monitor persists within 2s (lastChecked 31ms after queuedAt, totalChecks incremented) on worker sha e9d557f. Original issue (repeat manual check persisted nothing) fixed by 06-07 Task 1; full history in the original reported block below and the resolved G-06-2 gap entry."
 reported: "Delegate-run: 202 body contract VERIFIED ({jobId: 'check-manual:4:...', queuedAt}, immediate). FIRST check (PENDING→UP transition) persisted sub-second (Tier 1 applied:true, lastChecked 22:36:28.676Z, status UP, responseTime 24ms). REPEAT check-now on the now-UP monitor: worker job ran (check-manual:4:1790721457894, Tier 1 txn applied:false) but NOTHING persisted — no check row, lastChecked stayed 22:36:28.676Z, totalChecks stayed 1 across a full 30s poll window AND re-check 44s later. The client poll (lastChecked > queuedAt, 30s give-up) can never complete for a repeat manual check on an UP monitor → always the timeout info toast; data refreshes only at the next SCHEDULED check (interval minutes later). The phase's #1 success criterion (SC-1/API-01 fresh result via polling) fails in the most common case."
 severity: blocker
 resolution: "FIXED by 06-07 Task 1 (commits 2117249 RED + 2b0b218 GREEN): manual non-transition results persist in-job via the §16.2 additive follow-up (manualFlushed, requireActive-guarded). Engine tests 10-12 prove the contract on real PG/Redis (12/12). Source-level fix verified by the 2026-09-30 re-verification (G-06-2 CLOSED); live-worker proof pending the next release rebuild — see Test 19."
@@ -31,8 +37,9 @@ evidence: "Delegate-run with authenticated probe session: after prior 202s in th
 
 ### 4. Redis-Down Check-Now — Bounded 503
 expected: With Redis unreachable, POST /api/monitors/[id]/check refuses loudly: a 503 (Service temporarily unavailable) within a bounded time — never a silent no-op and never an indefinite hang.
-result: skipped
-reason: "Delegate-run disposition (operator 'pass all' 2026-10-01): live prod-Redis outage drill not performed — it would stop monitoring on the operator's production instance. The 503 contract is machine-proven: 06-06 deadline suite 5/5 + route hang pin (never-settling enqueue → bounded 503), re-verification truth 3 CLOSED (active-refusal mode verified, silent-unreachable hang fixed + pinned). Live drill deferred as a resilience-exercise backlog item."
+result: issue
+reported: "Delegate-run live drill 2026-10-01T10:46Z (controlled prod-redis stop, ~10s): check-now answered 500 {'error':'Failed to check monitor'} in ~240ms (two requests) — LOUD and BOUNDED, never a hang, never a silent no-op, zero scheduling corruption (web log: Better Auth 'Failed to get session' — the AUTH layer's secondaryStorage (Redis) threw before the route reached the limiter/advance/enqueue ladder, so the enqueue-path 503+restore (API-02, pinned at handler level with mocked auth + real deadline) was never reached live). Redis restarted, stack healthy (readyz green)."
+severity: minor
 
 ### 5. Sign-Up Verification Email via Queue Lane
 expected: Register a new account through the current auth (Better Auth) sign-up flow. Registration completes (no email wait on the request path) and the verification email arrives through the queue-backed email lane (console provider logs it locally; SMTP delivers in prod). With SMTP temporarily down, registration still succeeds and the email arrives once SMTP recovers.
@@ -46,7 +53,8 @@ evidence: "Delegate-run via the engine path /api/auth/request-password-reset: kn
 
 ### 7. Telegram Webhook Auth Ladder
 expected: POST /api/telegram/webhook without the X-Telegram-Bot-Api-Secret-Token header → 401 and no chat-binding write. Wrong-length token → 401. Flooding past 30 req/min from one IP → 429 even with the correct secret.
-result: issue
+result: pass
+evidence: "RE-VERIFIED LIVE 2026-10-01: after the operator set TELEGRAM_WEBHOOK_SECRET in the launch env and web restarted, the tracked probe recorded 401/401/429 + login 200 (06-07-SUMMARY verbatim); independently re-run by the re-verifier with exit 0. Original issue (env contract omitted the secret → designed fail-closed 500) fixed; full history in the original reported block below and the resolved G-06-7 gap entry."
 reported: "Delegate-run: rate-limit leg EXACT — 30 requests consumed the window then 429 from the 31st (limiter-first ladder, D-21, works; only the loopback bucket burned). Secret legs FAIL the contract shape: no-secret and wrong-length both return 500, not 401. Web log names the cause: 'Telegram Webhook Error: TELEGRAM_WEBHOOK_SECRET is not configured' — the Phase-07 flip env contract (.snapshots/0707-prod-worker-env.sh, 14 keys) omits TELEGRAM_WEBHOOK_SECRET, so the route takes its designed loud config-error path (fail-closed: body never processed, no chat-binding write, never accepts). The code is correct (06-03 pins: unset→500 by design, wrong secret→401); the RUNNING POSTURE lacks the secret. Production mint was operator-attested at 06-05 §12 but never entered the 07-era launch env."
 severity: major
 resolution: "FIXED 2026-10-01: operator set TELEGRAM_WEBHOOK_SECRET in the launch env contract; web restarted through it. Tracked probe (scripts/probe-telegram-webhook-ladder.mjs) recorded the before/after in 06-07-SUMMARY: baseline 500/500/429 → after 401/401/429 + login 200, exit 0. Independently re-run by the 2026-09-30 re-verifier: 401/401/429 exit 0 (G-06-7 CLOSED)."
@@ -150,10 +158,10 @@ evidence: "Operator confirmation ('pass all', 2026-10-01) recorded during the /g
 ## Summary
 
 total: 25
-passed: 22
-issues: 2
+passed: 24
+issues: 1
 pending: 0
-skipped: 1
+skipped: 0
 blocked: 0
 
 ## Gaps

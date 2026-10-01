@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Redis & Drizzle Schema Ownership** - Redis with no correctness dependence; live-DDL Drizzle baseline plus worker schema addenda, rehearsed on a prod snapshot (completed 2026-09-12)
 - [x] **Phase 4: Monitoring Worker — Build & Dark Launch** - Dedicated worker owns all monitoring on idempotent, resilient BullMQ machinery; dark-launched while cron still serves users (completed 2026-09-14)
 - [x] **Phase 5: Worker Cutover & Operational Hardening** - Gated overlap cutover deletes the cron; heartbeat moves, observability, env transition, rehearsed rollback (completed 2026-09-19)
-- [ ] **Phase 6: Thin API Routes & Email Abstraction** - Web becomes an enqueue-only producer; security fixes at the new boundary; email queued off the request path
+- [x] **Phase 6: Thin API Routes & Email Abstraction** - Web becomes an enqueue-only producer; security fixes at the new boundary; email queued off the request path (completed 2026-10-01)
 - [x] **Phase 7: Better Auth Cutover, Admin Gating & Prisma Removal** - Canary-gated auth cutover onto existing tables; admin roles gate feedback and queue UI; Prisma deleted (completed 2026-09-30)
 - [ ] **Phase 8: Flagged Capabilities & UI Modernization** - AI and windowed-uptime behind default-off flags; visual redesign on stable tokens and stable APIs
 
@@ -274,7 +274,7 @@ Plans:
   3. No endpoint accepts a secret via query string and no `CRON_SECRET` reference remains in the codebase; error responses never leak stack traces or internals
   4. With SMTP down, account registration still completes and the verification email arrives once SMTP recovers (queued, bounded attempts, backoff); a permanently undeliverable address stops retrying via a typed unrecoverable error; the existing HTML template renders unchanged from its new location
 
-**Plans**: 7/7 plans executed + 2 gap-closure plans (06-VERIFICATION: 2 enqueue-failure-path gaps; 06-UAT: G-06-2 manual non-transition persist + G-06-7 webhook secret env posture)
+**Plans**: 7/7 plans complete + 2 gap-closure plans (06-VERIFICATION: 2 enqueue-failure-path gaps; 06-UAT: G-06-2 manual non-transition persist + G-06-7 webhook secret env posture)
 
 Plans:
 **Wave 1** *(no dependencies)*
@@ -368,7 +368,7 @@ Plans:
   4. Dashboard components use shadcn primitives with one dialog system and one icon system; every polling fetch is abortable (AbortController), timers clear on unmount, URL derivation is hydration-safe, and there is a single Toaster
   5. The visual redesign ships with light mode looking intentional (light-safe brand assets, sidebar token reconciliation) while monitoring behavior and public API shapes stay unchanged — characterization and contract tests still green
 
-**Plans**: 6/10 plans executed
+**Plans**: 7/10 plans executed
 
 Plans:
 **Wave 1** *(release-a tag after completion)*
@@ -394,7 +394,7 @@ Plans:
 
 **Wave 6** *(blocked on 08-04 + 08-05 + 08-09 — D-36 AI last)*
 
-- [ ] 08-06-PLAN.md — AI provider foundation (part 1 of the revision split): AI SDK pins + zod, lib/ai env-swappable layer (GLM day-1 default + openai/anthropic/custom factories), aiEnabled helper, AI_* env entries (AI-01, AI-02)
+- [x] 08-06-PLAN.md — AI provider foundation (part 1 of the revision split): AI SDK pins + zod, lib/ai env-swappable layer (GLM day-1 default + openai/anthropic/custom factories), aiEnabled helper, AI_* env entries (AI-01, AI-02)
 
 **Wave 7** *(blocked on 08-06)*
 
@@ -439,9 +439,9 @@ Phase 6 may execute in parallel with Phase 5 (both depend only on Phase 4); Phas
 | 3. Redis & Drizzle Schema Ownership | 0/TBD | Not started | - |
 | 4. Monitoring Worker — Build & Dark Launch | 0/9 | Planned — research resolved, 9 plans across 6 waves | - |
 | 5. Worker Cutover & Operational Hardening | 9/9 | Complete — deletion release d55cad5 shipped (worker owns 100% of checks, legacy cron deleted); D-18 approved, D-21 resolved-by-absence, tier-2 rollback rehearsed | 2026-09-19 |
-| 6. Thin API Routes & Email Abstraction | 7/7 | In Progress|  |
+| 6. Thin API Routes & Email Abstraction | 7/7 | Complete    | 2026-10-01 |
 | 7. Better Auth Cutover, Admin Gating & Prisma Removal | 11/11 | Complete    | 2026-09-30 |
-| 8. Flagged Capabilities & UI Modernization | 6/10 | In Progress|  |
+| 8. Flagged Capabilities & UI Modernization | 7/10 | In Progress|  |
 
 ## Backlog
 

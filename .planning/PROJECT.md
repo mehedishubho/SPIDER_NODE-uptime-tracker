@@ -31,6 +31,7 @@ Inferred from existing codebase (`.planning/codebase/` map) — current capabili
 - ✓ Feedback submission — existing
 - ✓ Dual-cron trigger (internal node-cron or Vercel Cron HTTP) with healthchecks.io dead-man's switch — existing (replaced, not preserved)
 - ✓ Design gate: all 8 §8 addenda incorporated into audit/runbook, 25/25 §9 checklist items resolved, review verdict flipped NOT READY → READY on a human-ratified D-18 cycle-2 clean pass — **Validated in Phase 01: design-gate-review-verdict-ready** (26/26 verification; design-debt register in `01-VERIFICATION.md` — CR-01/CR-02 must be consumed by Phase 4/5 planning)
+- ✓ Thin API routes + email abstraction (API-01/02, SEC-03/05/06, EML-01/02/03/05) — **Validated in Phase 06** incl. gap-closure round: enqueue-failure compensation (µs-exact ::text restore, real-PG-pinned), 3s producer deadline, in-job manual non-transition persist; webhook ladder live-verified 401/401/429; deletion release + D-41 gate green (478 files)
 
 ### Active
 
@@ -110,6 +111,9 @@ Derived scope (audit §24 order — the chosen sequence):
 | Phase-03 release on operator-ratified local-only stand-in topology (DB `spidernode-dev-db`, dedicated hardened Redis 6391, app via `pnpm start`) | No VPS is live; every applicable runbook directive proven on the stand-in, §3c alert + §3b systemd form forward-tracked to the first real VPS deploy | ✓ Done (03-DEPLOY-RECORD; UAT dispositions 2026-09-12: (b) defer §3c, drop mvp tag) |
 | Phase-04 dark launch: worker live with schedulers disabled while cron keeps serving every user check | M3 overlap window opens safely — new machinery runs and proves health/idempotency/resilience (7-case injection suite) with zero user exposure; cutover only after Phase-5 overlap gates | ✓ Done (operator-approved 2026-09-14; 04-DEPLOY-RECORD; verification 11/12 + SEC-02 override, 0C/5W/3I review) |
 | Keep `monitors.id` as integer serial; keep table/column names | Public status-page URLs and ping/incident FKs depend on them (audit §11.1, M-5) | — Pending |
+| Check-now enqueue failure compensates: capture pre-advance next_check_at via RETURNING (::text, µs-exact) and restore before answering 503 | The advance must never silently postpone checking — the milestone's #1 binding constraint (06-06 gap closure) | ✓ Done (07dd5522/f050cab; re-verified 2026-09-30) |
+| Every web-side producer await bounded by a 3s producer deadline | Silent-unreachable Redis must never hang a request; bounded 503 is the contract (06-06 gap 2) | ✓ Done (8ef7599; 5/5 hang pins) |
+| Manual non-transition check results persist in-job via the §16.2 additive flush (requireActive-guarded) | Repeat check-now on an UP monitor must refresh lastChecked within the poll window — SC-1's most common case (06-07 gap closure) | ✓ Done (2b0b218; live-proven 2026-10-01, engine 12/12) |
 
 ## Evolution
 
@@ -129,4 +133,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-19 after Phase 05 completion (worker-cutover-operational-hardening: 9/9 plans; cutover gates 7/7 PASS on window #4b → D-20 GREEN → D-18 operator approval; deletion release d55cad5 shipped — worker owns 100% of checks, legacy cron scheduler deleted, D-21 resolved-by-absence, tier-2 rollback rehearsed from the retained 9f667e2 tarball with the junction-shim finding recorded; Phase 6 next per ROADMAP)*
+*Last updated: 2026-10-01 after Phase 06 completion (thin-api-routes-email-abstraction: 7/7 plans incl. gap-closure round 06-06/06-07; 12/12 must-haves verified; UAT 24 pass / 0 open / 1 deferred-to-backlog 999.2; security threats_open 0 — 39 closed, 1 accepted; webhook secret restored to launch env; live worker sha e9557f-carries-fixes; migration 0004 applied post-backup. Phase 7 completed in parallel session; Phase 8 in progress)*

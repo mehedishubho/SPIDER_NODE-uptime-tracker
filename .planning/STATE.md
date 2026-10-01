@@ -1,20 +1,20 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 8
+current_phase: 08
 current_phase_name: Flagged Capabilities & UI Modernization
-current_plan: 7
-status: executing
-stopped_at: Completed 08-09-PLAN.md
-last_updated: "2026-10-01T10:44:55.748Z"
+current_plan: Not started
+status: planning
+stopped_at: "Phase 06 COMPLETE — verification passed (canonicalized), UAT 24/25 pass, SECURITY threats_open 0; Phase 08 in progress (parallel session owns plans)"
+last_updated: "2026-10-01T10:55:00.000Z"
 last_activity: 2026-10-01
-last_activity_desc: Phase 8 execution started
-state_head: 9372b26772e383aa008cc03560e14c5cf3b2968e
+last_activity_desc: Phase 06 complete (gap-closure round + UAT + security verified) — advanced to Phase 08
+state_head: a2a10705b5503d9d606d563801264aa85dd3165d
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 73
-  completed_plans: 69
+  completed_plans: 70
 milestone_name: milestone
 ---
 
@@ -29,21 +29,21 @@ See: .planning/PROJECT.md (updated 2026-09-19)
 
 ## Current Position
 
-Current Plan: 7
+Current Plan: Not started
 Total Plans in Phase: 10
 
-Phase: 8 (Flagged Capabilities & UI Modernization) — EXECUTING
-Plan: 7 of 10
-Status: Ready to execute
-Last activity: 2026-10-01 — Phase 8 execution started
+Phase: 08 — Flagged Capabilities & UI Modernization
+Plan: 8 of 10
+Status: Ready to plan
+Last activity: 2026-10-01 — Phase 06 complete, transitioned to Phase 08
 
-Progress: [████████████████████████] 61/61 plans ([█░░░░░░░░░] 13%)
+Progress: [████████████████████████] 61/61 plans ([███░░░░░░░] 25%)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 56
+- Total plans completed: 63
 - Average duration: —
 - Total execution time: —
 
@@ -57,6 +57,7 @@ Progress: [███████████████████████
 | 4 | 9 | - | - |
 | 5 | 9 | - | - |
 | 07 | 11 | - | - |
+| 06 | 7 | - | - |
 
 **Recent Trend:**
 
@@ -138,6 +139,7 @@ Progress: [███████████████████████
 | Phase 08 P04 | 2 sessions (prior session Tasks 1 + partial 2, quota-terminated; resume leg Tasks 2-3 + closeout ~45 min) | 3 tasks | 6 files |
 | Phase 08 P05 | 26min | 2 tasks | 8 files |
 | Phase 08 P09 | 15 min (resume leg; tier-2 work salvaged from usage-limit-terminated prior session) | 2 tasks | 8 files |
+| Phase 08 P06 | 11 min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -361,6 +363,8 @@ Recent decisions affecting current work:
 - [Phase 08]: 08-05: UI-03 deliberately left Pending — part 2 (tier-2 sweep + sidebar reconciliation) is 08-09's; requirements-completed stays empty (false-signal precedent)
 - [Phase 08]: 08-09: tier-2 sweep + sidebar reconciliation landed as a salvage — the usage-limit-terminated prior session's 6-file uncommitted work was verified sound (tokens/keyframes exist on the 08-05 substrate, typecheck/lint/e2e green) and kept whole; NavMain's inactive branch was the only fresh code (sidebar primitive tokens, cyan active-nav byte-intact)
 - [Phase 08]: 08-09: UI-03 COMPLETE across both parts (08-05 substrate + 08-09 tier-2/sidebar) — tier-1/2/sidebar surfaces all token-driven in both themes, dark values byte-preserved; NavUser/Navbar-rose-400/Pagination/app-wide emerald-rose survey logged to phase deferred-items.md as 08-08/08-10 inputs
+- [Phase 08]: 08-06: full env-value map ships with all five SDK packages installed at exact research-audit pins (OQ1) — provider swap is an env edit, never a code change (D-02); AI_BASE_URL required only for AI_PROVIDER=custom with the throw living in providers/custom.ts naming the var
+- [Phase 08]: 08-06: getAiModel() checks AI_ENABLED on every call BEFORE the cache (a flipped-off flag invalidates even a cached resolution) — the AI-01 flag-off default posture is authored in lib/ai; route-level 404 proof lands in 08-10; AI-01/AI-02 stay Pending (shared with 08-10/08-08, false-signal precedent)
 
 ### Pending Todos
 
@@ -385,6 +389,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-01T10:44:55.118Z
-Stopped at: Completed 08-09-PLAN.md
+Last session: 2026-10-01T10:58:47.273Z
+Stopped at: Completed 08-06-PLAN.md
 Resume file: None

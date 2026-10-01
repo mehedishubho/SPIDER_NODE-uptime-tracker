@@ -90,9 +90,13 @@
 - `GET /api/cron/check` - monitor checks, guarded by `CRON_SECRET` (`src/app/api/cron/check/route.ts`)
 - `GET /api/cron/cleanup` - data cleanup, guarded by `CRON_SECRET` (`src/app/api/cron/cleanup/route.ts`)
 
+**Internal API surface (Phase 8 addition, 08-10):**
+- `POST /api/ai/post-mortem` - streaming incident post-mortem draft (`src/app/api/ai/post-mortem/route.ts`); session-guarded, per-user Redis rate limit (ai_drafts 10/h), input-capped (2000 chars), timeout-bound; flag-off (`AI_ENABLED` not "true") answers 404 before the body is read; copy-only — zero DB writes; ownership-scoped evidence via `src/lib/ai/guards.ts` guard chain + `src/lib/ai/log.ts` D-10 log line
+
 **Outgoing:**
 - Telegram sendMessage (alerts), SMTP email (alerts via `src/lib/mail.ts`), healthchecks.io ping
+- AI provider HTTPS streaming via `src/lib/ai/providers/*` (`AI_API_KEY` → Z.ai GLM day-1 / OpenAI / Anthropic / custom OpenAI-compatible; web-process only — no AI import under `src/worker/**`, remnant-gate leg 14 enforces)
 
 ---
 
-*Integration audit: 2026-09-08*
+*Integration audit: 2026-09-08; AI route leg added 2026-10-01 (08-10)*

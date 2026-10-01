@@ -132,7 +132,45 @@ Machine-verified on the shipped artifact: the 50-test e2e run above includes the
 
 ## 3. Release C — AI dark ship (tag `release-c` @ 3372424)
 
-*(pending Task 4)*
+Tag `release-c` created this leg (annotated → `3372424`, "docs(08-07): complete AI UX plan"). Gate + deploy from a clean worktree checkout (`D:/Devsroom-Work/uptime-release-c-wt`, `pnpm install --frozen-lockfile` 5.4 s; env files staged as in §2 — **name-grepped before deploy: zero `AI_*` vars on the box**, the dark-ship precondition).
+
+### 3.1 Artifact gate (D-37)
+
+| Leg | Result |
+|---|---|
+| `pnpm lint` / `pnpm typecheck` | **0 errors** / clean |
+| `pnpm test` (vitest) | **475 passed / 1 failed / 3 skipped** — the single failure is `tests/worker/health.test.ts` IN-01 empty-string-guard `EADDRINUSE 127.0.0.1:9090` (live worker holds the port; pre-documented environmental exception, §1.2 lineage) |
+| `pnpm schema:gate` / `pnpm worker:boundary` / `pnpm denylist:diff` | green / green (19 files) / green (11-token set equality) |
+| `pnpm build` | success — `.next/BUILD_ID` `05QkRU1YUgmbf_5zjPdYE`; `dist/worker.js` sha256 `e41730d9a0b63c38c6ea0f0511117868fd47046be49c1894715c92786769aaa3` |
+| `pnpm cron:remnants` | green — **486 files** incl. `dist/worker.js` + `.next/server`: no cron/auth/Prisma/icon-dialog remnants **and no AI imports under `src/worker` (the 08-10 AI-05/rule-15 leg, live on the shipped tree)** |
+| `pnpm test:e2e` | **52 passed / 5 skipped** (3.7 m, exit 0) — the 5 AI stub-provider legs skip cleanly under the default flag-off config; the **2 flag-OFF zero-trace legs ran green on this exact artifact** (D-21 machine-pinned) plus the full redesign suite |
+
+### 3.2 Deploy legs (§4f step 3 form — AI_ENABLED UNSET)
+
+| Step | Execution | Evidence |
+|---|---|---|
+| Backup | `.snapshots/pre-0808-release-c-20261001.dump` | 176,711 B; created 2026-10-01 15:27:58 UTC, TOC 63, **11 TABLE DATA sections** |
+| Pre-state capture | counters snapshotted (`.snapshots/0808-release-c-counters-pre.txt`) | id2 4558/12/99.74 · id3 172/1/99.42 · id6 52/0/100 |
+| Migrate (single runner, once) | from the release-c checkout, contract sourced | exit 0, **TRUE NO-OP** — journal unchanged at **5 rows** |
+| Worker restart (readyz-gated) | guarded kill — PID 23128, cmdline verified — then `node dist/worker.js` from the release-c worktree | `readyz` green first poll; `healthz` **`{"sha":"3372424","builtAt":"2026-10-01T15:29:15.816Z","pid":29820}`** |
+| Web restart | guarded kill — PID 17188, cmdline verified — then `pnpm start` from the release-c worktree (no AI env in the contract, none ambient) | `/login` **200** first poll; `/` **200** |
+| Smoke (synthetic check → ping row) | `pnpm smoke:enqueue` from the release-c checkout | **PASS** — jobId `check-manual:3:1790868875002` (epoch 15:34:35Z), new evidence ping **UP / 27 ms** |
+
+### 3.3 Dark-posture proof (D-38/D-21)
+
+- **Zero `AI_*` env on the stack**: the worker/web launch contract carries none by design; the ambient `.env`/`.env.production` were name-grepped pre-deploy — none. The app runs fully AI-less with zero AI keys on the box.
+- **Routes refuse behind the flag**: `POST /api/ai/post-mortem` → **404** `{"error":"Not Found"}`; `POST /api/ai/monitor-assistant` → **404** — the 08-10 `runAiGuards` flag-off refusal, pre-body-read, live in production.
+- **Zero UI trace**: served pages carry zero AI strings (login-page grep: 0 hits for "post-mortem"/"Describe it in plain words"); the artifact's flag-OFF e2e legs pin the D-21 zero-trace shape (no disabled buttons, no tooltips) on authenticated surfaces.
+
+### 3.4 Release C dark-soak window (D-37/D-38)
+
+**Opened 15:34:47Z → closed 15:50:44Z (~16 min), CLEAN — monitoring stability only (nothing AI exists to observe):**
+
+- Worker continuity: same PID 29820 (sha 3372424) for the whole window (healthz uptime 45 s → 1002 s continuous); `readyz` green at open, midpoint (15:42:32Z), and close.
+- Queue depth ≈ 0 at close: every lane `wait=0 / prioritized=0`, `oldestWaitingJobAgeMs=null` (all six lanes).
+- Pings flowing: **16 new ping rows** during the window; web `/login` 200 at open, midpoint, and close.
+- Final dark re-probe at close: `POST /api/ai/post-mortem` still **404** (flag-off refusal holds after the soak).
+- D-38 gate: the dark soak is clean — the app is one env flip away from the AI-on leg, which is Task 5's blocking operator gate.
 
 ## 4. THE FLIP — AI_ENABLED=true (D-38; blocking operator gate)
 

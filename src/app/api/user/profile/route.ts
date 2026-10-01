@@ -2,6 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { getAuthSession } from "@/lib/session";
+import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { v2 as cloudinary } from 'cloudinary';
 import bcrypt from "bcryptjs";
@@ -17,9 +18,15 @@ import { users } from "@/db/schema";
 // DB-side cascade semantics Prisma relied on.
 // 07-10 (G-07-63/CR-01): GET/returning rows normalize createdAt/updatedAt
 // through the ONE serialize seam — ISO-8601 UTC Z on the wire; the PATCH
-// write rides WR-01 (updatedAt advances). NOTE: the PATCH password branch
-// is review WR-03 (WINDOWS ledger #4, Phase-8 scope) — deliberately
-// untouched here.
+// write rides WR-01 (updatedAt advances).
+// WINDOWS #4 closure (2026-10-02): the PATCH password branch used to verify
+// against and write ONLY the legacy inert users.password copy, so a
+// profile-set password never changed the real login password (account.password,
+// the Better Auth engine copy since the Phase-7 flip). The branch now
+// delegates to auth.api.changePassword on the one createAuth() instance — the
+// engine validates the current password against account.password and writes
+// it (revoking other sessions, D-28 posture) — and then keeps the legacy
+// users.password copy in sync (the 07-08 both-copies discipline).
 
 // Cloudinary Configuration
 cloudinary.config({
@@ -128,7 +135,7 @@ export async function PATCH(req: Request) {
         }
 
         // ------------------------------------------------
-        // PASSWORD UPDATE LOGIC
+        // PASSWORD UPDATE LOGIC (WINDOWS #4 closure)
         // ------------------------------------------------
 
         if (newPassword) {
@@ -139,31 +146,41 @@ export async function PATCH(req: Request) {
                 )
             }
 
-            // If the user already has a password, we must verify their current password
-            if (existingUser.password) {
-                if (!currentPassword) {
-                    return NextResponse.json(
-                        { error: "Current password is required to set a new password" },
-                        { status: 400 }
-                    )
-                }
-
-                const isCurrentPasswordValid = await bcrypt.compare(
-                    currentPassword,
-                    existingUser.password
+            // If the user already has a password, the engine requires the
+            // current one (checked here for the stable client-facing message;
+            // the engine re-checks against the authoritative account.password).
+            if (existingUser.password && !currentPassword) {
+                return NextResponse.json(
+                    { error: "Current password is required to set a new password" },
+                    { status: 400 }
                 )
-
-                if (!isCurrentPasswordValid) {
-                    return NextResponse.json(
-                        { error: "Invalid current password" },
-                        { status: 400 }
-                    )
-                }
             }
 
-            // Hash the new password and add to updateData
-            const hashedPassword = await bcrypt.hash(newPassword, 10);
-            updateData.password = hashedPassword;
+            // The engine owns the real credential (account.password): it
+            // validates the current password and writes the new hash,
+            // revoking every OTHER session (D-28 posture — the same
+            // semantics the operator's 2026-09-30 change used). Any engine
+            // rejection here maps to the route's long-standing 400 contract.
+            try {
+                await auth.api.changePassword({
+                    body: {
+                        currentPassword: currentPassword ?? "",
+                        newPassword,
+                        revokeOtherSessions: true,
+                    },
+                    headers: req.headers,
+                });
+            } catch {
+                return NextResponse.json(
+                    { error: "Invalid current password" },
+                    { status: 400 }
+                )
+            }
+
+            // Keep the legacy users.password copy in sync with the engine
+            // copy (07-08 both-copies discipline — independent salt is fine,
+            // the copies never compare against each other).
+            updateData.password = await bcrypt.hash(newPassword, 10);
         }
 
         if (Object.keys(updateData).length === 0) {

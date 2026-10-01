@@ -1,25 +1,22 @@
 ---
-status: testing
+status: complete
 phase: 07-better-auth-cutover-admin-gating-prisma-removal
 source: [07-01-SUMMARY.md, 07-02-SUMMARY.md, 07-03-SUMMARY.md, 07-04-SUMMARY.md, 07-05-SUMMARY.md, 07-06-SUMMARY.md, 07-07-SUMMARY.md, 07-08-SUMMARY.md]
 started: 2026-10-01T16:24:04.832Z
-updated: 2026-10-01T16:24:04.832Z
+updated: 2026-10-01T18:57:02Z
 ---
 
 ## Current Test
-<!-- OVERWRITE each test - shows where we are -->
 
-number: 1
-name: Cold Start Smoke Test
-expected: |
-  Kill any running server/service. Clear ephemeral state (temp DBs, caches, lock files). Start the application from scratch. Server boots without errors, any seed/migration completes, and a primary query (health check, homepage load, or basic API call) returns live data.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
 ### 1. Cold Start Smoke Test
 expected: Kill any running server/service. Clear ephemeral state (temp DBs, caches, lock files). Start the application from scratch. Server boots without errors, any seed/migration completes, and a primary query (health check, homepage load, or basic API call) returns live data.
-result: [pending]
+result: pass
+source: delegate-run (evidence adjudication against 07-DEPLOY-RECORD.md sections plus a live-stack re-check; 2026-10-01T18:57Z)
+evidence: Three production cold boots in the phase arc — flip §13.4 (2026-09-24), deletion §16.4 (2026-09-29), drop §17.3 (2026-09-29) — each worker-first readyz-gated green with web /login 200 and monitoring live. Live re-check this session: /login 200, readyz {"ok":true,"redis":{"ok":true},"db":{"ok":true}}, healthz sha 3372424 (uptime ~3.3h), :9090/admin/queues 403 unauth.
 
 ### 2. [07-01 D1] Cutover migration 0002 backfill semantics: credential rows = users-wit… (automated)
 expected: Cutover migration 0002 backfill semantics: credential rows = users-with-password, per-provider reshaped counts equal legacy counts, D-40 non-null refresh/access token counts preserved per provider, D-23 boolean maps exact truthiness both sides
@@ -293,67 +290,95 @@ coverage_id: D5
 
 ### 47. [07-02] Announcement copy WORDING/adequacy approved by the operator (D-06: ins…
 expected: Announcement copy WORDING/adequacy approved by the operator (D-06: inspect exact rendered bytes via console provider at the flip rehearsal)
-result: [pending]
+result: pass
+source: delegate-run (evidence adjudication against 07-DEPLOY-RECORD.md sections plus a live-stack re-check; 2026-10-01T18:57Z)
+evidence: §9 Leg 7 — D-06 OPERATOR CHECKPOINT RESOLVED: copy approved by operator (mehedishubho) 2026-09-24 against the exact rendered console bytes (verification 003739e643a353a3, reset 3519cc7b4c0dc8d5, announcement a27dbf56e44d6f35 with AUTH_FLIP_DATE=2026-09-28, notice strip render, D-22 refusal copy).
 
 ### 48. [07-02] The blast runs end-to-end on a real stack (real Redis email lane, cons…
 expected: The blast runs end-to-end on a real stack (real Redis email lane, console-provider dry-run inspected, then a production send)
-result: [pending]
+result: pass
+source: delegate-run (evidence adjudication against 07-DEPLOY-RECORD.md sections plus a live-stack re-check; 2026-10-01T18:57Z)
+evidence: §9 Leg 7 dry-run — [blast] PASS: 7 announcement email(s) enqueued, all console-transported, D-06-inspected; production send §12.3/§13.4 — 5/5 registered users enqueued with the D-06-approved bytes, drained 5 pending → 0 (+5 completed), 0 failed (~6 min, 2026-09-24).
 
 ### 49. [07-03] Full-parity config inventory in src/lib/auth.ts: every D-21..D-28/D-42…
 expected: Full-parity config inventory in src/lib/auth.ts: every D-21..D-28/D-42..D-44 pin explicit (TTLs 3600, minPasswordLength 6, requireEmailVerification, sendOnSignIn false, 30d session + updateAge/freshAge defaults, cookieCache jwt 5min, disableImplicitLinking, autoSignIn false, revokeSessionsOnPasswordReset true, rateLimit customRules 5/h on /sign-up/email + /request-password-reset, ipAddressHeaders x-forwarded-for, trustedOrigins, admin role primitive only)
-result: [pending]
+result: pass
+source: delegate-run (evidence adjudication against 07-DEPLOY-RECORD.md sections plus a live-stack re-check; 2026-10-01T18:57Z)
+evidence: src/lib/auth.ts carries every pin family this session (13/13 token greps: 3600 TTLs, minPasswordLength, rateLimit customRules, trustedOrigins, cookieCache); 07-03-SUMMARY records the full-parity inventory; the §13.2 flip env contract exercised it live (canary 200).
 
 ### 50. [07-04] Six auth forms swapped onto authClient with byte-frozen pixels (import…
 expected: Six auth forms swapped onto authClient with byte-frozen pixels (import-line + handler-body diffs only) and the D-33 mapping realized: 401 -> 'Invalid email or password.'; 403 EMAIL_NOT_VERIFIED -> 'Please verify your email address before logging in.'; provider-initiate/account_not_linked -> frozen ${provider} toast; RegisterForm duplicate-email synthetic 200 keeps the success toast (A4); dead pre-flip tokens land on the existing error state (D-20)
-result: [pending]
+result: pass
+source: delegate-run (evidence adjudication against 07-DEPLOY-RECORD.md sections plus a live-stack re-check; 2026-10-01T18:57Z)
+evidence: 07-04-SUMMARY — six auth forms swapped with byte-frozen pixels (import-line + handler-body diffs only) and the D-33 mapping realized (401 invalid-credentials, 403 EMAIL_NOT_VERIFIED, provider account_not_linked toast, duplicate-email synthetic-200 keeps the A4 success toast, dead pre-flip tokens land on the existing error state per D-20); the one post-swap rendering finding (statically prerendered /login baking in the no-window null) was found and fixed in-leg (force-dynamic, commit 8ed37bd — §9 deviation D1); the A4 delta is accepted on the record (§18.4 note 2).
 
 ### 51. [07-04] Nine dashboard/common components on authClient with existing condition…
 expected: Nine dashboard/common components on authClient with existing conditional-render semantics intact; AuthProvider deleted and layout wrapper removed; ProfileComponent refresh via authClient.updateUser; TeamSwitch js-cookie/Redux lines untouched (07-08 scope)
-result: [pending]
+result: pass
+source: delegate-run (evidence adjudication against 07-DEPLOY-RECORD.md sections plus a live-stack re-check; 2026-10-01T18:57Z)
+evidence: 07-04-SUMMARY — nine dashboard/common components swapped onto authClient via the useAuthSession accessor with conditional renders byte-identical; this session: zero AuthProvider matches in src/ (deleted with its layout wrapper); TeamSwitch js-cookie/Redux lines deliberately left at 07-04 for 07-08 scope and removed there (b20b599 — AUTH-08 disposition, §18.2).
 
 ### 52. [07-04] D-02 notice strip on /login: server-rendered, role=status, frozen toke…
 expected: D-02 notice strip on /login: server-rendered, role=status, frozen tokens (bg-card/border-border/rounded-xl, muted w-4 h-4 icon aria-hidden, text-foreground 14px), frozen D-02 sentence, non-dismissible zero client state, renders null outside the AUTH_NOTICE_START..END window with zero reserved space
-result: [pending]
+result: pass
+source: delegate-run (evidence adjudication against 07-DEPLOY-RECORD.md sections plus a live-stack re-check; 2026-10-01T18:57Z)
+evidence: §9 Leg 7 real-browser render — exact outerHTML + screenshot (.snapshots/0706-notice-strip.png) with role=status and the frozen tokens; §13.3 leg g GREEN (strip in the served /login HTML, window 2026-09-24..2026-10-08). The surface was then removed BY DESIGN at 07-08 under D-05 delete-after-use: component + test + e2e spec + login-page mount deleted (9dfabd8), copy-marker count 0 on production post-deletion (§16.4) and post-drop (§17.3 step 6) — the strip's absence today is the designed end-state, not a regression.
 
 ### 53. [07-05] Bull Board console error state — gate failures render the refusal page…
 expected: Bull Board console error state — gate failures render the refusal page, never a broken frame (must_haves backstop truth, UI Considerations 'error/Bull Board' row)
-result: [pending]
+result: pass
+source: delegate-run (evidence adjudication against 07-DEPLOY-RECORD.md sections plus a live-stack re-check; 2026-10-01T18:57Z)
+evidence: 07-05-SUMMARY — two independent gates (ADMIN_IP_ALLOWLIST socket-source, then Better Auth admin session); gate failures are answered by our server code (403 JSON + D-16 audit line), never by a broken Bull Board frame; §8 Leg 6 matrix (200 admin / 403 non-admin / 403 no-session / 403 ip-not-allowlisted) plus the 9-case gate suite; re-proven at flip §13.3 leg f, deletion §16.4 smoke (d), drop §17.3 step 5; live re-check this session: 403 unauth.
 
 ### 54. [07-06] D-06 operator copy sign-off — verification/reset/announcement bytes, n…
 expected: D-06 operator copy sign-off — verification/reset/announcement bytes, notice strip render, D-22 refusal copy approved as rendered
-result: [pending]
+result: pass
+source: delegate-run (evidence adjudication against 07-DEPLOY-RECORD.md sections plus a live-stack re-check; 2026-10-01T18:57Z)
+evidence: §9 Leg 7 — the same D-06 operator checkpoint; its recorded scope covers verification/reset/announcement bytes + notice strip render + D-22 refusal copy, approved as rendered 2026-09-24 (mehedishubho).
 
 ### 55. [07-07] Announcement blast ran through the production queue for all 5 register…
 expected: Announcement blast ran through the production queue for all 5 registered users with the D-06-approved bytes and drained 0-failed (console transport; 4/5 recipients internal fixtures, recorded)
-result: [pending]
+result: pass
+source: delegate-run (evidence adjudication against 07-DEPLOY-RECORD.md sections plus a live-stack re-check; 2026-10-01T18:57Z)
+evidence: §12.3/§13.4 — all 5 registered users received the D-06-approved bytes through the production queue; drain evidence: email lane 5 pending → 0 pending, completed 11 → 16 (+5), 0 failed (2026-09-24, ~6 min); 4/5 recipients are internal fixtures, recorded (§12.3); AUTH-06 dispositioned Complete (§18.2).
 
 ### 56. [07-07] Flip release deployed per runbook §4c: pre-flip pg_dump (145,254 B, re…
 expected: Flip release deployed per runbook §4c: pre-flip pg_dump (145,254 B, restore-listed) → 0002 migrate (journal=3) → seed-admin-roles 1 grant → readyz-gated flip worker (:9090/admin/queues 403 unauth) → web /login 200 + notice strip live
-result: [pending]
+result: pass
+source: delegate-run (evidence adjudication against 07-DEPLOY-RECORD.md sections plus a live-stack re-check; 2026-10-01T18:57Z)
+evidence: §13.4 flip ledger — pre-flip pg_dump pre-phase7-flip-20260924-2147.dump (145,254 B, pg_restore --list verified); 0002 migrate exit 0 (journal = 3); seed-admin-roles PASS 1 grant (roster operator-confirmed); readyz-gated flip worker (first-try readyz 200; :9090/admin/queues 403 unauth, never 500); web /login 200 + notice strip live. Executed early 2026-09-24 by operator decision (§13.3), full §4c sequence as written.
 
 ### 57. [07-07] D-38 canary green on the credentials path — old-password login proven …
 expected: D-38 canary green on the credentials path — old-password login proven twice (real API: 200 + session cookie + authenticated /api/monitors 200 with live monitor data; operator browser session), admin matrix green, dead-error logs quiet
-result: [pending]
+result: pass
+source: delegate-run (evidence adjudication against 07-DEPLOY-RECORD.md sections plus a live-stack re-check; 2026-10-01T18:57Z)
+evidence: §13.3 leg a GREEN twice — real API POST /api/auth/sign-in/email 200 + better-auth.session_token cookie + authenticated GET /api/monitors 200 returning live production monitor data (hash re-salted on login, A-1 parity), plus the operator browser session pass (2026-09-24); leg e admin matrix GREEN (admin 200 / anonymous 401 / non-admin 403); leg h dead-error logs quiet (0 typed error markers, one explained WARN — §15 deviation 4).
 
 ### 58. [07-07] D-38 Google/GitHub legs + D-40 live no-re-consent assertion dispositio…
 expected: D-38 Google/GitHub legs + D-40 live no-re-consent assertion dispositioned not-exercisable and reserved for the server deploy; token preservation stands on 07-06's snapshot pass
-result: [pending]
+result: pass
+source: delegate-run (evidence adjudication against 07-DEPLOY-RECORD.md sections plus a live-stack re-check; 2026-10-01T18:57Z)
+evidence: §13.3 legs b/c + the D-40 live no-re-consent assertion DISPOSITIONED not-exercisable on this topology (standin dummy OAuth credentials; zero OAuth accounts ever existed — fresh dump legacy accounts table empty, 07-06 §10); token preservation stands on 07-06's D-40 snapshot pass B (google 2/1/2 incl. NULL-refresh propagation, github 1/1/1); the verbatim assertion is recorded and reserved for the server deploy (§13.3, §18.2 AUTH-05).
 
 ### 59. [07-07] D-31 soak evidence complete and the single D-36 operator approval reco…
 expected: D-31 soak evidence complete and the single D-36 operator approval recorded — deletion release (07-08) authorized via operator early close
-result: [pending]
+result: pass
+source: delegate-run (evidence adjudication against 07-DEPLOY-RECORD.md sections plus a live-stack re-check; 2026-10-01T18:57Z)
+evidence: §14.4/§14.5 — final typed-gate run 2026-09-25T11:59:55Z PASS 6 pass / 7 attest / 0 fail over window 2026-09-24T19:00Z→2026-09-25T18:00Z (~23h; the SHORT-WINDOW note is covered by the approval); the earlier 11:46Z FAIL run superseded on the append-only record; the mid-window reboot outage and the unobserved nightly maintenance pass are recorded plainly and accepted; D-36 operator APPROVE (mehedishubho, early close 2026-09-25) recorded verbatim — the deletion release was authorized.
 
 ### 60. [07-08] Deletion release DEPLOYED per runbook §4d with production smoke green …
 expected: Deletion release DEPLOYED per runbook §4d with production smoke green (the plan's must_have truth #6 and Task 3 human-check)
-result: [pending]
+result: pass
+source: delegate-run (evidence adjudication against 07-DEPLOY-RECORD.md sections plus a live-stack re-check; 2026-10-01T18:57Z)
+evidence: §16.4 — runbook §4d steps 2-6 executed 2026-09-29 (deploy SHA eaa5a4d; pre-deploy dump pre-0708-deletion-20260929-1449.dump 151,617 B restore-verified; readyz 200; /login 200 with no strip; smoke legs green: sign-in 200, /api/monitors 200 live, feedback 401/200/403, Bull Board 403, pings 4037→4038) — §4d verdict PASS. Preceded by operator decision A restore + replay (§16.6, chosen interactively, superseding §16.5 decision C). The follow-on drop release §4e is also PASS (§17.3) with the post-drop canary green (§17.3 step 7b).
 
 
 ## Summary
 
 total: 60
-passed: 45
+passed: 60
 issues: 0
-pending: 15
+pending: 0
 skipped: 0
 
 ## Gaps

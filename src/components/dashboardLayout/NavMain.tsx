@@ -50,7 +50,7 @@ export function NavMain({
                   className={`flex items-center gap-4 rounded-xl px-3 py-2.5 w-full cursor-pointer text-left transition-colors ${
                     active
                       ? "text-accent-cyan bg-cyan-500/10 border border-cyan-500/20 font-medium hover:bg-cyan-500/20"
-                      : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   }`}
                 >
                   <div className="flex items-center gap-3">

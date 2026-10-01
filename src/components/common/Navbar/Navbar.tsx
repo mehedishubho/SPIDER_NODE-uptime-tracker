@@ -54,7 +54,7 @@ export const Navbar = () => {
                   await authClient.signOut();
                   window.location.href = "/";
                 }}
-                className="p-2 rounded-xl bg-secondary border border-border text-muted-foreground hover:text-rose-400 transition-colors cursor-pointer"
+                className="p-2 rounded-xl bg-secondary border border-border text-muted-foreground hover:text-danger-strong transition-colors cursor-pointer"
                 title="Sign Out"
               >
                 <LogOut className="w-4 h-4" />
@@ -108,7 +108,7 @@ export const Navbar = () => {
                   await authClient.signOut();
                   window.location.href = "/";
                 }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-sm font-medium"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-danger-strong/10 text-danger-strong border border-danger-strong/20 text-sm font-medium"
               >
                 <LogOut className="w-4 h-4" />
                 <span>Sign Out</span>

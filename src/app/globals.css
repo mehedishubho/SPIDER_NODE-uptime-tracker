@@ -33,7 +33,6 @@
   --color-status-up: var(--status-up);
   --color-status-down: var(--status-down);
   --color-foreground-invert: var(--foreground-invert);
-  --color-highlight-purple: var(--highlight-purple);
   --color-accent-cyan: var(--accent-cyan);
   --color-muted-meta: var(--muted-meta);
   --color-danger-strong: var(--danger-strong);
@@ -95,13 +94,13 @@
      --danger-strong darkened to 6.20:1 (also clears AA on its /10 hover
      wash, where #DE251F measured ~4.0). KEPT same-value (both modes already
      work): --foreground-invert (near-black text + intentional dark panels),
-     --highlight-purple (bg-fill role; only consumer is the unreferenced
-     Pagination), --foreground-bright + --surface-* + --accent-gold*
+     --foreground-bright + --surface-* + --accent-gold*
      (UnderConstruction paints an always-dark canvas in both modes).
      The --dialog-* Swal trio RETIRED (alert-dialog uses --popover/--card
-     since 08-02). Dark default values unchanged (D-31). */
+     since 08-02). --highlight-purple RETIRED 2026-10-02 with the deletion of
+     the dead Pagination component (its only consumer). Dark default values
+     unchanged (D-31). */
   --foreground-invert: #0f172a;
-  --highlight-purple: #A141FE;
   --accent-cyan: #0e7490;
   --muted-meta: #62666c;
   --danger-strong: #b91c1c;
@@ -152,7 +151,6 @@
   /* 08-05 11-token review outcome: dark keeps today's values for every
      token (the splits are :root-only per D-31); --dialog-* retired above. */
   --foreground-invert: #0f172a;
-  --highlight-purple: #A141FE;
   --accent-cyan: #00E5FF;
   --muted-meta: #8A8D91;
   --danger-strong: #DE251F;

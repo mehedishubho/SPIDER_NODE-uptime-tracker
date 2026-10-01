@@ -1,7 +1,7 @@
 ---
 phase: 08-flagged-capabilities-ui-modernization
 verified: 2026-10-01T16:37:46Z
-status: human_needed
+status: passed
 score: 5/5 roadmap success criteria verified (2 sub-claims present + wired but behavior-unverified)
 behavior_unverified: 2
 overrides_applied: 0
@@ -61,6 +61,7 @@ covered_files:
   - tests/worker/maintenance-windowed.test.ts
   - tests/worker/scheduler-flag.test.ts
   - tests/worker/windowed-uptime.test.ts
+
 covered_digest: "v2:sha256:46c6325042035d3b20aff027bc5d55054604db51bbfc418fda17dbb272b0c913"
 behavior_unverified_items:
   - truth: "Every polling fetch is abortable and timers clear on unmount (SC4 cancellation/cleanup invariant clauses)"

@@ -1,5 +1,8 @@
 import type { LanguageModel } from "ai";
+import { createAnthropicModel } from "./providers/anthropic";
+import { createCustomModel } from "./providers/custom";
 import { createGlmModel } from "./providers/glm";
+import { createOpenAiModel } from "./providers/openai";
 
 // ---------------------------------------------------------------------------
 // The D-01/D-02 lib/ai module: the AI provider abstraction and AI_* env
@@ -19,9 +22,11 @@ import { createGlmModel } from "./providers/glm";
 //                                         "enabled" state)
 //   AI_PROVIDER unknown value          -> THROWS listing the accepted set
 //                                         (glm | openai | anthropic | custom
-//                                         — the remaining factories land in
-//                                         08-06 Task 2; a typo must fail
-//                                         loud, never silently no-op)
+//                                         — a typo must fail loud, never
+//                                         silently no-op)
+//   AI_PROVIDER "custom"               -> additionally requires AI_BASE_URL
+//                                         (providers/custom.ts throws naming
+//                                         the var when it is absent)
 //
 // The selected model is cached per module instance and constructed LAZILY —
 // importing this module never reads env or builds a provider. aiEnabled()
@@ -74,6 +79,15 @@ export function getAiModel(): LanguageModel {
   switch (provider) {
     case "glm":
       resolved = createGlmModel({ apiKey, model });
+      break;
+    case "openai":
+      resolved = createOpenAiModel({ apiKey, model });
+      break;
+    case "anthropic":
+      resolved = createAnthropicModel({ apiKey, model });
+      break;
+    case "custom":
+      resolved = createCustomModel({ apiKey, model });
       break;
     default:
       throw new Error(

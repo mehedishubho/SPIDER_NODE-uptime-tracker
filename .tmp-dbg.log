@@ -1,0 +1,19 @@
+[33m[MIXED_EXPORTS] [0mEntry module "vitest.config.ts" is using named (including "DEFAULT_TEST_DATABASE_URL", "DEFAULT_TEST_REDIS_URL", "default") and default exports together. Consumers of your bundle will have to use `chunk.default` to access the default export, which may not be what you want. Use `output.exports: "named"` to disable this warning.
+
+◇ injected env (1) from .env.test // tip: ◈ encrypted .env [www.dotenvx.com]
+[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.[39m
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90mD:/Devsroom-Work/devsroom-uptime-tracker[39m
+
+No config path provided, using default 'drizzle.config.ts'
+Reading config file 'D:\Devsroom-Work\devsroom-uptime-tracker\drizzle.config.ts'
+Using 'pg' driver for database querying
+[⣷] applying migrations...[2K[1G[✓] migrations applied successfully! [32m✓[39m tests/api/__sigprobe.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 67[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m   Start at [22m 17:24:09
+[2m   Duration [22m 1.04s[2m (transform 5ms, setup 0ms, import 13ms, tests 67ms, environment 0ms)[22m
+

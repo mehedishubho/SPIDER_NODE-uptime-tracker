@@ -1,0 +1,28 @@
+# Local DEV database — persistent, separate from the throwaway test stack
+# in docker-compose.test.yml (5453/6390, truncated by the suite on every run).
+# Port 5454: 5432 is held by an existing local Postgres service, 5433/6380 by
+# sibling project stacks, 5453/6390 by the test stack.
+# Bring up:  docker compose -f docker-compose.dev.yml up -d --wait
+# Tear down: docker compose -f docker-compose.dev.yml down
+# Wipe data: docker compose -f docker-compose.dev.yml down -v
+name: spidernode-dev
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: spidernode-dev-db
+    ports:
+      - "5454:5432"
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: uptime_dev
+    volumes:
+      - pgdata-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  pgdata-dev:

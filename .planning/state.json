@@ -1,0 +1,53 @@
+{
+  "contract": "1.0.0",
+  "flavor": "core",
+  "milestone": "v1.0",
+  "phases": [
+    {
+      "number": "1",
+      "name": "Design Gate — Review Verdict READY",
+      "status": "pending"
+    },
+    {
+      "number": "2",
+      "name": "Foundations & Theme Infrastructure",
+      "status": "pending"
+    },
+    {
+      "number": "3",
+      "name": "Redis & Drizzle Schema Ownership",
+      "status": "pending"
+    },
+    {
+      "number": "4",
+      "name": "Monitoring Worker — Build & Dark Launch",
+      "status": "pending"
+    },
+    {
+      "number": "5",
+      "name": "Worker Cutover & Operational Hardening",
+      "status": "pending"
+    },
+    {
+      "number": "6",
+      "name": "Thin API Routes & Email Abstraction",
+      "status": "complete"
+    },
+    {
+      "number": "7",
+      "name": "Better Auth Cutover, Admin Gating & Prisma Removal",
+      "status": "complete"
+    },
+    {
+      "number": "8",
+      "name": "Flagged Capabilities & UI Modernization",
+      "status": "complete"
+    }
+  ],
+  "next": {
+    "command": "/gsd:progress",
+    "label": "Show progress",
+    "reason": "Unsure of state — showing progress"
+  },
+  "updated_at": "2026-10-01T17:33:15.143Z"
+}

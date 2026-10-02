@@ -1,0 +1,160 @@
+- generic [active] [ref=f1e1]:
+  - button "Open Next.js Dev Tools" [ref=f1e7] [cursor=pointer]
+  - alert [ref=f1e11]
+  - generic [ref=f1e12]:
+    - banner [ref=f1e13]:
+      - generic [ref=f1e14]:
+        - link "Logo SpiderNode" [ref=f1e15] [cursor=pointer]:
+          - /url: /
+          - img "Logo" [ref=f1e16]
+          - generic [ref=f1e17]: SpiderNode
+        - generic [ref=f1e18]:
+          - link "Star on GitHub" [ref=f1e19] [cursor=pointer]:
+            - /url: https://github.com/rakibutsho/uptime-tracker
+          - link "Sign In" [ref=f1e24] [cursor=pointer]:
+            - /url: /login
+    - generic [ref=f1e30]:
+      - generic [ref=f1e31]:
+        - generic [ref=f1e32]: Next-Gen Infrastructure Monitoring System
+        - heading "Instant Uptime Alerts. Zero False Positives." [level=1] [ref=f1e36]
+        - paragraph [ref=f1e37]: Monitor your websites, REST APIs, and microservices 24/7 with sub-minute pings, immediate Telegram/email alerts, and real-time latency graphs.
+        - generic [ref=f1e38]:
+          - link "Start Monitoring Free" [ref=f1e39] [cursor=pointer]:
+            - /url: /register
+          - link "Explore Dashboard" [ref=f1e43] [cursor=pointer]:
+            - /url: /dashboard
+      - generic [ref=f1e49]:
+        - generic [ref=f1e50]:
+          - generic [ref=f1e51]: spidernode.io/dashboard
+          - generic [ref=f1e56]: All Systems Operational (99.98%)
+        - generic [ref=f1e59]:
+          - generic [ref=f1e60]:
+            - generic [ref=f1e61]: Total Endpoints
+            - generic [ref=f1e62]: 12 Active
+          - generic [ref=f1e63]:
+            - generic [ref=f1e64]: Avg Response Time
+            - generic [ref=f1e65]: 24ms
+          - generic [ref=f1e66]:
+            - generic [ref=f1e67]: Incidents (30d)
+            - generic [ref=f1e68]: 0 Reported
+        - generic [ref=f1e69]:
+          - generic [ref=f1e70]:
+            - generic [ref=f1e71]: MONITOR NAME & TARGET
+            - generic [ref=f1e72]: STATUS
+            - generic [ref=f1e73]: LATENCY
+          - generic [ref=f1e74]:
+            - generic [ref=f1e75]:
+              - generic [ref=f1e78]:
+                - generic [ref=f1e79]: Production API Gateway
+                - generic [ref=f1e80]: https://api.myapp.com/v1/health
+              - generic [ref=f1e81]: OPERATIONAL
+              - generic [ref=f1e83]: 18 ms
+            - generic [ref=f1e84]:
+              - generic [ref=f1e87]:
+                - generic [ref=f1e88]: Auth Service Cluster
+                - generic [ref=f1e89]: https://auth.myapp.com/ping
+              - generic [ref=f1e90]: OPERATIONAL
+              - generic [ref=f1e92]: 32 ms
+      - generic [ref=f1e94]:
+        - generic [ref=f1e95]:
+          - generic [ref=f1e96]: Quick Start Guide
+          - heading "From Zero to Monitored in 60 Seconds" [level=2] [ref=f1e100]
+          - paragraph [ref=f1e101]: No complex SDKs or messy configurations. Just point us at your infrastructure and we'll handle the rest.
+        - generic [ref=f1e102]:
+          - generic [ref=f1e105]:
+            - generic [ref=f1e106]: "01"
+            - heading "Add Your Endpoint" [level=3] [ref=f1e113]
+            - paragraph [ref=f1e114]: Simply paste the URL of your website, REST API, or any public microservice that you want to keep online.
+          - generic [ref=f1e116]:
+            - generic [ref=f1e117]: "02"
+            - heading "Configure Alerts" [level=3] [ref=f1e124]
+            - paragraph [ref=f1e125]: Connect your Telegram account or set up webhooks to get instantly notified the second your service goes down.
+          - generic [ref=f1e127]:
+            - generic [ref=f1e128]: "03"
+            - heading "Monitor in Real-Time" [level=3] [ref=f1e135]
+            - paragraph [ref=f1e136]: Watch your dashboard light up with live ping metrics, response times, and historic uptime analytics.
+      - generic [ref=f1e138]:
+        - generic [ref=f1e139]:
+          - heading "Built for Engineering Teams" [level=2] [ref=f1e140]
+          - paragraph [ref=f1e141]: Everything you need to guarantee high availability and maintain customer trust.
+        - generic [ref=f1e142]:
+          - generic [ref=f1e143]:
+            - heading "Sub-Minute Pings" [level=3] [ref=f1e147]
+            - paragraph [ref=f1e148]: Automated continuous health checks ensure downtime is detected within seconds, before your customers notice.
+          - generic [ref=f1e149]:
+            - heading "Multi-Region Validation" [level=3] [ref=f1e153]
+            - paragraph [ref=f1e154]: Health checks double verify from multiple geographic locations to prevent false alarm noise.
+          - generic [ref=f1e155]:
+            - heading "Instant Alerting" [level=3] [ref=f1e160]
+            - paragraph [ref=f1e161]: Receive instant notifications via Webhooks, Email, or Telegram when any endpoint experiences latency spikes or HTTP errors.
+    - contentinfo [ref=f1e162]:
+      - generic [ref=f1e163]:
+        - generic [ref=f1e164]:
+          - generic [ref=f1e165]:
+            - link "Logo SpiderNode" [ref=f1e166] [cursor=pointer]:
+              - /url: /
+              - img "Logo" [ref=f1e167]
+              - generic [ref=f1e168]: SpiderNode
+            - paragraph [ref=f1e169]: Real-time infrastructure health monitoring, HTTP uptime checks, and instant developer alerts with zero false positives.
+            - generic [ref=f1e170]: All Systems Operational (99.98%)
+            - generic [ref=f1e173]:
+              - link "GitHub" [ref=f1e174] [cursor=pointer]:
+                - /url: https://github.com/rakibutsho/uptime-tracker
+              - link "Twitter" [ref=f1e179] [cursor=pointer]:
+                - /url: "#"
+              - link "LinkedIn" [ref=f1e183] [cursor=pointer]:
+                - /url: "#"
+              - link "Email" [ref=f1e188] [cursor=pointer]:
+                - /url: mailto:support@spidernode.com
+          - generic [ref=f1e193]:
+            - heading "Features" [level=3] [ref=f1e194]
+            - list [ref=f1e195]:
+              - listitem [ref=f1e196]:
+                - link "Uptime Monitoring" [ref=f1e197] [cursor=pointer]:
+                  - /url: /features/uptime-monitoring
+              - listitem [ref=f1e198]:
+                - link "API Monitoring" [ref=f1e199] [cursor=pointer]:
+                  - /url: /features/api-monitoring
+              - listitem [ref=f1e200]:
+                - link "Status Pages" [ref=f1e201] [cursor=pointer]:
+                  - /url: /features/status-pages
+              - listitem [ref=f1e202]:
+                - link "Incident Response" [ref=f1e203] [cursor=pointer]:
+                  - /url: /features/incident-response
+          - generic [ref=f1e204]:
+            - heading "Resources" [level=3] [ref=f1e205]
+            - list [ref=f1e206]:
+              - listitem [ref=f1e207]:
+                - link "Documentation" [ref=f1e208] [cursor=pointer]:
+                  - /url: /docs
+              - listitem [ref=f1e209]:
+                - link "API Reference" [ref=f1e210] [cursor=pointer]:
+                  - /url: /api-reference
+              - listitem [ref=f1e211]:
+                - link "System Status" [ref=f1e212] [cursor=pointer]:
+                  - /url: /status
+              - listitem [ref=f1e213]:
+                - link "GitHub Repository" [ref=f1e214] [cursor=pointer]:
+                  - /url: https://github.com/rakibutsho/uptime-tracker
+          - generic [ref=f1e215]:
+            - heading "Legal" [level=3] [ref=f1e216]
+            - list [ref=f1e217]:
+              - listitem [ref=f1e218]:
+                - link "Privacy Policy" [ref=f1e219] [cursor=pointer]:
+                  - /url: /privacy-policy
+              - listitem [ref=f1e220]:
+                - link "Terms of Service" [ref=f1e221] [cursor=pointer]:
+                  - /url: /terms
+              - listitem [ref=f1e222]:
+                - link "Cookie Settings" [ref=f1e223] [cursor=pointer]:
+                  - /url: /cookie-settings
+              - listitem [ref=f1e224]:
+                - link "Security SLA" [ref=f1e225] [cursor=pointer]:
+                  - /url: /security-sla
+        - generic [ref=f1e226]:
+          - paragraph [ref=f1e227]: © 2026 SpiderNode. All rights reserved.
+          - paragraph [ref=f1e228]:
+            - text: Designed & Developed by
+            - link "Md. Rakibul Islam" [ref=f1e229] [cursor=pointer]:
+              - /url: https://rakibutsho.dev
+  - region "Notifications alt+T"
